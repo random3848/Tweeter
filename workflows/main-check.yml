@@ -1,0 +1,34 @@
+# Save in your repo as: .github/workflows/main-source-check.yml
+#
+# Fails any pull request into main unless it comes from this repo's
+# development branch. Add the "source-branch" check as a required
+# status check in the main ruleset so a failure blocks the merge.
+
+name: main source check
+
+on:
+  pull_request:
+    branches: [main]
+    # "edited" re-runs the check if an existing PR is retargeted to main
+    types: [opened, synchronize, reopened, edited]
+
+# The check needs no access to the repo at all
+permissions: {}
+
+jobs:
+  source-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Only development may merge into main
+        # Branch names are passed as env vars, never pasted into the script,
+        # so a crafted branch name can't inject shell commands.
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          THIS_REPO: ${{ github.repository }}
+        run: |
+          if [ "$HEAD_REF" != "development" ] || [ "$HEAD_REPO" != "$THIS_REPO" ]; then
+            echo "::error::PRs into main must come from $THIS_REPO:development (this one is from $HEAD_REPO:$HEAD_REF). Retarget it to development."
+            exit 1
+          fi
+          echo "Source is development. OK."
