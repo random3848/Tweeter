@@ -1,0 +1,41 @@
+# Copied verbatim from the GitHub Android CI starter workflow:
+#   https://github.com/actions/starter-workflows/blob/main/ci/android.yml
+#
+# Only two changes from upstream:
+#   1. JDK 11 -> 17 (upstream is stale; Android Gradle Plugin 8.x needs 17).
+#   2. "$default-branch" -> explicit branches. That placeholder expands to this
+#      repo's default branch, which is main, so it would never have run on
+#      development. PRs list both bases: feature -> development, and the
+#      development -> main release PR.
+#
+# The job id is "build" and nothing overrides it, so the required status check
+# to add in the ruleset is exactly "build". Deliberately no "paths:" filter: a
+# workflow skipped by a path filter never reports, and a required check that
+# never reports leaves the PR waiting forever.
+
+name: Android CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main, development ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+    - name: Build with Gradle
+      run: ./gradlew build

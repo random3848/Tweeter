@@ -1,0 +1,25 @@
+# Copied verbatim from the gradle/actions docs, "Add a new dedicated Workflow":
+#   https://github.com/gradle/actions/blob/main/docs/wrapper-validation.md
+#
+# Needed because build.yml uses the starter template, which caches through
+# setup-java rather than setup-gradle. setup-gradle v4+ validates the wrapper
+# JAR automatically; setup-java's cache does not, so this covers it separately.
+#
+# Checks that every gradle-wrapper.jar in the repo matches the SHA-256 of an
+# official Gradle release, including homoglyph-named variants.
+#
+# The job sets name: "Validation", so that is the check name, not "validation".
+
+name: "Validate Gradle Wrapper"
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validation:
+    name: "Validation"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: gradle/actions/wrapper-validation@v6

@@ -1,5 +1,3 @@
-# Save in your repo as: .github/workflows/main-source-check.yml
-#
 # Fails any pull request into main unless it comes from this repo's
 # development branch. Add the "source-branch" check as a required
 # status check in the main ruleset so a failure blocks the merge.
