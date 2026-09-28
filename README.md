@@ -1,4 +1,3 @@
 # Tweeter
 Kotlin app project 
-Connor Stevenson
-Names: JK
+Names: JK, Kayla McNeill, Sol Herrera, Connor Stevenson
