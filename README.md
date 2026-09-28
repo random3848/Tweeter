@@ -1,4 +1,4 @@
 # Tweeter
 Kotlin app project
 
-Names: JK
+Names: JK, Kayla McNeill
