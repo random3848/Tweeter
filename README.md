@@ -1,3 +1,4 @@
 # Tweeter
 Kotlin app project
-Sol Herrera
+
+Names: JK, Kayla McNeill, Sol Herrera
