@@ -50,6 +50,10 @@ The team uses Gitflow. `development` is Gitflow's `develop` branch (and the defa
 - **Under no circumstances touch `development` or `main` directly.** That means no commits,
   pushes, merges or rebases from the command line, edits in GitHub's web editor, or history
   rewrites. They change only when a reviewed pull request is merged on GitHub.
+- **Never delete a branch, ever,** on GitHub or locally. That includes the "Delete branch"
+  button after a merge, `gh pr merge --delete-branch`, `gh pr close --delete-branch`,
+  `git push origin --delete`, `git branch -d`/`-D`, and turning on the "Automatically delete head
+  branches" setting. Finished branches stay in the repository.
 - **Features:** start each change on a `feature_<name>` branch created from the current
   `development`. Merge it back through a pull request into `development`. Feature branches never
   go into `main`.
