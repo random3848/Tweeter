@@ -1,3 +1,3 @@
 # Tweeter
 Kotlin app project
-Nancy Perez
+ames: JK, Kayla McNeill, Nancy Perez
