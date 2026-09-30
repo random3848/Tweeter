@@ -1,3 +1,3 @@
 # Tweeter 
 Kotlin app project
-Names: JK, Kayla McNeill, Sol Herrera, Nancy Perez, Connor Stevenson
+Names: JK, Sol Herrera, Nancy Perez, Connor Stevenson, Kayla McNeill
