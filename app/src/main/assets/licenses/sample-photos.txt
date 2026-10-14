@@ -1,6 +1,0 @@
-Sample post photos (app/src/main/res/drawable/sample_*.jpg) are from iNaturalist, used under the
-Creative Commons license each photographer chose. Photographer and license are on each page:
-
-sample_spider.jpg      https://www.inaturalist.org/photos/225315386
-sample_island_fox.jpg  https://www.inaturalist.org/photos/13274801
-sample_otter.jpg       https://www.inaturalist.org/photos/1840084
