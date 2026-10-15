@@ -7,7 +7,10 @@ import java.time.Instant
  * Posts that [FakePostRepository] starts with, newest first, so Feed and Map have something to
  * show before Post works.
  *
- * Timestamps are relative to when the app starts, so they always read as recent.
+ * They have no photos (`imageUri` is empty), so screens show their placeholder for a missing
+ * photo. Timestamps are relative to when the app starts, so they always read as recent.
+ *
+ * Add or change sample posts here freely; nothing depends on their exact contents.
  */
 val SAMPLE_POSTS: List<Post> = listOf(
     Post(
@@ -17,13 +20,13 @@ val SAMPLE_POSTS: List<Post> = listOf(
         locationName = "Library, oak tree",
         latitude = 34.16294,
         longitude = -119.04431,
-        imageUri = sampleImageUri("sample_spider"),
+        imageUri = "",
         caption = "Orb weaver waiting in its web outside the library.",
         likeCount = 24,
         commentCount = 3,
         isLiked = false,
         isBookmarked = false,
-        timestamp = minutesAgo(12)
+        timestamp = subtractFromNow(12)
     ),
     Post(
         id = "sample-2",
@@ -32,13 +35,13 @@ val SAMPLE_POSTS: List<Post> = listOf(
         locationName = "Santa Rosa Island",
         latitude = 33.96000,
         longitude = -120.08000,
-        imageUri = sampleImageUri("sample_island_fox"),
+        imageUri = "",
         caption = "Island fox! Only found on the Channel Islands.",
         likeCount = 8,
         commentCount = 0,
         isLiked = true,
         isBookmarked = false,
-        timestamp = minutesAgo(95)
+        timestamp = subtractFromNow(95)
     ),
     Post(
         id = "sample-3",
@@ -47,18 +50,15 @@ val SAMPLE_POSTS: List<Post> = listOf(
         locationName = "Calleguas Creek",
         latitude = 34.17500,
         longitude = -119.06000,
-        imageUri = sampleImageUri("sample_otter"),
+        imageUri = "",
         caption = "Otter drying off on the riverbank.",
         likeCount = 41,
         commentCount = 7,
         isLiked = false,
         isBookmarked = true,
-        timestamp = minutesAgo(60 * 26)
+        timestamp = subtractFromNow(60 * 26)
     )
 )
 
-/** A URI for the photo [name] in `res/drawable`. */
-private fun sampleImageUri(name: String) = "android.resource://edu.csuci.tweeter/drawable/$name"
-
-/** The moment [minutes] minutes before now. */
-private fun minutesAgo(minutes: Long) = Instant.now().minus(Duration.ofMinutes(minutes))
+/** Subtracts [minutes] minutes from the current time. */
+private fun subtractFromNow(minutes: Long) = Instant.now().minus(Duration.ofMinutes(minutes))

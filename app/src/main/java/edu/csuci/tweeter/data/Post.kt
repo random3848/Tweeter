@@ -15,7 +15,8 @@ import java.time.Instant
  *     people; [latitude] and [longitude] are where the pin goes.
  * @property latitude Where the photo was taken, in degrees.
  * @property longitude Where the photo was taken, in degrees.
- * @property imageUri The photo, as a URI string (`android.resource://`, `content://` or `https://`).
+ * @property imageUri The photo, as a URI string (`content://` from the photo picker, or
+ *     `https://` once photos are stored online). Empty when there is no photo yet.
  * @property caption What the poster wrote about the photo; may be empty.
  * @property likeCount How many users liked the post.
  * @property commentCount How many comments the post has.

@@ -25,7 +25,7 @@ class FakePostRepositoryTest {
     }
 
     @Test
-    fun addPost_emptyRepository() = runBlocking {
+    fun addPost_emptyRepository_containsOnlyNewPost() = runBlocking {
         val repository = FakePostRepository(initialPosts = emptyList())
         val post = SAMPLE_POSTS.first()
 

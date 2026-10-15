@@ -6,9 +6,20 @@ Tweeter is an Android app written in Kotlin. The UI is built with Jetpack Compos
 components are `@Composable` functions, not XML layouts or View classes.
 
 Layout:
-- `app/`: the app, package `edu.csuci.tweeter`, for Android 14 (API 34) and later. So far it only
-  opens: `MainActivity` applies the theme and shows an empty screen. Each screen gets its own
-  package under `ui/`.
+- `app/`: the app, package `edu.csuci.tweeter`, for Android 14 (API 34) and later.
+  `MainActivity` shows `ui/TweeterApp.kt`: one Scaffold with the top bar, the bottom bar and a
+  NavHost that opens to Feed.
+- `app/src/main/java/edu/csuci/tweeter/data/`: the `Post` model and `PostRepository`. Screens
+  only use the interface; `AppContainer` (owned by `TweeterApplication`) creates the one
+  instance, for now the in-memory `FakePostRepository`.
+
+Adding a screen (`ui/feed/` is the example):
+- Give it its own package, `ui/<feature>/`, holding the screen, a `@Serializable` route object
+  and a `NavGraphBuilder.add<Feature>Screen()` function that registers the screen under it.
+- Call that function in the NavHost in `TweeterApp.kt`. If the screen gets a bottom-bar tab, add
+  its `TopLevelDestination` to `TOP_LEVEL_DESTINATIONS` in the same change.
+- A screen that needs data gets a ViewModel with a factory that reads the repository from
+  `AppContainer`; the example is in `AppContainer`'s KDoc.
 - `app/src/main/java/edu/csuci/tweeter/ui/theme/`: colors, Manrope typography and the Material 3
   theme, taken from the designs. Screens use `MaterialTheme.colorScheme` and
   `MaterialTheme.typography` instead of hard-coded colors and text sizes.

@@ -13,7 +13,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import edu.csuci.tweeter.ui.feed.FeedRoute
-import edu.csuci.tweeter.ui.feed.feedScreen
+import edu.csuci.tweeter.ui.feed.addFeedScreen
 import edu.csuci.tweeter.ui.navigation.TopLevelDestination
 import edu.csuci.tweeter.ui.navigation.TweeterBottomBar
 import edu.csuci.tweeter.ui.navigation.TweeterTopBar
@@ -27,8 +27,16 @@ private val TOP_LEVEL_DESTINATIONS: List<TopLevelDestination> = emptyList()
 /**
  * The whole app: the top bar, the bottom bar, and the screen the user is on between them.
  *
- * Feed is the screen the app opens to. Each feature registers its screen in the NavHost below
- * with the `NavGraphBuilder` function from its own package.
+ * Feed is the screen the app opens to. To add a screen with its own tab:
+ * 1. In its own package, `ui/<feature>/`, add the screen, a `@Serializable` route object, and a
+ *    `NavGraphBuilder.add<Feature>Screen()` function that registers the screen under the route.
+ *    `ui/feed/FeedRoute.kt` is the example.
+ * 2. Call that function in the NavHost below.
+ * 3. Add an object implementing [TopLevelDestination] to [TOP_LEVEL_DESTINATIONS], with its
+ *    filled and outlined icons as vector drawables in `res/drawable/`.
+ *
+ * Do all three in the same pull request, so no tab ever opens an empty screen. Screens should
+ * not edit this file beyond those two lines; keep everything else in the feature's package.
  *
  * @param modifier Applied to the whole app.
  */
@@ -58,7 +66,7 @@ fun TweeterApp(modifier: Modifier = Modifier) {
             startDestination = FeedRoute,
             modifier = Modifier.padding(innerPadding)
         ) {
-            feedScreen()
+            addFeedScreen()
         }
     }
 }

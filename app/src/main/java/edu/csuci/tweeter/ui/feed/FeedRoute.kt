@@ -9,7 +9,7 @@ import kotlinx.serialization.Serializable
 object FeedRoute
 
 /** Registers [FeedScreen] under [FeedRoute] in the app's NavHost. */
-fun NavGraphBuilder.feedScreen() {
+fun NavGraphBuilder.addFeedScreen() {
     composable<FeedRoute> {
         FeedScreen()
     }
