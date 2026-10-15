@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     // Navigation routes are @Serializable classes.
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.google.services)
 }
 
 android {
@@ -40,6 +41,11 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.kotlinx.serialization.core)
+
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.storage)
+    implementation(libs.firebase.auth)
+
 
     testImplementation(libs.junit)
 
