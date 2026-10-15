@@ -29,7 +29,6 @@ android {
         compose = true
     }
 }
-
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -45,7 +44,6 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.storage)
     implementation(libs.firebase.auth)
-
 
     testImplementation(libs.junit)
 

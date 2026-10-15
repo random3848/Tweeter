@@ -22,7 +22,6 @@ class MainActivity : ComponentActivity() {
         setContent {
             TweeterTheme {
                 TweeterApp()
-                // Screens go here
             }
         }
     }
