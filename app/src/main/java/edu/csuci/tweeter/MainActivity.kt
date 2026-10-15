@@ -54,7 +54,6 @@ fun CameraScreen() {
     var status by rememberSaveable {
         mutableStateOf("No photo taken yet")
     }
-
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
@@ -64,7 +63,6 @@ fun CameraScreen() {
             "Photo cancelled or not saved"
         }
     }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -81,20 +79,17 @@ fun CameraScreen() {
                     check(photoDirectory.exists() || photoDirectory.mkdirs()) {
                         "Could not create photo folder"
                     }
-
                     val photoFile = File.createTempFile(
                         "photo_",
                         ".jpg",
                         photoDirectory
                     )
-
                     // Create an address the camera can use to save the photo.
                     val uri = FileProvider.getUriForFile(
                         context,
                         "${context.packageName}.fileprovider",
                         photoFile
                     )
-
                     cameraLauncher.launch(uri)
                 } catch (error: Exception) {
                     status = "Could not open camera: ${error.message}"
@@ -103,7 +98,6 @@ fun CameraScreen() {
         ) {
             Text("Take Picture")
         }
-
         Text(
             text = status,
             modifier = Modifier.padding(top = 16.dp)
