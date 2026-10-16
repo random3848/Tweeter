@@ -11,8 +11,11 @@ junitAndroidx = "1.3.0"
 # The app and ktlint-rules share this Kotlin version. ktlint-rules compiles against the Kotlin
 # compiler that ktlint ships with, so keep it in step with ktlint's.
 kotlin = "2.2.21"
+# The last release built with Kotlin 2.2; later ones need a newer Kotlin than the one above.
+kotlinxSerialization = "1.9.0"
 ktlint = "1.8.0"
 lifecycleRuntimeKtx = "2.11.0"
+navigationCompose = "2.10.2"
 slf4j = "2.0.20"
 
 [libraries]
@@ -29,9 +32,11 @@ androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx"
 androidx-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "espressoCore" }
 androidx-junit = { module = "androidx.test.ext:junit", version.ref = "junitAndroidx" }
 androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
+androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
 junit = { module = "junit:junit", version.ref = "junit" }
 junit5-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit5Platform" }
 junit5-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit5" }
+kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "kotlinxSerialization" }
 ktlint-cli = { module = "com.pinterest.ktlint:ktlint-cli", version.ref = "ktlint" }
 ktlint-cli-ruleset-core = { module = "com.pinterest.ktlint:ktlint-cli-ruleset-core", version.ref = "ktlint" }
 ktlint-rule-engine = { module = "com.pinterest.ktlint:ktlint-rule-engine", version.ref = "ktlint" }
@@ -44,3 +49,4 @@ slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
