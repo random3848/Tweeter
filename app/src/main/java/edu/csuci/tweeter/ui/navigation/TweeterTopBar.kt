@@ -1,5 +1,7 @@
 package edu.csuci.tweeter.ui.navigation
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -7,9 +9,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,20 +31,34 @@ import edu.csuci.tweeter.ui.theme.TweeterTheme
  * @param modifier Applied to the whole bar.
  */
 @Composable
-fun TweeterTopBar(modifier: Modifier = Modifier) {
+fun TweeterTopBar(modifier: Modifier = Modifier, onProfileClick: (() -> Unit)? = null) {
     Surface(color = MaterialTheme.colorScheme.surface, modifier = modifier) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .fillMaxWidth()
-                .height(64.dp)
-                .padding(horizontal = 16.dp)
+        Column(
+            modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars)
         ) {
-            Text(
-                text = stringResource(R.string.app_name),
-                style = MaterialTheme.typography.headlineMedium
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp)
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.app_name),
+                    style = MaterialTheme.typography.headlineMedium
+                )
+                TextButton(
+                    enabled = onProfileClick != null,
+                    onClick = { onProfileClick?.invoke() }
+                ) {
+                    Text(
+                        text = stringResource(R.string.navigation_profile),
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
     }
 }
