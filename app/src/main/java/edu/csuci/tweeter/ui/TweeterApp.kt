@@ -14,6 +14,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import edu.csuci.tweeter.ui.feed.FeedRoute
 import edu.csuci.tweeter.ui.feed.addFeedScreen
+import edu.csuci.tweeter.ui.map.addMapScreen
 import edu.csuci.tweeter.ui.navigation.TopLevelDestination
 import edu.csuci.tweeter.ui.navigation.TweeterBottomBar
 import edu.csuci.tweeter.ui.navigation.TweeterTopBar
@@ -67,6 +68,7 @@ fun TweeterApp(modifier: Modifier = Modifier) {
             modifier = Modifier.padding(innerPadding)
         ) {
             addFeedScreen()
+            addMapScreen()
         }
     }
 }
