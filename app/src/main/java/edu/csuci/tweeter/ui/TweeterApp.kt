@@ -31,15 +31,19 @@ import edu.csuci.tweeter.ui.navigation.TweeterTopBar
 
 private val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
     BottomBarItem(
-        icon = R.drawable.ic_home,
-        description = R.string.navigation_home
+        selectedIcon = R.drawable.ic_home_filled,
+        unselectedIcon = R.drawable.ic_home_outlined,
+        description = R.string.navigation_home,
+        route = FeedRoute
     ),
     BottomBarItem(
-        icon = R.drawable.ic_add_photo,
+        selectedIcon = R.drawable.ic_add_post_filled,
+        unselectedIcon = R.drawable.ic_add_post_outlined,
         description = R.string.navigation_create_post
     ),
     BottomBarItem(
-        icon = R.drawable.ic_map,
+        selectedIcon = R.drawable.ic_map_filled,
+        unselectedIcon = R.drawable.ic_map_outlined,
         description = R.string.navigation_map
     )
 )
@@ -70,12 +74,16 @@ fun TweeterApp(modifier: Modifier = Modifier) {
         bottomBar = {
             TweeterBottomBar(
                 items = BOTTOM_BAR_ITEMS,
-                isSelected = { destination ->
-                    backStackEntry?.destination?.hierarchy.orEmpty().any {
-                        it.hasRoute(destination.route::class)
-                    }
+                isSelected = { item ->
+                    val route = item.route
+                    route != null &&
+                        backStackEntry?.destination?.hierarchy.orEmpty().any {
+                            it.hasRoute(route::class)
+                        }
                 },
-                onSelect = { navController.navigateToTopLevel(it) }
+                onSelect = { route ->
+                    navController.navigateToTopLevel(route)
+                }
             )
         }
     ) { innerPadding ->
@@ -90,12 +98,12 @@ fun TweeterApp(modifier: Modifier = Modifier) {
 }
 
 /**
- * Switches to [destination]'s tab the way tabs are expected to work: back from any tab returns
+ * Switches tabs while preserving navigation state and avoiding duplicate destinations.
  * to Feed, tapping the current tab does nothing, and each tab keeps its state while another one
  * is open.
  */
-private fun NavHostController.navigateToTopLevel(destination: TopLevelDestination) {
-    navigate(destination.route) {
+private fun NavHostController.navigateToTopLevel(route: Any) {
+    navigate(route) {
         popUpTo(graph.findStartDestination().id) {
             saveState = true
         }

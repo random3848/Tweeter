@@ -13,7 +13,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,7 +30,7 @@ import edu.csuci.tweeter.ui.theme.TweeterTheme
  * @param modifier Applied to the whole bar.
  */
 @Composable
-fun TweeterTopBar(modifier: Modifier = Modifier, onProfileClick: (() -> Unit)? = null) {
+fun TweeterTopBar(modifier: Modifier = Modifier) {
     Surface(color = MaterialTheme.colorScheme.surface, modifier = modifier) {
         Column(
             modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars)
@@ -48,15 +47,6 @@ fun TweeterTopBar(modifier: Modifier = Modifier, onProfileClick: (() -> Unit)? =
                     text = stringResource(R.string.app_name),
                     style = MaterialTheme.typography.headlineMedium
                 )
-                TextButton(
-                    enabled = onProfileClick != null,
-                    onClick = { onProfileClick?.invoke() }
-                ) {
-                    Text(
-                        text = stringResource(R.string.navigation_profile),
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }

@@ -29,8 +29,8 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun TweeterBottomBar(
     items: List<BottomBarItem>,
-    isSelected: (TopLevelDestination) -> Boolean,
-    onSelect: (TopLevelDestination) -> Unit,
+    isSelected: (BottomBarItem) -> Boolean,
+    onSelect: (Any) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
@@ -43,27 +43,22 @@ fun TweeterBottomBar(
             tonalElevation = 0.dp
         ) {
             items.forEach { item ->
-                val destination = item.destination
-                val selected = destination?.let(isSelected) ?: false
-                val icon = when {
-                    destination == null -> item.icon
-                    selected -> destination.selectedIcon
-                    else -> destination.unselectedIcon
-                }
-                val description = destination?.contentDescription ?: item.description
+                val route = item.route
+                val selected = route != null && isSelected(item)
+                val icon = if (selected) item.selectedIcon else item.unselectedIcon
 
                 NavigationBarItem(
                     selected = selected,
-                    enabled = destination != null,
+                    enabled = route != null,
                     onClick = {
-                        if (destination != null) {
-                            onSelect(destination)
+                        if (route != null) {
+                            onSelect(route)
                         }
                     },
                     icon = {
                         Icon(
                             painter = painterResource(icon),
-                            contentDescription = stringResource(description)
+                            contentDescription = stringResource(item.description)
                         )
                     },
                     colors = NavigationBarItemDefaults.colors(

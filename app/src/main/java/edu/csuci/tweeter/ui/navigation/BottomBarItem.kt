@@ -6,16 +6,17 @@ import androidx.annotation.StringRes
 /**
  * A bottom-bar item with an optional connection to a working screen.
  *
- * Holds an icon and accessibility label. Connecting a working destination
- * enables the item.
+ * Items without a route remain visible but disabled.
  *
- * @property icon The icon displayed before a destination is connected.
- * @property description The accessibility label before a destination is connected.
- * @property destination The working destination; null keeps the item disabled.
+ * @property selectedIcon The filled icon displayed when this item is selected.
+ * @property unselectedIcon The outlined icon displayed otherwise.
+ * @property description The accessibility label for this item.
+ * @property route The registered screen route; null keeps this item disabled.
  */
 
-class BottomBarItem(
-    @get:DrawableRes val icon: Int,
+data class BottomBarItem(
+    @get:DrawableRes val selectedIcon: Int,
+    @get:DrawableRes val unselectedIcon: Int,
     @get:StringRes val description: Int,
-    val destination: TopLevelDestination? = null
+    val route: Any? = null
 )
