@@ -1,6 +1,11 @@
 <resources>
     <string name="app_name">Tweeter</string>
-    <string name="create_photo_post">Create a photo post</string>
+
+    <string name="navigation_home">Home</string>
+    <string name="navigation_create_post">Create post</string>
+    <string name="navigation_map">Map</string>
+    <string name="navigation_profile">Profile</string>
+
     <string name="take_picture">Take Picture</string>
     <string name="upload_photo">Upload Photo</string>
     <string name="photo_uploading">Uploading photo…</string>
