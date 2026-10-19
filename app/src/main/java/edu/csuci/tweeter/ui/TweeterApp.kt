@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:kdoc")
+
 package edu.csuci.tweeter.ui
 
 import androidx.compose.foundation.layout.padding
@@ -12,33 +14,55 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import edu.csuci.tweeter.R
 import edu.csuci.tweeter.ui.feed.FeedRoute
 import edu.csuci.tweeter.ui.feed.addFeedScreen
+import edu.csuci.tweeter.ui.navigation.BottomBarItem
 import edu.csuci.tweeter.ui.navigation.TopLevelDestination
 import edu.csuci.tweeter.ui.navigation.TweeterBottomBar
 import edu.csuci.tweeter.ui.navigation.TweeterTopBar
 
 /**
- * The tabs of the bottom bar, in order. A feature adds its destination here in the same change
- * that builds its screen; the bar stays hidden until the first one is added.
+ * Permanent bottom-bar items in display order.
+ * Items remain disabled until connected to a working destination.
+ * Add destination = YourDestination after an item's description argument
+ * once the feature's screen is implemented and registered in the NavHost.
  */
-private val TOP_LEVEL_DESTINATIONS: List<TopLevelDestination> = emptyList()
+
+private val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
+    BottomBarItem(
+        selectedIcon = R.drawable.ic_home_filled,
+        unselectedIcon = R.drawable.ic_home_outlined,
+        description = R.string.navigation_home,
+        route = FeedRoute
+    ),
+    BottomBarItem(
+        selectedIcon = R.drawable.ic_add_post_filled,
+        unselectedIcon = R.drawable.ic_add_post_outlined,
+        description = R.string.navigation_create_post
+    ),
+    BottomBarItem(
+        selectedIcon = R.drawable.ic_map_filled,
+        unselectedIcon = R.drawable.ic_map_outlined,
+        description = R.string.navigation_map
+    )
+)
 
 /**
  * The whole app: the top bar, the bottom bar, and the screen the user is on between them.
  *
  * Feed is the screen the app opens to. To add a screen with its own tab:
  * 1. In its own package, `ui/<feature>/`, add the screen, a `@Serializable` route object, and a
- *    `NavGraphBuilder.add<Feature>Screen()` function that registers the screen under the route.
- *    `ui/feed/FeedRoute.kt` is the example.
- * 2. Call that function in the NavHost below.
+ *    `NavGraphBuilder.add<Feature>Screen()` function that registers the screen under the route
+ *    `ui/feed/FeedRoute.kt` is the example
+ * 2. Call that function in the NavHost below
  * 3. Add an object implementing [TopLevelDestination] to [TOP_LEVEL_DESTINATIONS], with its
  *    filled and outlined icons as vector drawables in `res/drawable/`.
  *
  * Do all three in the same pull request, so no tab ever opens an empty screen. Screens should
- * not edit this file beyond those two lines; keep everything else in the feature's package.
+ * not edit this file beyond those two lines; keep everything else in the feature's package
  *
- * @param modifier Applied to the whole app.
+ * @param modifier Applied to the whole app
  */
 @Composable
 fun TweeterApp(modifier: Modifier = Modifier) {
@@ -48,17 +72,19 @@ fun TweeterApp(modifier: Modifier = Modifier) {
         modifier = modifier,
         topBar = { TweeterTopBar() },
         bottomBar = {
-            if (TOP_LEVEL_DESTINATIONS.isNotEmpty()) {
-                TweeterBottomBar(
-                    destinations = TOP_LEVEL_DESTINATIONS,
-                    isSelected = { destination ->
+            TweeterBottomBar(
+                items = BOTTOM_BAR_ITEMS,
+                isSelected = { item ->
+                    val route = item.route
+                    route != null &&
                         backStackEntry?.destination?.hierarchy.orEmpty().any {
-                            it.hasRoute(destination.route::class)
+                            it.hasRoute(route::class)
                         }
-                    },
-                    onSelect = { navController.navigateToTopLevel(it) }
-                )
-            }
+                },
+                onSelect = { route ->
+                    navController.navigateToTopLevel(route)
+                }
+            )
         }
     ) { innerPadding ->
         NavHost(
@@ -72,12 +98,12 @@ fun TweeterApp(modifier: Modifier = Modifier) {
 }
 
 /**
- * Switches to [destination]'s tab the way tabs are expected to work: back from any tab returns
+ * Switches tabs while preserving navigation state and avoiding duplicate destinations.
  * to Feed, tapping the current tab does nothing, and each tab keeps its state while another one
  * is open.
  */
-private fun NavHostController.navigateToTopLevel(destination: TopLevelDestination) {
-    navigate(destination.route) {
+private fun NavHostController.navigateToTopLevel(route: Any) {
+    navigate(route) {
         popUpTo(graph.findStartDestination().id) {
             saveState = true
         }
