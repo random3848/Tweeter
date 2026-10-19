@@ -17,12 +17,14 @@ import edu.csuci.tweeter.ui.feed.addFeedScreen
 import edu.csuci.tweeter.ui.navigation.TopLevelDestination
 import edu.csuci.tweeter.ui.navigation.TweeterBottomBar
 import edu.csuci.tweeter.ui.navigation.TweeterTopBar
+import edu.csuci.tweeter.ui.post.PostDestination
+import edu.csuci.tweeter.ui.post.addPostScreen
 
 /**
  * The tabs of the bottom bar, in order. A feature adds its destination here in the same change
  * that builds its screen; the bar stays hidden until the first one is added.
  */
-private val TOP_LEVEL_DESTINATIONS: List<TopLevelDestination> = emptyList()
+private val TOP_LEVEL_DESTINATIONS: List<TopLevelDestination> = listOf(PostDestination)
 
 /**
  * The whole app: the top bar, the bottom bar, and the screen the user is on between them.
@@ -67,6 +69,7 @@ fun TweeterApp(modifier: Modifier = Modifier) {
             modifier = Modifier.padding(innerPadding)
         ) {
             addFeedScreen()
+            addPostScreen()
         }
     }
 }
