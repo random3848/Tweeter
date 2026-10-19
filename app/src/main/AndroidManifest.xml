@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Where a photo was taken: a live fix, or the GPS tags in an imported photo. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION" />
+    <!-- Map tiles. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:name=".TweeterApplication"
         android:icon="@mipmap/ic_launcher"

@@ -3,7 +3,9 @@ activityCompose = "1.13.0"
 agp = "9.4.1"
 composeBom = "2026.09.00"
 coreKtx = "1.19.1"
+coroutines = "1.11.0"
 espressoCore = "3.7.0"
+exifinterface = "1.4.2"
 junit = "4.13.2"
 junit5 = "5.14.1"
 junit5Platform = "1.14.1"
@@ -15,7 +17,9 @@ kotlin = "2.2.21"
 kotlinxSerialization = "1.9.0"
 ktlint = "1.8.0"
 lifecycleRuntimeKtx = "2.11.0"
+maplibre = "13.6.1"
 navigationCompose = "2.10.2"
+playServicesLocation = "21.4.0"
 slf4j = "2.0.20"
 
 [libraries]
@@ -30,12 +34,14 @@ androidx-compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
 androidx-compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
 androidx-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "espressoCore" }
+androidx-exifinterface = { module = "androidx.exifinterface:exifinterface", version.ref = "exifinterface" }
 androidx-junit = { module = "androidx.test.ext:junit", version.ref = "junitAndroidx" }
 androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
 junit = { module = "junit:junit", version.ref = "junit" }
 junit5-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit5Platform" }
 junit5-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit5" }
+kotlinx-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "coroutines" }
 kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "kotlinxSerialization" }
 ktlint-cli = { module = "com.pinterest.ktlint:ktlint-cli", version.ref = "ktlint" }
 ktlint-cli-ruleset-core = { module = "com.pinterest.ktlint:ktlint-cli-ruleset-core", version.ref = "ktlint" }
@@ -43,6 +49,8 @@ ktlint-rule-engine = { module = "com.pinterest.ktlint:ktlint-rule-engine", versi
 ktlint-rule-engine-core = { module = "com.pinterest.ktlint:ktlint-rule-engine-core", version.ref = "ktlint" }
 ktlint-ruleset-standard = { module = "com.pinterest.ktlint:ktlint-ruleset-standard", version.ref = "ktlint" }
 ktlint-test = { module = "com.pinterest.ktlint:ktlint-test", version.ref = "ktlint" }
+maplibre-android-sdk = { module = "org.maplibre.gl:android-sdk", version.ref = "maplibre" }
+play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "playServicesLocation" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
 
 [plugins]
