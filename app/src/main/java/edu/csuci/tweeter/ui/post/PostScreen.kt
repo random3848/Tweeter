@@ -109,8 +109,6 @@ fun PostScreen(
         pendingPath = null
     }
 
-
-
     LaunchedEffect(postViewModel.uploadedPhotoUrl) {
         if (postViewModel.uploadedPhotoUrl != null) {
             deleteCachedPhoto(photoPath)
