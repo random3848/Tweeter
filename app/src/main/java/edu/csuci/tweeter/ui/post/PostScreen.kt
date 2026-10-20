@@ -15,6 +15,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -33,6 +34,18 @@ import edu.csuci.tweeter.ui.location.LocationPicker
 import java.io.File
 import java.io.IOException
 
+/** Deletes a temporary camera file and logs unsuccessful cleanup. */
+private fun deleteCachedPhoto(path: String?) {
+    if (path == null) {
+        return
+    }
+
+    val file = File(path)
+    if (file.exists() && !file.delete()) {
+        Log.w("PostScreen", "Could not delete cached photo")
+    }
+}
+
 /**
  * Takes a photo or picks one from the camera roll, finds where it was taken, and lets the user
  * move that location on a map and upload the photo to Firebase.
@@ -45,6 +58,7 @@ fun PostScreen(
     val context = LocalContext.current
 
     var photoUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var photoPath by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingUri by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingPath by rememberSaveable { mutableStateOf<String?>(null) }
     var cameraFailed by rememberSaveable { mutableStateOf(false) }
@@ -78,14 +92,14 @@ fun PostScreen(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
         if (success && pendingUri != null) {
-            photoUri = pendingUri
-            isFromCamera = true
+            deleteCachedPhoto(photoPath)
             postViewModel.clearUploadResult()
+            photoUri = pendingUri
+            photoPath = pendingPath
+            isFromCamera = true
             locateNewPhoto()
         } else {
-            pendingPath?.let { path ->
-                File(path).delete()
-            }
+            deleteCachedPhoto(pendingPath)
         }
 
         pendingUri = null
@@ -98,10 +112,20 @@ fun PostScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            photoUri = uri.toString()
-            isFromCamera = false
+            deleteCachedPhoto(photoPath)
             postViewModel.clearUploadResult()
+            photoUri = uri.toString()
+            photoPath = null
+            isFromCamera = false
             locateNewPhoto()
+        }
+    }
+
+    LaunchedEffect(postViewModel.uploadedPhotoUrl) {
+        if (postViewModel.uploadedPhotoUrl != null) {
+            deleteCachedPhoto(photoPath)
+            photoPath = null
+            photoUri = null
         }
     }
 
@@ -146,9 +170,7 @@ fun PostScreen(
                 }
 
                 if (cameraFailed) {
-                    pendingPath?.let { path ->
-                        File(path).delete()
-                    }
+                    deleteCachedPhoto(pendingPath)
                     pendingPath = null
                     pendingUri = null
                 }

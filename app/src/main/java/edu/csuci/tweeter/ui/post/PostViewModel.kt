@@ -5,14 +5,16 @@ import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.google.firebase.FirebaseException
 import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.PhotoRepository
+import edu.csuci.tweeter.data.PhotoUploadException
 import edu.csuci.tweeter.location.GeoPoint
 import edu.csuci.tweeter.location.LocationFix
 import edu.csuci.tweeter.location.LocationSource
@@ -30,7 +32,8 @@ import kotlinx.coroutines.launch
 class PostViewModel(
     private val photoRepository: PhotoRepository,
     private val photoLocator: PhotoLocator,
-    private val locationTagRemover: LocationTagRemover
+    private val locationTagRemover: LocationTagRemover,
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     private var locateJob: Job? = null
 
@@ -39,7 +42,9 @@ class PostViewModel(
         private set
 
     /** The uploaded photo's URL, or null before a successful upload. */
-    var uploadedPhotoUrl by mutableStateOf<String?>(null)
+    var uploadedPhotoUrl by mutableStateOf(
+        savedStateHandle.get<String>("uploadedPhotoUrl")
+    )
         private set
 
     /** Whether the latest upload attempt failed. */
@@ -64,7 +69,7 @@ class PostViewModel(
 
     /** Uploads [uri] without its location tags, ignoring duplicate requests while one runs. */
     fun uploadPhoto(uri: Uri) {
-        if (isUploading) {
+        if (isUploading || uploadedPhotoUrl != null) {
             return
         }
 
@@ -77,8 +82,9 @@ class PostViewModel(
             try {
                 copy = locationTagRemover.copyWithoutLocation(uri)
                 uploadedPhotoUrl = photoRepository.uploadPhoto(Uri.fromFile(copy))
-            } catch (error: FirebaseException) {
-                Log.e("PostViewModel", "Firebase photo upload failed", error)
+                savedStateHandle["uploadedPhotoUrl"] = uploadedPhotoUrl
+            } catch (error: PhotoUploadException) {
+                Log.e("PostViewModel", "Photo upload failed", error)
                 uploadFailed = true
             } catch (error: IOException) {
                 Log.e("PostViewModel", "Could not read photo for upload", error)
@@ -97,6 +103,7 @@ class PostViewModel(
         }
 
         uploadedPhotoUrl = null
+        savedStateHandle["uploadedPhotoUrl"] = null
         uploadFailed = false
     }
 
@@ -132,7 +139,8 @@ class PostViewModel(
                 PostViewModel(
                     photoRepository = application.container.photoRepository,
                     photoLocator = PhotoLocator(application),
-                    locationTagRemover = LocationTagRemover(application)
+                    locationTagRemover = LocationTagRemover(application),
+                    savedStateHandle = createSavedStateHandle()
                 )
             }
         }

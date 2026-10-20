@@ -1,17 +1,26 @@
+@file:OptIn(ExperimentalCoroutinesApi::class, ExperimentalTime::class)
+
 package edu.csuci.tweeter.ui.map
 
+import java.net.ServerSocket
 import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 import kotlin.time.Clock
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.testTimeSource
 import kotlinx.coroutines.withTimeoutOrNull
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
@@ -66,18 +75,16 @@ class TileProviderTest {
 
     @Test
     fun download_cachedCopy_revalidatesAndReturnsNotModified() = runBlocking {
+        val priorModified = Instant.parse("2026-10-19T00:00:00Z")
         server.enqueue(MockResponse.Builder().code(304).build())
 
-        val load = provider.download(
-            tileUrl(),
-            priorEtag = "\"v1\"",
-            priorModified = Instant.parse("2026-10-19T00:00:00Z")
-        )
+        val load = provider.download(tileUrl(), priorEtag = "\"v1\"", priorModified = priorModified)
 
         val request = server.takeRequest()
         assertEquals("\"v1\"", request.headers["If-None-Match"])
         assertEquals("Mon, 19 Oct 2026 00:00:00 GMT", request.headers["If-Modified-Since"])
-        assertTrue(load is MapResourceLoad.NotModified)
+        // The response has no Last-Modified, so the cached copy keeps its own.
+        assertEquals(priorModified, (load as MapResourceLoad.NotModified).modified)
     }
 
     @Test
@@ -124,6 +131,50 @@ class TileProviderTest {
     }
 
     @Test
+    fun download_noStore_expiresNowAndMustRevalidate() = runBlocking {
+        server.enqueue(MockResponse.Builder().addHeader("Cache-Control", "no-store").build())
+        val before = Clock.System.now()
+
+        val tile = provider.download(tileUrl(), null, null) as MapResourceLoad.Bytes
+
+        assertBetween(tile.expires, before, Clock.System.now())
+        assertTrue(tile.mustRevalidate)
+    }
+
+    @Test
+    fun download_maxAgeAndAge_expiresWhenAgeReachesMaxAge() = runBlocking {
+        server.enqueue(
+            MockResponse.Builder()
+                .addHeader("Cache-Control", "max-age=600")
+                .addHeader("Age", "100")
+                .build()
+        )
+        val before = Clock.System.now()
+
+        val tile = provider.download(tileUrl(), null, null) as MapResourceLoad.Bytes
+
+        assertBetween(tile.expires, before + 500.seconds, Clock.System.now() + 500.seconds)
+    }
+
+    @Test
+    fun download_invalidExpires_isAlreadyExpired() = runBlocking {
+        server.enqueue(MockResponse.Builder().addHeader("Expires", "0").build())
+
+        val tile = provider.download(tileUrl(), null, null) as MapResourceLoad.Bytes
+
+        assertTrue("${tile.expires} is not in the past", tile.expires!! < Clock.System.now())
+    }
+
+    @Test
+    fun download_noContent_returnsNoContent() = runBlocking {
+        server.enqueue(MockResponse.Builder().code(204).build())
+
+        val load = provider.download(tileUrl(), null, null)
+
+        assertTrue(load is MapResourceLoad.NoContent)
+    }
+
+    @Test
     fun download_serverError_retriesUntilItSucceeds() = runBlocking {
         server.enqueue(MockResponse.Builder().code(503).build())
         server.enqueue(MockResponse.Builder().body("tile").build())
@@ -148,6 +199,58 @@ class TileProviderTest {
     }
 
     @Test
+    fun download_tooManyRequestsWithoutRetryAfter_waitsRateLimitDelay() = runTest {
+        server.enqueue(MockResponse.Builder().code(429).build())
+        server.enqueue(MockResponse.Builder().body("tile").build())
+        val start = testTimeSource.markNow()
+
+        val load = provider.download(tileUrl(), null, null)
+
+        assertTrue(load is MapResourceLoad.Bytes)
+        assertEquals(RATE_LIMIT_RETRY_DELAY, start.elapsedNow())
+    }
+
+    @Test
+    fun download_serviceUnavailableWithRetryAfter_waitsAsAsked() = runTest {
+        server.enqueue(MockResponse.Builder().code(503).addHeader("Retry-After", "10").build())
+        server.enqueue(MockResponse.Builder().body("tile").build())
+        val start = testTimeSource.markNow()
+
+        val load = provider.download(tileUrl(), null, null)
+
+        assertTrue(load is MapResourceLoad.Bytes)
+        // Retry-After becomes a time on the real clock, which moves on a little before the wait.
+        assertTrue(start.elapsedNow() in 9.seconds..10.seconds)
+    }
+
+    @Test
+    fun download_retryAfterBeyondMaxDelay_reportsFailureWithoutRetrying() = runTest {
+        val retryAfter = (MAX_RETRY_DELAY + 1.seconds).inWholeSeconds
+        server.enqueue(
+            MockResponse.Builder().code(503).addHeader("Retry-After", "$retryAfter").build()
+        )
+        server.enqueue(MockResponse.Builder().body("tile").build())
+
+        val failed = provider.download(tileUrl(), null, null) as MapResourceLoad.Failed
+
+        assertEquals(MapResourceError.Server, failed.reason)
+        assertNotNull(failed.retryAfter)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun download_serverErrorEveryAttempt_reportsFailureAfterMaxAttempts() = runTest {
+        repeat(MAX_DOWNLOAD_ATTEMPTS) { server.enqueue(MockResponse.Builder().code(503).build()) }
+        // Served only to an attempt beyond the limit.
+        server.enqueue(MockResponse.Builder().body("tile").build())
+
+        val failed = provider.download(tileUrl(), null, null) as MapResourceLoad.Failed
+
+        assertEquals(MapResourceError.Server, failed.reason)
+        assertEquals(MAX_DOWNLOAD_ATTEMPTS, server.requestCount)
+    }
+
+    @Test
     fun download_notFound_reportsNotFoundWithoutRetrying() = runBlocking {
         server.enqueue(MockResponse.Builder().code(404).build())
 
@@ -155,6 +258,27 @@ class TileProviderTest {
 
         assertEquals(MapResourceError.NotFound, failed.reason)
         assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun download_tlsFails_reportsFailureWithoutRetrying() = runTest {
+        // Answers in plain HTTP, so the TLS handshake fails, as on a network that intercepts HTTPS.
+        ServerSocket(0).use { plainServer ->
+            thread(isDaemon = true) {
+                plainServer.accept().use { socket ->
+                    socket.getOutputStream().write("HTTP/1.1 200 OK\r\n\r\n".toByteArray())
+                    // Open until the client closes it, so the client reads the answer.
+                    socket.getInputStream().readBytes()
+                }
+            }
+            val url = "https://localhost:${plainServer.localPort}/16/11096/26143.png"
+            val start = testTimeSource.markNow()
+
+            val failed = provider.download(url, null, null) as MapResourceLoad.Failed
+
+            assertEquals(MapResourceError.Other, failed.reason)
+            assertEquals(Duration.ZERO, start.elapsedNow())
+        }
     }
 
     @Test
