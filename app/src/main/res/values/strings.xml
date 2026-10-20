@@ -12,7 +12,7 @@
     <string name="photo_uploading">Uploading photo…</string>
     <string name="photo_camera_failed">Could not open the camera. Please try again.</string>
     <string name="photo_upload_failed">Could not upload the photo. Please try again.</string>
-    <string name="photo_uploaded">Photo uploaded to Firebase!</string>
+    <string name="photo_uploaded">Photo uploaded.</string>
     <string name="photo_ready">Photo ready to upload.</string>
     <string name="photo_not_taken">Take or choose a photo to get started.</string>
 </resources>
