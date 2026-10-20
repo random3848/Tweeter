@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -26,13 +28,28 @@ android {
     }
 
     buildFeatures {
+        // BuildConfig.VERSION_NAME names the app's version in the map's tile requests.
+        buildConfig = true
         compose = true
+    }
+}
+
+// ktlint parses Kotlin as the version it ships with, which can be older than the compiler. The
+// app is limited to that version's language, so every file it can compile, ktlint can check.
+// That also limits it to that version's standard library, where kotlin.time's Instant and Clock
+// (the map library's cache times) are still marked experimental, so the files using them opt in.
+kotlin {
+    compilerOptions {
+        languageVersion.set(
+            KotlinVersion.fromVersion(libs.versions.ktlintKotlin.get().substringBeforeLast('.'))
+        )
     }
 }
 
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.activity.compose)
@@ -42,6 +59,11 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.kotlinx.serialization.core)
+    // The map's GeoJSON features hold their properties as JSON objects.
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.maplibre.compose)
+    // The map engine draws with Vulkan; the library needs exactly one renderer at runtime.
+    runtimeOnly(libs.maplibre.compose.runtime.vulkan)
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.storage)
@@ -49,6 +71,10 @@ dependencies {
     implementation(libs.kotlinx.coroutines.play.services)
 
     testImplementation(libs.junit)
+    // Runs the tile downloader's retry waits in virtual time.
+    testImplementation(libs.kotlinx.coroutines.test)
+    // Serves canned HTTP responses to the tile downloader's tests.
+    testImplementation(libs.mockwebserver)
 
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

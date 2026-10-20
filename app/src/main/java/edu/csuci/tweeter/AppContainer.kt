@@ -23,7 +23,8 @@ import edu.csuci.tweeter.data.PostRepository
  *     }
  * }
  * ```
- * and its screen creates it with `viewModel(factory = MapViewModel.factory)`.
+ * and its screen creates it with `viewModel(factory = MapViewModel.factory)`, from
+ * `androidx.lifecycle:lifecycle-viewmodel-compose`. `ui/map/MapViewModel.kt` is this example.
  */
 class AppContainer {
     /** Every post in the app. */
