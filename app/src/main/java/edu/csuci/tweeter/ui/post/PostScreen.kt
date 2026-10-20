@@ -62,6 +62,7 @@ fun PostScreen(
     var pendingUri by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingPath by rememberSaveable { mutableStateOf<String?>(null) }
     var cameraFailed by rememberSaveable { mutableStateOf(false) }
+    var pickerFailed by rememberSaveable { mutableStateOf(false) }
     var isFromCamera by rememberSaveable { mutableStateOf(false) }
 
     // Whatever the user answers, the photo is then located with what the app may read.
@@ -143,6 +144,7 @@ fun PostScreen(
             enabled = !postViewModel.isUploading && pendingPath == null,
             onClick = {
                 cameraFailed = false
+                pickerFailed = false
 
                 try {
                     val directory = File(context.cacheDir, "photos")
@@ -182,10 +184,14 @@ fun PostScreen(
         Button(
             enabled = !postViewModel.isUploading && pendingPath == null,
             onClick = {
+                cameraFailed = false
+                pickerFailed = false
+
                 try {
                     cameraRollLauncher.launch(arrayOf("image/*"))
                 } catch (error: ActivityNotFoundException) {
                     Log.e("PostScreen", "No file picker available", error)
+                    pickerFailed = true
                 }
             }
         ) {
@@ -217,6 +223,10 @@ fun PostScreen(
 
             cameraFailed -> {
                 R.string.photo_camera_failed
+            }
+
+            pickerFailed -> {
+                R.string.photo_picker_failed
             }
 
             postViewModel.uploadFailed -> {
