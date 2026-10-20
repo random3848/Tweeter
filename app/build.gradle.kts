@@ -57,6 +57,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.coil.compose)
     implementation(libs.androidx.exifinterface)
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.kotlinx.serialization.core)
