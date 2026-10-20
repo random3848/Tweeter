@@ -17,6 +17,8 @@ import androidx.navigation.compose.rememberNavController
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.ui.feed.FeedRoute
 import edu.csuci.tweeter.ui.feed.addFeedScreen
+import edu.csuci.tweeter.ui.map.MapRoute
+import edu.csuci.tweeter.ui.map.addMapScreen
 import edu.csuci.tweeter.ui.navigation.BottomBarItem
 import edu.csuci.tweeter.ui.navigation.TopLevelDestination
 import edu.csuci.tweeter.ui.navigation.TweeterBottomBar
@@ -44,7 +46,8 @@ private val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
     BottomBarItem(
         selectedIcon = R.drawable.ic_map_filled,
         unselectedIcon = R.drawable.ic_map_outlined,
-        description = R.string.navigation_map
+        description = R.string.navigation_map,
+        route = MapRoute
     )
 )
 
@@ -93,6 +96,7 @@ fun TweeterApp(modifier: Modifier = Modifier) {
             modifier = Modifier.padding(innerPadding)
         ) {
             addFeedScreen()
+            addMapScreen()
         }
     }
 }

@@ -19,9 +19,8 @@ import edu.csuci.tweeter.data.PostRepository
  *     }
  * }
  * ```
- * and its screen creates it with `viewModel(factory = MapViewModel.factory)`. That function
- * comes from `androidx.lifecycle:lifecycle-viewmodel-compose`; the first screen with a
- * ViewModel adds it to `gradle/libs.versions.toml` and `app/build.gradle.kts`.
+ * and its screen creates it with `viewModel(factory = MapViewModel.factory)`, from
+ * `androidx.lifecycle:lifecycle-viewmodel-compose`. `ui/map/MapViewModel.kt` is this example.
  */
 class AppContainer {
     /** Every post in the app. */
