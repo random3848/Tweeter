@@ -60,7 +60,6 @@ dependencies {
     implementation(libs.androidx.exifinterface)
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.kotlinx.serialization.core)
-    implementation(libs.maplibre.android.sdk)
     implementation(libs.maplibre.compose)
     // The map engine draws with Vulkan; the library needs exactly one renderer at runtime.
     runtimeOnly(libs.maplibre.compose.runtime.vulkan)

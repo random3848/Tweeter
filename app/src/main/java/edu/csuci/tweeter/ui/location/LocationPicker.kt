@@ -3,16 +3,13 @@ package edu.csuci.tweeter.ui.location
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -22,59 +19,42 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.location.DeviceLocationProvider
 import edu.csuci.tweeter.location.GeoPoint
+import edu.csuci.tweeter.ui.map.CAMPUS_LATITUDE
+import edu.csuci.tweeter.ui.map.CAMPUS_LONGITUDE
+import edu.csuci.tweeter.ui.map.CAMPUS_ZOOM
+import edu.csuci.tweeter.ui.map.MAP_STYLE_URI
+import edu.csuci.tweeter.ui.map.MapControls
+import edu.csuci.tweeter.ui.map.PIN_OUTLINE_WIDTH
+import edu.csuci.tweeter.ui.map.PIN_RADIUS
 import kotlinx.coroutines.launch
-import org.maplibre.android.MapLibre
-import org.maplibre.android.camera.CameraPosition
-import org.maplibre.android.camera.CameraUpdateFactory
-import org.maplibre.android.geometry.LatLng
-import org.maplibre.android.maps.MapLibreMap
-import org.maplibre.android.maps.MapView
-import org.maplibre.android.maps.Style
-import org.maplibre.android.style.layers.CircleLayer
-import org.maplibre.android.style.layers.PropertyFactory
-import org.maplibre.android.style.sources.GeoJsonSource
-import org.maplibre.geojson.FeatureCollection
-import org.maplibre.geojson.Point
+import kotlinx.serialization.json.JsonObject
+import org.maplibre.compose.camera.CameraPosition
+import org.maplibre.compose.camera.CameraUpdate
+import org.maplibre.compose.expressions.dsl.const
+import org.maplibre.compose.interaction.ClickResult
+import org.maplibre.compose.interaction.MapInteractions
+import org.maplibre.compose.layers.CircleLayer
+import org.maplibre.compose.map.MaplibreMap
+import org.maplibre.compose.map.rememberMapState
+import org.maplibre.compose.sources.GeoJsonData
+import org.maplibre.compose.sources.rememberGeoJsonSource
+import org.maplibre.compose.style.BaseStyle
+import org.maplibre.spatialk.geojson.Feature
+import org.maplibre.spatialk.geojson.FeatureCollection
+import org.maplibre.spatialk.geojson.Point
+import org.maplibre.spatialk.geojson.Position
 
-/** CSU Channel Islands, where the map opens when no location is picked yet. */
-private val CAMPUS_CENTER = GeoPoint(34.1614, -119.0434)
-
-private const val DEFAULT_ZOOM = 16.0
-private const val FOCUS_ZOOM = 18.0
-private const val PIN_ID = "pin"
-private const val PIN_RADIUS = 8f
-private const val PIN_STROKE_WIDTH = 2f
-
-// OpenStreetMap's raster tiles, with the attribution their usage policy requires.
-private const val OSM_STYLE_JSON = """
-{
-  "version": 8,
-  "sources": {
-    "osm": {
-      "type": "raster",
-      "tiles": ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-      "tileSize": 256,
-      "maxzoom": 19,
-      "attribution": "© OpenStreetMap contributors"
-    }
-  },
-  "layers": [{ "id": "osm", "type": "raster", "source": "osm" }]
-}
-"""
+// How close the map zooms in on a picked point it moves to.
+private const val FOCUS_ZOOM = 17.0
 
 /**
- * A map for choosing where a photo was taken.
+ * A map for choosing where a photo was taken, with a "Use my location" button below it.
  *
  * Tapping the map picks that point. "Use my location" asks for location permission if needed
  * and picks the device's current position. The caller holds the picked point, so it can start
@@ -94,7 +74,6 @@ fun LocationPicker(
     val scope = rememberCoroutineScope()
     val deviceLocationProvider = remember { DeviceLocationProvider(context) }
     val currentOnSelect by rememberUpdatedState(onSelect)
-    var cameraTarget by remember { mutableStateOf(selected) }
     var tappedPoint by remember { mutableStateOf<GeoPoint?>(null) }
     var isLocating by remember { mutableStateOf(false) }
     var hasNoFix by remember { mutableStateOf(false) }
@@ -113,74 +92,61 @@ fun LocationPicker(
         }
     }
 
-    // Follow points picked any way but tapping, which would make the map jump under the finger.
-    LaunchedEffect(selected) {
-        if (selected != null && selected != tappedPoint) {
-            cameraTarget = selected
-        }
-    }
-
     val permissionLauncher = rememberLauncherForActivityResult(RequestMultiplePermissions()) {
         // Without permission, currentFix() returns null and the message below is shown.
         pickDeviceLocation()
     }
 
-    Box(modifier = modifier) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         PinMap(
             pin = selected,
-            cameraTarget = cameraTarget,
+            // Follow points picked any way but tapping, which would make the map jump under
+            // the finger.
+            cameraTarget = selected.takeIf { it != tappedPoint },
             onMapClick = {
                 hasNoFix = false
                 tappedPoint = it
                 currentOnSelect(it)
             },
-            modifier = Modifier.fillMaxSize()
-        )
-        Column(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            if (hasNoFix) {
-                Surface(
-                    shape = MaterialTheme.shapes.small,
-                    color = MaterialTheme.colorScheme.surface,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.location_picker_no_fix),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                .fillMaxWidth()
+                .weight(1f)
+        )
+        if (hasNoFix) {
+            Text(
+                text = stringResource(R.string.location_picker_no_fix),
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        Button(
+            onClick = {
+                if (deviceLocationProvider.hasPermission()) {
+                    pickDeviceLocation()
+                } else {
+                    permissionLauncher.launch(
+                        arrayOf(
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        )
                     )
                 }
-            }
-            Button(
-                onClick = {
-                    if (deviceLocationProvider.hasPermission()) {
-                        pickDeviceLocation()
-                    } else {
-                        permissionLauncher.launch(
-                            arrayOf(
-                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                Manifest.permission.ACCESS_COARSE_LOCATION
-                            )
-                        )
-                    }
-                },
-                enabled = !isLocating
-            ) {
-                Text(stringResource(R.string.location_picker_use_my_location))
-            }
+            },
+            enabled = !isLocating
+        ) {
+            Text(stringResource(R.string.location_picker_use_my_location))
         }
     }
 }
 
 /**
- * A MapLibre map of OpenStreetMap tiles with one pin.
+ * The app's map with one pin. It opens over the campus, or over [cameraTarget] if there is one.
  *
  * @param pin Where the pin is drawn, or null for no pin.
- * @param cameraTarget Where to move the map whenever this changes, or null to stay on campus.
+ * @param cameraTarget Where to move the map whenever this changes, or null to stay put.
  * @param onMapClick Called with the point the user taps.
  * @param modifier Applied to the map.
  */
@@ -191,83 +157,64 @@ private fun PinMap(
     onMapClick: (GeoPoint) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val mapView = remember {
-        MapLibre.getInstance(context)
-        MapView(context)
-    }
     val currentOnMapClick by rememberUpdatedState(onMapClick)
-    val pinColor = MaterialTheme.colorScheme.tertiary.toArgb()
-    val pinStrokeColor = MaterialTheme.colorScheme.onTertiary.toArgb()
-    var map by remember { mutableStateOf<MapLibreMap?>(null) }
-    var style by remember { mutableStateOf<Style?>(null) }
-
-    DisposableEffect(lifecycle, mapView) {
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_CREATE -> mapView.onCreate(null)
-                Lifecycle.Event.ON_START -> mapView.onStart()
-                Lifecycle.Event.ON_RESUME -> mapView.onResume()
-                Lifecycle.Event.ON_PAUSE -> mapView.onPause()
-                Lifecycle.Event.ON_STOP -> mapView.onStop()
-                else -> Unit
+    val pinColor = MaterialTheme.colorScheme.primary
+    val pinOutlineColor = MaterialTheme.colorScheme.surface
+    val pinData = remember(pin) { GeoJsonData.Features(pin.toPins()) }
+    val mapState = rememberMapState(
+        baseStyle = BaseStyle.Uri(MAP_STYLE_URI),
+        initialCameraPosition = cameraTarget?.let {
+            CameraPosition(center = it.toPosition(), zoom = FOCUS_ZOOM)
+        } ?: CameraPosition(
+            center = Position(longitude = CAMPUS_LONGITUDE, latitude = CAMPUS_LATITUDE),
+            zoom = CAMPUS_ZOOM
+        )
+    ) {
+        CircleLayer(
+            id = "picked-location",
+            source = rememberGeoJsonSource(pinData),
+            color = const(pinColor),
+            radius = const(PIN_RADIUS),
+            strokeColor = const(pinOutlineColor),
+            strokeWidth = const(PIN_OUTLINE_WIDTH)
+        )
+    }
+    val interactions = remember {
+        MapInteractions(MapInteractions.Standard) {
+            callbacks {
+                click {
+                    onEvent { event ->
+                        val position = event.position
+                        if (position == null) {
+                            ClickResult.Pass
+                        } else {
+                            currentOnMapClick(position.toGeoPoint())
+                            ClickResult.Consume
+                        }
+                    }
+                }
             }
-        }
-        lifecycle.addObserver(observer)
-        onDispose {
-            lifecycle.removeObserver(observer)
-            if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-                mapView.onPause()
-            }
-            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
-                mapView.onStop()
-            }
-            mapView.onDestroy()
         }
     }
 
-    LaunchedEffect(mapView) {
-        mapView.getMapAsync { loadedMap ->
-            loadedMap.cameraPosition = CameraPosition.Builder()
-                .target((cameraTarget ?: CAMPUS_CENTER).toLatLng())
-                .zoom(if (cameraTarget == null) DEFAULT_ZOOM else FOCUS_ZOOM)
-                .build()
-            loadedMap.addOnMapClickListener { latLng ->
-                currentOnMapClick(GeoPoint(latLng.latitude, latLng.longitude))
-                true
-            }
-            loadedMap.setStyle(Style.Builder().fromJson(OSM_STYLE_JSON)) { loadedStyle ->
-                loadedStyle.addSource(GeoJsonSource(PIN_ID))
-                loadedStyle.addLayer(
-                    CircleLayer(PIN_ID, PIN_ID).withProperties(
-                        PropertyFactory.circleColor(pinColor),
-                        PropertyFactory.circleRadius(PIN_RADIUS),
-                        PropertyFactory.circleStrokeColor(pinStrokeColor),
-                        PropertyFactory.circleStrokeWidth(PIN_STROKE_WIDTH)
-                    )
-                )
-                style = loadedStyle
-            }
-            map = loadedMap
-        }
-    }
-
-    LaunchedEffect(style, pin) {
-        val source = style?.getSourceAs<GeoJsonSource>(PIN_ID) ?: return@LaunchedEffect
-        if (pin == null) {
-            source.setGeoJson(FeatureCollection.fromFeatures(emptyList()))
-        } else {
-            source.setGeoJson(Point.fromLngLat(pin.longitude, pin.latitude))
-        }
-    }
-
-    LaunchedEffect(map, cameraTarget) {
+    LaunchedEffect(cameraTarget) {
         val target = cameraTarget ?: return@LaunchedEffect
-        map?.animateCamera(CameraUpdateFactory.newLatLngZoom(target.toLatLng(), FOCUS_ZOOM))
+        mapState.animateCamera(CameraUpdate(center = target.toPosition(), zoom = FOCUS_ZOOM))
     }
 
-    AndroidView(factory = { mapView }, modifier = modifier)
+    MaplibreMap(
+        modifier = modifier,
+        state = mapState,
+        interactions = interactions,
+        overlay = { MapControls(mapState) }
+    )
 }
 
-private fun GeoPoint.toLatLng() = LatLng(latitude, longitude)
+/** Converts this point to a GeoJSON collection of one point, or of none if it is null. */
+private fun GeoPoint?.toPins(): FeatureCollection<Point, JsonObject?> = FeatureCollection(
+    listOfNotNull(this).map { Feature(geometry = Point(it.toPosition()), properties = null) }
+)
+
+private fun GeoPoint.toPosition() = Position(longitude = longitude, latitude = latitude)
+
+private fun Position.toGeoPoint() = GeoPoint(latitude = latitude, longitude = longitude)
