@@ -109,20 +109,7 @@ fun PostScreen(
         pendingPath = null
     }
 
-    // The Files picker, not the Photo Picker: the Photo Picker strips a photo's GPS tags, which
-    // the post's location is read from.
-    val cameraRollLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null) {
-            deleteCachedPhoto(photoPath)
-            postViewModel.clearUploadResult()
-            photoUri = uri.toString()
-            photoPath = null
-            isFromCamera = false
-            locateNewPhoto()
-        }
-    }
+
 
     LaunchedEffect(postViewModel.uploadedPhotoUrl) {
         if (postViewModel.uploadedPhotoUrl != null) {
