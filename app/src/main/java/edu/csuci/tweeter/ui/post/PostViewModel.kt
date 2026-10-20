@@ -86,15 +86,12 @@ class PostViewModel(
             try {
                 copy = locationTagRemover.copyWithoutLocation(uri)
                 uploadedPhotoUrl = photoRepository.uploadPhoto(Uri.fromFile(copy))
-            } catch (error: FirebaseException) {
-                Log.e("PostViewModel", "Firebase photo upload failed", error)
-                uploadFailed = true
-            } catch (error: IOException) {
-                Log.e("PostViewModel", "Could not read photo for upload", error)
-                uploadedPhotoUrl = photoRepository.uploadPhoto(uri)
                 savedStateHandle["uploadedPhotoUrl"] = uploadedPhotoUrl
             } catch (error: PhotoUploadException) {
                 Log.e("PostViewModel", "Photo upload failed", error)
+                uploadFailed = true
+            } catch (error: IOException) {
+                Log.e("PostViewModel", "Could not read photo for upload", error)
                 uploadFailed = true
             } finally {
                 copy?.delete()

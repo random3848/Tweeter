@@ -61,7 +61,6 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.coil.compose)
     implementation(libs.androidx.exifinterface)
-    implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.kotlinx.serialization.core)
     // The map's GeoJSON features hold their properties as JSON objects.
     implementation(libs.kotlinx.serialization.json)
