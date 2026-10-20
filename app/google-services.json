@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "76761509701",
+    "project_id": "tweeter-50246",
+    "storage_bucket": "tweeter-50246.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:76761509701:android:e8e9cc07cb26239904d82c",
+        "android_client_info": {
+          "package_name": "edu.csuci.tweeter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDK0knV7h83RxMTCEYZEk9fhmuRzCxqU5k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
