@@ -28,6 +28,8 @@ android {
     }
 
     buildFeatures {
+        // BuildConfig.VERSION_NAME names the app's version in the map's tile requests.
+        buildConfig = true
         compose = true
     }
 }
@@ -35,7 +37,7 @@ android {
 // ktlint parses Kotlin as the version it ships with, which can be older than the compiler. The
 // app is limited to that version's language, so every file it can compile, ktlint can check.
 // That also limits it to that version's standard library, where kotlin.time's Instant and Clock
-// (the map library's cache times) are still marked experimental.
+// (the map library's cache times) are still marked experimental, so the files using them opt in.
 kotlin {
     compilerOptions {
         languageVersion.set(
@@ -61,6 +63,8 @@ dependencies {
     implementation(libs.androidx.exifinterface)
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.kotlinx.serialization.core)
+    // The map's GeoJSON features hold their properties as JSON objects.
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.maplibre.compose)
     // The map engine draws with Vulkan; the library needs exactly one renderer at runtime.
     runtimeOnly(libs.maplibre.compose.runtime.vulkan)
@@ -69,8 +73,11 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.storage)
     implementation(libs.firebase.auth)
+    implementation(libs.kotlinx.coroutines.play.services)
 
     testImplementation(libs.junit)
+    // Runs the tile downloader's retry waits in virtual time.
+    testImplementation(libs.kotlinx.coroutines.test)
     // Serves canned HTTP responses to the tile downloader's tests.
     testImplementation(libs.mockwebserver)
 
