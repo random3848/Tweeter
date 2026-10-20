@@ -10,6 +10,9 @@ junitAndroidx = "1.3.0"
 junitJupiter = "6.1.3"
 # The app and ktlint-rules both compile with this Kotlin version.
 kotlin = "2.4.21"
+# Only kotlinx-coroutines-test is declared; the AndroidX libraries bring the rest of
+# kotlinx.coroutines at this version.
+kotlinxCoroutines = "1.11.0"
 kotlinxSerialization = "1.11.0"
 ktlint = "1.8.0"
 # The Kotlin that the ktlint version above ships with, parses with and runs its rules on.
@@ -43,7 +46,9 @@ androidx-navigation-compose = { module = "androidx.navigation:navigation-compose
 junit = { module = "junit:junit", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junitJupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junitJupiter" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
 kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "kotlinxSerialization" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 ktlint-cli = { module = "com.pinterest.ktlint:ktlint-cli", version.ref = "ktlint" }
 ktlint-cli-ruleset-core = { module = "com.pinterest.ktlint:ktlint-cli-ruleset-core", version.ref = "ktlint" }
 ktlint-rule-engine = { module = "com.pinterest.ktlint:ktlint-rule-engine", version.ref = "ktlint" }

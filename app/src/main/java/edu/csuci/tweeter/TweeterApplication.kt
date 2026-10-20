@@ -16,6 +16,6 @@ class TweeterApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        configureMapTiles(this)
+        configureMapTiles()
     }
 }
