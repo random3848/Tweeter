@@ -41,7 +41,7 @@ private fun deleteCachedPhoto(path: String?) {
     }
 }
 
-/** Captures a camera photo and lets the user upload it to Firebase. */
+/** Takes a photo or picks one from the camera roll, and lets the user upload it to Firebase. */
 @Composable
 fun PostScreen(
     modifier: Modifier = Modifier,
@@ -54,6 +54,7 @@ fun PostScreen(
     var pendingUri by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingPath by rememberSaveable { mutableStateOf<String?>(null) }
     var cameraFailed by rememberSaveable { mutableStateOf(false) }
+    var pickerFailed by rememberSaveable { mutableStateOf(false) }
 
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
@@ -69,6 +70,19 @@ fun PostScreen(
 
         pendingUri = null
         pendingPath = null
+    }
+
+    // The Files picker, not the Photo Picker: the Photo Picker strips a photo's GPS tags, which
+    // the post's location is read from.
+    val cameraRollLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            deleteCachedPhoto(photoPath)
+            postViewModel.clearUploadResult()
+            photoUri = uri.toString()
+            photoPath = null
+        }
     }
 
     LaunchedEffect(postViewModel.uploadedPhotoUrl) {
@@ -93,6 +107,7 @@ fun PostScreen(
             enabled = !postViewModel.isUploading && pendingPath == null,
             onClick = {
                 cameraFailed = false
+                pickerFailed = false
 
                 try {
                     val directory = File(context.cacheDir, "photos")
@@ -130,6 +145,23 @@ fun PostScreen(
         }
 
         Button(
+            enabled = !postViewModel.isUploading && pendingPath == null,
+            onClick = {
+                cameraFailed = false
+                pickerFailed = false
+
+                try {
+                    cameraRollLauncher.launch(arrayOf("image/*"))
+                } catch (error: ActivityNotFoundException) {
+                    Log.e("PostScreen", "No file picker available", error)
+                    pickerFailed = true
+                }
+            }
+        ) {
+            Text(stringResource(R.string.choose_from_camera_roll))
+        }
+
+        Button(
             enabled = photoUri != null &&
                 !postViewModel.isUploading &&
                 pendingPath == null &&
@@ -154,6 +186,10 @@ fun PostScreen(
 
             cameraFailed -> {
                 R.string.photo_camera_failed
+            }
+
+            pickerFailed -> {
+                R.string.photo_picker_failed
             }
 
             postViewModel.uploadFailed -> {
