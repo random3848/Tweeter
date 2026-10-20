@@ -1,6 +1,10 @@
 package edu.csuci.tweeter
 
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.storage.FirebaseStorage
 import edu.csuci.tweeter.data.FakePostRepository
+import edu.csuci.tweeter.data.FirebasePhotoRepository
+import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PostRepository
 
 /**
@@ -25,4 +29,12 @@ import edu.csuci.tweeter.data.PostRepository
 class AppContainer {
     /** Every post in the app. */
     val postRepository: PostRepository = FakePostRepository()
+
+    /** Uploads camera photos to Firebase Storage. */
+    val photoRepository: PhotoRepository by lazy {
+        FirebasePhotoRepository(
+            auth = FirebaseAuth.getInstance(),
+            storage = FirebaseStorage.getInstance()
+        )
+    }
 }

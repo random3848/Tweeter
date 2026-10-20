@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     // Navigation routes are @Serializable classes.
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.google.services)
 }
 
 android {
@@ -64,6 +65,10 @@ dependencies {
     // The map engine draws with Vulkan; the library needs exactly one renderer at runtime.
     runtimeOnly(libs.maplibre.compose.runtime.vulkan)
     implementation(libs.play.services.location)
+
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.storage)
+    implementation(libs.firebase.auth)
 
     testImplementation(libs.junit)
     // Serves canned HTTP responses to the tile downloader's tests.

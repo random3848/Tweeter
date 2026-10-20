@@ -6,6 +6,15 @@
     <string name="navigation_map">Map</string>
     <string name="navigation_profile">Profile</string>
 
+    <string name="take_picture">Take Picture</string>
+    <string name="upload_photo">Upload Photo</string>
+    <string name="photo_uploading">Uploading photo…</string>
+    <string name="photo_camera_failed">Could not open the camera. Please try again.</string>
+    <string name="photo_upload_failed">Could not upload the photo. Please try again.</string>
+    <string name="photo_uploaded">Photo uploaded to Firebase!</string>
+    <string name="photo_ready">Photo ready to upload.</string>
+    <string name="photo_not_taken">Take a photo to get started.</string>
+
     <string name="location_picker_use_my_location">Use my location</string>
     <string name="location_picker_no_fix">Couldn\'t get your location. Tap the map instead.</string>
 </resources>

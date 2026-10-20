@@ -26,6 +26,8 @@ mockwebserver = "5.5.0"
 navigationCompose = "2.10.2"
 playServicesLocation = "21.4.0"
 slf4j = "2.0.20"
+firebaseBom = "34.0.0"
+googleServices = "4.5.0"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
@@ -62,9 +64,13 @@ maplibre-compose-runtime-vulkan = { module = "org.maplibre.compose:maplibre-comp
 mockwebserver = { module = "com.squareup.okhttp3:mockwebserver3", version.ref = "mockwebserver" }
 play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "playServicesLocation" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
+firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
+firebase-storage = { module = "com.google.firebase:firebase-storage" }
+firebase-auth = { module = "com.google.firebase:firebase-auth" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }

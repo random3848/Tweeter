@@ -20,17 +20,15 @@ import edu.csuci.tweeter.ui.feed.addFeedScreen
 import edu.csuci.tweeter.ui.map.MapRoute
 import edu.csuci.tweeter.ui.map.addMapScreen
 import edu.csuci.tweeter.ui.navigation.BottomBarItem
-import edu.csuci.tweeter.ui.navigation.TopLevelDestination
 import edu.csuci.tweeter.ui.navigation.TweeterBottomBar
 import edu.csuci.tweeter.ui.navigation.TweeterTopBar
+import edu.csuci.tweeter.ui.post.PostRoute
+import edu.csuci.tweeter.ui.post.addPostScreen
 
 /**
- * Permanent bottom-bar items in display order.
- * Items remain disabled until connected to a working destination.
- * Add destination = YourDestination after an item's description argument
- * once the feature's screen is implemented and registered in the NavHost.
+ * Bottom-bar items in display order.
+ * A non-null route connects an item to its registered screen.
  */
-
 private val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
     BottomBarItem(
         selectedIcon = R.drawable.ic_home_filled,
@@ -41,7 +39,8 @@ private val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
     BottomBarItem(
         selectedIcon = R.drawable.ic_add_post_filled,
         unselectedIcon = R.drawable.ic_add_post_outlined,
-        description = R.string.navigation_create_post
+        description = R.string.navigation_create_post,
+        route = PostRoute
     ),
     BottomBarItem(
         selectedIcon = R.drawable.ic_map_filled,
@@ -59,8 +58,8 @@ private val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
  *    `NavGraphBuilder.add<Feature>Screen()` function that registers the screen under the route
  *    `ui/feed/FeedRoute.kt` is the example
  * 2. Call that function in the NavHost below
- * 3. Add an object implementing [TopLevelDestination] to [TOP_LEVEL_DESTINATIONS], with its
- *    filled and outlined icons as vector drawables in `res/drawable/`.
+ * 3. Set the matching item's route in [BOTTOM_BAR_ITEMS]
+ *    to the feature's route object.
  *
  * Do all three in the same pull request, so no tab ever opens an empty screen. Screens should
  * not edit this file beyond those two lines; keep everything else in the feature's package
@@ -96,6 +95,7 @@ fun TweeterApp(modifier: Modifier = Modifier) {
             modifier = Modifier.padding(innerPadding)
         ) {
             addFeedScreen()
+            addPostScreen()
             addMapScreen()
         }
     }
