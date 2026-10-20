@@ -15,38 +15,50 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 
 /**
- * The bar at the bottom of every screen: one icon-only tab per destination, on white with a thin
- * gray line above it. The selected tab shows its filled icon and the others their outlined one;
- * there is no highlight pill behind the selected tab.
+ * Shared bottom navigation displaying permanent items in the supplied order.
  *
- * @param destinations The tabs, in order.
- * @param isSelected Whether a destination is the one on screen.
- * @param onSelect Called with the tab the user tapped.
+ * Items without a destination remain visible but disabled. Connected items use
+ * their destination's icons, accessibility label, and navigation callback.
+ *
+ * @param items The permanent bar items in display order.
+ * @param isSelected Whether a connected destination is currently displayed.
+ * @param onSelect Opens the selected working destination.
  * @param modifier Applied to the whole bar.
  */
+
 @Composable
 fun TweeterBottomBar(
-    destinations: List<TopLevelDestination>,
-    isSelected: (TopLevelDestination) -> Boolean,
-    onSelect: (TopLevelDestination) -> Unit,
+    items: List<BottomBarItem>,
+    isSelected: (BottomBarItem) -> Boolean,
+    onSelect: (Any) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
-        HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.outlineVariant
+        )
+
         NavigationBar(
             containerColor = MaterialTheme.colorScheme.surface,
             tonalElevation = 0.dp
         ) {
-            destinations.forEach { destination ->
-                val selected = isSelected(destination)
-                val icon = if (selected) destination.selectedIcon else destination.unselectedIcon
+            items.forEach { item ->
+                val route = item.route
+                val selected = route != null && isSelected(item)
+                val icon = if (selected) item.selectedIcon else item.unselectedIcon
+
                 NavigationBarItem(
                     selected = selected,
-                    onClick = { onSelect(destination) },
+                    enabled = route != null,
+                    onClick = {
+                        if (route != null) {
+                            onSelect(route)
+                        }
+                    },
                     icon = {
                         Icon(
                             painter = painterResource(icon),
-                            contentDescription = stringResource(destination.contentDescription)
+                            contentDescription = stringResource(item.description)
                         )
                     },
                     colors = NavigationBarItemDefaults.colors(

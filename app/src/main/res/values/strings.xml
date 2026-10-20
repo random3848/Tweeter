@@ -1,5 +1,11 @@
 <resources>
     <string name="app_name">Tweeter</string>
+
+    <string name="navigation_home">Home</string>
+    <string name="navigation_create_post">Create post</string>
+    <string name="navigation_map">Map</string>
+    <string name="navigation_profile">Profile</string>
+
     <string name="location_picker_use_my_location">Use my location</string>
     <string name="location_picker_no_fix">Couldn\'t get your location. Tap the map instead.</string>
 </resources>
