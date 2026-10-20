@@ -42,6 +42,8 @@ class FirebasePhotoRepository(
             throw PhotoUploadException(error)
         } catch (error: IOException) {
             throw PhotoUploadException(error)
+        } catch (error: SecurityException) {
+            throw PhotoUploadException(error)
         }
     }
 }
