@@ -1,5 +1,6 @@
 package edu.csuci.tweeter.ui.post
 
+import android.Manifest
 import android.content.ActivityNotFoundException
 import android.net.Uri
 import android.util.Log
@@ -8,6 +9,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -25,10 +27,16 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
+import edu.csuci.tweeter.location.LocationFix
+import edu.csuci.tweeter.location.LocationSource
+import edu.csuci.tweeter.ui.location.LocationPicker
 import java.io.File
 import java.io.IOException
 
-/** Takes a photo or picks one from the camera roll, and lets the user upload it to Firebase. */
+/**
+ * Takes a photo or picks one from the camera roll, finds where it was taken, and lets the user
+ * move that location on a map and upload the photo to Firebase.
+ */
 @Composable
 fun PostScreen(
     modifier: Modifier = Modifier,
@@ -40,13 +48,40 @@ fun PostScreen(
     var pendingUri by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingPath by rememberSaveable { mutableStateOf<String?>(null) }
     var cameraFailed by rememberSaveable { mutableStateOf(false) }
+    var isFromCamera by rememberSaveable { mutableStateOf(false) }
+
+    // Whatever the user answers, the photo is then located with what the app may read.
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        photoUri?.let { uri ->
+            postViewModel.locatePhoto(Uri.parse(uri), capturedInApp = isFromCamera)
+        }
+    }
+
+    // A new photo's location: where the device is for one just taken, the photo's own GPS tags
+    // for one from the camera roll, which Android hides without ACCESS_MEDIA_LOCATION.
+    fun locateNewPhoto() {
+        locationPermissionLauncher.launch(
+            if (isFromCamera) {
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            } else {
+                arrayOf(Manifest.permission.ACCESS_MEDIA_LOCATION)
+            }
+        )
+    }
 
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
         if (success && pendingUri != null) {
             photoUri = pendingUri
+            isFromCamera = true
             postViewModel.clearUploadResult()
+            locateNewPhoto()
         } else {
             pendingPath?.let { path ->
                 File(path).delete()
@@ -64,7 +99,9 @@ fun PostScreen(
     ) { uri ->
         if (uri != null) {
             photoUri = uri.toString()
+            isFromCamera = false
             postViewModel.clearUploadResult()
+            locateNewPhoto()
         }
     }
 
@@ -178,5 +215,33 @@ fun PostScreen(
         }
 
         Text(stringResource(statusResource))
+
+        if (photoUri != null) {
+            Text(locationStatus(postViewModel.location, postViewModel.isLocating))
+            LocationPicker(
+                selected = postViewModel.location?.point,
+                onSelect = postViewModel::pickLocation,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            )
+        }
+    }
+}
+
+/** What the post screen says about the photo's [location] while or after [isLocating]. */
+@Composable
+private fun locationStatus(location: LocationFix?, isLocating: Boolean): String = when {
+    isLocating -> stringResource(R.string.post_location_finding)
+
+    location == null -> stringResource(R.string.post_location_needed)
+
+    else -> {
+        val text = when (location.source) {
+            LocationSource.EXIF -> R.string.post_location_from_photo
+            LocationSource.DEVICE -> R.string.post_location_from_device
+            LocationSource.MANUAL -> R.string.post_location_picked
+        }
+        stringResource(text, location.point.latitude, location.point.longitude)
     }
 }
