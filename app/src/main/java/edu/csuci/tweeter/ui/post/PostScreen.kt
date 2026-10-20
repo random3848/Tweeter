@@ -28,7 +28,7 @@ import edu.csuci.tweeter.R
 import java.io.File
 import java.io.IOException
 
-/** Captures a camera photo and lets the user upload it to Firebase. */
+/** Takes a photo or picks one from the camera roll, and lets the user upload it to Firebase. */
 @Composable
 fun PostScreen(
     modifier: Modifier = Modifier,
@@ -55,6 +55,17 @@ fun PostScreen(
 
         pendingUri = null
         pendingPath = null
+    }
+
+    // The Files picker, not the Photo Picker: the Photo Picker strips a photo's GPS tags, which
+    // the post's location is read from.
+    val cameraRollLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            photoUri = uri.toString()
+            postViewModel.clearUploadResult()
+        }
     }
 
     Column(
@@ -107,6 +118,19 @@ fun PostScreen(
             }
         ) {
             Text(stringResource(R.string.take_picture))
+        }
+
+        Button(
+            enabled = !postViewModel.isUploading && pendingPath == null,
+            onClick = {
+                try {
+                    cameraRollLauncher.launch(arrayOf("image/*"))
+                } catch (error: ActivityNotFoundException) {
+                    Log.e("PostScreen", "No file picker available", error)
+                }
+            }
+        ) {
+            Text(stringResource(R.string.choose_from_camera_roll))
         }
 
         Button(
