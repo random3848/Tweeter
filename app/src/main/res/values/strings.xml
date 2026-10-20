@@ -16,4 +16,13 @@
     <string name="photo_uploaded">Photo uploaded.</string>
     <string name="photo_ready">Photo ready to upload.</string>
     <string name="photo_not_taken">Take or choose a photo to get started.</string>
+
+    <string name="post_location_finding">Finding where this photo was taken…</string>
+    <string name="post_location_needed">Tap the map to set where this photo was taken.</string>
+    <string name="post_location_from_photo">Location from the photo: %1$.5f, %2$.5f</string>
+    <string name="post_location_from_device">Location from your device: %1$.5f, %2$.5f</string>
+    <string name="post_location_picked">Location you picked: %1$.5f, %2$.5f</string>
+
+    <string name="location_picker_use_my_location">Use my location</string>
+    <string name="location_picker_no_fix">Couldn\'t get your location. Tap the map instead.</string>
 </resources>

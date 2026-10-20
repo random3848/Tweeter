@@ -38,15 +38,15 @@ import org.maplibre.spatialk.geojson.Position
 
 // OpenStreetMap's standard map, from its own tile servers. The style also holds the attribution
 // that OpenStreetMap requires.
-private const val MAP_STYLE_URI = "file:///android_asset/openstreetmap-style.json"
+internal const val MAP_STYLE_URI = "file:///android_asset/openstreetmap-style.json"
 
 // The map opens over the CSU Channel Islands campus buildings.
-private const val CAMPUS_LATITUDE = 34.1625
-private const val CAMPUS_LONGITUDE = -119.0440
-private const val CAMPUS_ZOOM = 15.0
+internal const val CAMPUS_LATITUDE = 34.1625
+internal const val CAMPUS_LONGITUDE = -119.0440
+internal const val CAMPUS_ZOOM = 15.0
 
-private val PIN_RADIUS = 7.dp
-private val PIN_OUTLINE_WIDTH = 2.dp
+internal val PIN_RADIUS = 7.dp
+internal val PIN_OUTLINE_WIDTH = 2.dp
 
 /**
  * The map: every post as a pin where its photo was taken. It opens over the campus.
@@ -97,7 +97,7 @@ private fun PostMap(posts: List<Post>, modifier: Modifier = Modifier) {
  * theirs collapses once the map moves, which OpenStreetMap doesn't allow.
  */
 @Composable
-private fun MapOverlayScope.MapControls(mapState: MapState) {
+internal fun MapOverlayScope.MapControls(mapState: MapState) {
     DisappearingScaleBar(
         metersPerDp = { mapState.viewport?.metersPerDpAtCenter ?: 0.0 },
         zoom = { mapState.cameraPosition.zoom },

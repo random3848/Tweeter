@@ -58,12 +58,14 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.exifinterface)
     implementation(libs.kotlinx.serialization.core)
     // The map's GeoJSON features hold their properties as JSON objects.
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.maplibre.compose)
     // The map engine draws with Vulkan; the library needs exactly one renderer at runtime.
     runtimeOnly(libs.maplibre.compose.runtime.vulkan)
+    implementation(libs.play.services.location)
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.storage)
