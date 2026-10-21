@@ -1,0 +1,36 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // The fields match PostDocument in the app.
+    match /posts/{postId} {
+      allow read: if request.auth != null;
+
+      // Posts can't be edited or deleted yet.
+      allow create: if request.auth != null
+                    && request.resource.data.keys().hasOnly([
+                         'username', 'avatarInitials', 'locationName', 'latitude', 'longitude',
+                         'imageUri', 'caption', 'likeCount', 'commentCount', 'timestamp'
+                       ])
+                    && request.resource.data.keys().hasAll([
+                         'username', 'latitude', 'longitude', 'imageUri', 'timestamp'
+                       ])
+                    && request.resource.data.username is string
+                    && request.resource.data.username.size() > 0
+                    && request.resource.data.latitude is number
+                    && request.resource.data.latitude >= -90
+                    && request.resource.data.latitude <= 90
+                    && request.resource.data.longitude is number
+                    && request.resource.data.longitude >= -180
+                    && request.resource.data.longitude <= 180
+                    && request.resource.data.imageUri is string
+                    && request.resource.data.imageUri.matches('https://.*')
+                    && request.resource.data.get('likeCount', 0) == 0
+                    && request.resource.data.get('commentCount', 0) == 0
+                    // Shared now, give or take a phone clock that is a few minutes off.
+                    && request.resource.data.timestamp is timestamp
+                    && request.resource.data.timestamp > request.time - duration.value(5, 'm')
+                    && request.resource.data.timestamp < request.time + duration.value(5, 'm');
+    }
+  }
+}
