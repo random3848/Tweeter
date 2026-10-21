@@ -11,13 +11,13 @@
 
     <string name="take_picture">Take Picture</string>
     <string name="choose_from_camera_roll">Choose from Camera Roll</string>
-    <string name="upload_photo">Upload Photo</string>
-    <string name="photo_uploading">Uploading photo…</string>
+    <string name="upload_photo">Share Post</string>
+    <string name="photo_uploading">Sharing post…</string>
     <string name="photo_camera_failed">Could not open the camera. Please try again.</string>
     <string name="photo_picker_failed">Could not open the camera roll. Please try again.</string>
-    <string name="photo_upload_failed">Could not upload the photo. Please try again.</string>
-    <string name="photo_uploaded">Photo uploaded.</string>
-    <string name="photo_ready">Photo ready to upload.</string>
+    <string name="photo_upload_failed">Could not share the post. Please try again.</string>
+    <string name="photo_uploaded">Post shared. It\'s on the feed and the map.</string>
+    <string name="photo_ready">Photo ready to share.</string>
     <string name="photo_not_taken">Take or choose a photo to get started.</string>
 
     <string name="post_location_finding">Finding where this photo was taken…</string>

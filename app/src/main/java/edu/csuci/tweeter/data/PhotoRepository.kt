@@ -10,11 +10,4 @@ interface PhotoRepository {
      * @throws PhotoUploadException if authentication or uploading fails.
      */
     suspend fun uploadPhoto(uri: Uri): String
-
-    /**
-     * Fetches HTTPS download URLs of all photos stored in Firebase Storage, newest first.
-     *
-     * Returns an empty list if no photos are found or if fetching fails.
-     */
-    suspend fun fetchPhotoUrls(): List<String>
 }

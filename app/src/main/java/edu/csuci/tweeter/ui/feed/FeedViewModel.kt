@@ -7,15 +7,11 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import edu.csuci.tweeter.TweeterApplication
-import edu.csuci.tweeter.data.Avatar
-import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.Post
 import edu.csuci.tweeter.data.PostRepository
-import java.time.Instant
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 /**
@@ -29,66 +25,31 @@ data class FeedUiState(val photoPosts: List<Post> = emptyList())
  * Holds photo posts for [FeedScreen].
  *
  * @param postRepository Where post data is read from.
- * @param photoRepository Where Firebase photos are fetched from.
  */
-class FeedViewModel(postRepository: PostRepository, private val photoRepository: PhotoRepository) :
-    ViewModel() {
-    // Temporary: reads Firebase Storage while there's no post database. Removed when
-    // FakePostRepository() in AppContainer is replaced with the real database; at that point
-    // the feed should read only postRepository.getPosts(), and this flow, the combine,
-    // and PhotoRepository.fetchPhotoUrls() can be deleted.
-    private val firebasePhotosFlow = flow {
-        val urls = photoRepository.fetchPhotoUrls()
-        val posts = urls.mapIndexed { index, url ->
-            Post(
-                id = "firebase-$index-$url",
-                username = "firebase",
-                avatar = Avatar(initials = "FB"),
-                locationName = "",
-                latitude = 0.0,
-                longitude = 0.0,
-                imageUri = url,
-                caption = "",
-                likeCount = 0,
-                commentCount = 0,
-                isLiked = false,
-                isBookmarked = false,
-                timestamp = Instant.now()
-            )
-        }
-        emit(posts)
-    }
-
+class FeedViewModel(postRepository: PostRepository) : ViewModel() {
     /**
      * The current state of the feed, updated whenever posts change.
      */
-    val uiState: StateFlow<FeedUiState> = combine(
-        postRepository.getPosts(),
-        firebasePhotosFlow
-    ) { repoPosts, firebasePosts ->
-        val localPhotoPosts = repoPosts.filter { it.imageUri.isNotBlank() }
-        val existingUris = localPhotoPosts.map { it.imageUri }.toSet()
-        val uniqueFirebasePosts = firebasePosts.filter { it.imageUri !in existingUris }
-        val combinedPosts = localPhotoPosts + uniqueFirebasePosts
-
-        FeedUiState(
-            photoPosts = combinedPosts.sortPosts(FeedSortOrder.MOST_RECENT_FIRST)
+    val uiState: StateFlow<FeedUiState> = postRepository.getPosts()
+        .map { posts ->
+            FeedUiState(
+                photoPosts = posts
+                    .filter { it.imageUri.isNotBlank() }
+                    .sortPosts(FeedSortOrder.MOST_RECENT_FIRST)
+            )
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = FeedUiState()
         )
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = FeedUiState()
-    )
 
     companion object {
-        /** Creates a [FeedViewModel] that reads the app's shared repositories. */
+        /** Creates a [FeedViewModel] that reads the app's shared post repository. */
         val factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as TweeterApplication
-                FeedViewModel(
-                    postRepository = application.container.postRepository,
-                    photoRepository = application.container.photoRepository
-                )
+                FeedViewModel(postRepository = application.container.postRepository)
             }
         }
     }

@@ -5,9 +5,9 @@ import kotlinx.coroutines.flow.Flow
 /**
  * Where posts are stored and read from.
  *
- * Post writes to it, and Feed and Map read from it. Screens only see this interface, so the
- * in-memory [FakePostRepository] can be swapped for a real backend in `AppContainer` without
- * changing any screen.
+ * Post writes to it, and Feed and Map read from it. The app uses [FirestorePostRepository];
+ * screens only see this interface, so `AppContainer` can swap in another, such as the in-memory
+ * [FakePostRepository], without changing any screen.
  *
  * To read posts in a ViewModel, turn the flow into state the screen can observe:
  * `val posts = postRepository.getPosts().stateIn(viewModelScope, WhileSubscribed(5_000),
