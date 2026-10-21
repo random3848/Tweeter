@@ -14,11 +14,15 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.firebase.FirebaseException
 import edu.csuci.tweeter.TweeterApplication
+import edu.csuci.tweeter.data.AccountRepository
 import edu.csuci.tweeter.data.Avatar
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PhotoUploadException
 import edu.csuci.tweeter.data.Post
 import edu.csuci.tweeter.data.PostRepository
+import edu.csuci.tweeter.data.ProfileRepository
+import edu.csuci.tweeter.data.UserProfile
+import edu.csuci.tweeter.data.getLoggedInProfile
 import edu.csuci.tweeter.location.GeoPoint
 import edu.csuci.tweeter.location.LocationFix
 import edu.csuci.tweeter.location.LocationSource
@@ -29,9 +33,10 @@ import java.io.IOException
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-// Who every post is by until users have accounts.
+// Who a post is by when nobody is logged in.
 private const val GUEST_USERNAME = "guest"
 
 /**
@@ -41,6 +46,8 @@ private const val GUEST_USERNAME = "guest"
 class PostViewModel(
     private val photoRepository: PhotoRepository,
     private val postRepository: PostRepository,
+    private val profileRepository: ProfileRepository,
+    private val accountRepository: AccountRepository,
     private val photoLocator: PhotoLocator,
     private val locationTagRemover: LocationTagRemover,
     private val savedStateHandle: SavedStateHandle
@@ -74,8 +81,9 @@ class PostViewModel(
         private set
 
     /**
-     * Uploads [uri] without its location tags and shares it as a post at [location]. Ignored
-     * while one runs, after the post is shared, or while [location] is null.
+     * Uploads [uri] without its location tags and shares it as a post at [location], by the
+     * logged-in user or as a guest. Ignored while one runs, after the post is shared, or while
+     * [location] is null.
      */
     fun uploadPhoto(uri: Uri) {
         val point = location?.point
@@ -91,8 +99,9 @@ class PostViewModel(
             var copy: File? = null
             try {
                 copy = locationTagRemover.copyWithoutLocation(uri)
+                val author = profileRepository.getLoggedInProfile(accountRepository).first()
                 val photoUrl = photoRepository.uploadPhoto(Uri.fromFile(copy))
-                postRepository.addPost(newPost(photoUrl, point))
+                postRepository.addPost(newPost(photoUrl, point, author))
                 uploadedPhotoUrl = photoUrl
                 savedStateHandle["uploadedPhotoUrl"] = uploadedPhotoUrl
             } catch (error: PhotoUploadException) {
@@ -145,10 +154,12 @@ class PostViewModel(
         location = LocationFix(point, LocationSource.MANUAL)
     }
 
-    private fun newPost(photoUrl: String, point: GeoPoint): Post = Post(
+    // [author] is null when nobody is logged in.
+    private fun newPost(photoUrl: String, point: GeoPoint, author: UserProfile?): Post = Post(
         id = UUID.randomUUID().toString(),
-        username = GUEST_USERNAME,
-        avatar = Avatar(initials = GUEST_USERNAME.take(1).uppercase()),
+        authorUid = author?.uid ?: "",
+        username = author?.displayName ?: GUEST_USERNAME,
+        avatar = author?.avatar ?: Avatar(initials = GUEST_USERNAME.take(1).uppercase()),
         locationName = "",
         latitude = point.latitude,
         longitude = point.longitude,
@@ -164,13 +175,15 @@ class PostViewModel(
 
     /** Creates ViewModels using the app's shared repositories. */
     companion object {
-        /** Supplies the photo and post repositories from the application container. */
+        /** Supplies the repositories and helpers it needs from the application container. */
         val factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as TweeterApplication
                 PostViewModel(
                     photoRepository = application.container.photoRepository,
                     postRepository = application.container.postRepository,
+                    profileRepository = application.container.profileRepository,
+                    accountRepository = application.container.accountRepository,
                     photoLocator = PhotoLocator(application),
                     locationTagRemover = LocationTagRemover(application),
                     savedStateHandle = createSavedStateHandle()

@@ -2,6 +2,7 @@
 
 package edu.csuci.tweeter.ui
 
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -24,6 +25,9 @@ import edu.csuci.tweeter.ui.navigation.TweeterBottomBar
 import edu.csuci.tweeter.ui.navigation.TweeterTopBar
 import edu.csuci.tweeter.ui.post.PostRoute
 import edu.csuci.tweeter.ui.post.addPostScreen
+import edu.csuci.tweeter.ui.profile.ProfileButton
+import edu.csuci.tweeter.ui.profile.ProfileRoute
+import edu.csuci.tweeter.ui.profile.addProfileScreen
 
 /**
  * Bottom-bar items in display order.
@@ -64,24 +68,50 @@ private val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
  * Do all three in the same pull request, so no tab ever opens an empty screen. Screens should
  * not edit this file beyond those two lines; keep everything else in the feature's package
  *
+ * Profile is not a tab: Feed's profile button opens it, and Home stays selected while it is open.
+ * It draws its own top bar with a back arrow, so the shared one is hidden there.
+ *
  * @param modifier Applied to the whole app
  */
 @Composable
 fun TweeterApp(modifier: Modifier = Modifier) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
+    val destination = backStackEntry?.destination
+    val isOnFeed = destination?.hasRoute(FeedRoute::class) == true
+    val isOnProfile = destination?.hasRoute(ProfileRoute::class) == true
     Scaffold(
         modifier = modifier,
-        topBar = { TweeterTopBar() },
+        topBar = {
+            if (!isOnProfile) {
+                TweeterTopBar(
+                    actions = {
+                        if (isOnFeed) {
+                            ProfileButton(
+                                onClick = {
+                                    navController.navigate(ProfileRoute) {
+                                        launchSingleTop = true
+                                    }
+                                }
+                            )
+                        }
+                    }
+                )
+            }
+        },
         bottomBar = {
             TweeterBottomBar(
                 items = BOTTOM_BAR_ITEMS,
                 isSelected = { item ->
                     val route = item.route
-                    route != null &&
-                        backStackEntry?.destination?.hierarchy.orEmpty().any {
-                            it.hasRoute(route::class)
-                        }
+                    when {
+                        route == null -> false
+
+                        // Profile is opened from Feed, so Home stays selected on it.
+                        route == FeedRoute && isOnProfile -> true
+
+                        else -> destination?.hierarchy.orEmpty().any { it.hasRoute(route::class) }
+                    }
                 },
                 onSelect = { route ->
                     navController.navigateToTopLevel(route)
@@ -92,11 +122,16 @@ fun TweeterApp(modifier: Modifier = Modifier) {
         NavHost(
             navController = navController,
             startDestination = FeedRoute,
-            modifier = Modifier.padding(innerPadding)
+            // Without the shared top bar, innerPadding already includes the status bar; consuming
+            // it stops a screen's own top bar from padding below the status bar a second time.
+            modifier = Modifier
+                .padding(innerPadding)
+                .consumeWindowInsets(innerPadding)
         ) {
             addFeedScreen()
             addPostScreen()
             addMapScreen()
+            addProfileScreen(onBack = { navController.navigateUp() })
         }
     }
 }

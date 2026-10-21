@@ -4,6 +4,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FieldValue
 import java.time.Instant
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -20,6 +21,21 @@ class PostDocumentTest {
         val fields = PostDocument.fieldsOf(post)
 
         assertTrue(fields["timestamp"] is FieldValue)
+    }
+
+    @Test
+    fun fieldsOf_noAuthor_leavesOutAuthorUid() {
+        val fields = PostDocument.fieldsOf(post.copy(authorUid = ""))
+
+        assertFalse("authorUid" in fields)
+    }
+
+    @Test
+    fun toPost_fieldsOfPostWithAuthor_returnsSamePost() {
+        val postWithAuthor = post.copy(authorUid = "uid")
+        val fields = storedFieldsOf(postWithAuthor)
+
+        assertEquals(postWithAuthor, PostDocument.toPost(post.id, fields))
     }
 
     @Test
@@ -51,6 +67,7 @@ class PostDocumentTest {
         assertEquals(
             Post(
                 id = "id",
+                authorUid = "",
                 username = "maya.k",
                 avatar = Avatar(initials = "M"),
                 locationName = "",
