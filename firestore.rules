@@ -27,10 +27,8 @@ service cloud.firestore {
                     && request.resource.data.imageUri.matches('https://.*')
                     && request.resource.data.get('likeCount', 0) == 0
                     && request.resource.data.get('commentCount', 0) == 0
-                    // Shared now, give or take a phone clock that is a few minutes off.
-                    && request.resource.data.timestamp is timestamp
-                    && request.resource.data.timestamp > request.time - duration.value(5, 'm')
-                    && request.resource.data.timestamp < request.time + duration.value(5, 'm');
+                    // Set by Firestore when it receives the post, not by the phone's clock.
+                    && request.resource.data.timestamp == request.time;
     }
   }
 }

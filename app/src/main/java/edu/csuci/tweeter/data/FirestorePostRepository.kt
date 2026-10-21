@@ -2,6 +2,7 @@ package edu.csuci.tweeter.data
 
 import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.DocumentSnapshot.ServerTimestampBehavior
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
@@ -35,7 +36,10 @@ class FirestorePostRepository(
 
                 val documents = snapshot?.documents ?: return@addSnapshotListener
                 val postList = documents.mapNotNull { document ->
-                    val post = PostDocument.toPost(document.id, document.data.orEmpty())
+                    // A post this phone just added has no server time yet; until Firestore
+                    // sets it, use Firestore's estimate so the post shows up right away.
+                    val fields = document.getData(ServerTimestampBehavior.ESTIMATE).orEmpty()
+                    val post = PostDocument.toPost(document.id, fields)
                     if (post == null) {
                         Log.w("FirestorePostRepo", "Skipping malformed post ${document.id}")
                     }

@@ -158,6 +158,7 @@ class PostViewModel(
         commentCount = 0,
         isLiked = false,
         isBookmarked = false,
+        // Firestore replaces this with the time it receives the post.
         timestamp = Instant.now()
     )
 

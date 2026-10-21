@@ -1,12 +1,14 @@
 package edu.csuci.tweeter.data
 
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.FieldValue
 
 /**
  * How a [Post] is stored as a Firestore document in the [COLLECTION] collection.
  *
  * The document ID is [Post.id]. [Post.isLiked] and [Post.isBookmarked] depend on who is looking,
- * so they aren't stored and read back as false.
+ * so they aren't stored and read back as false. [Post.timestamp] isn't stored either: Firestore
+ * sets [TIMESTAMP] to when it receives the post, so a phone with a wrong clock can't misdate it.
  */
 object PostDocument {
     /** The collection every post is stored in. */
@@ -25,7 +27,7 @@ object PostDocument {
     private const val LIKE_COUNT = "likeCount"
     private const val COMMENT_COUNT = "commentCount"
 
-    /** Returns the fields to store for [post]. */
+    /** Returns the fields to store for [post], with [TIMESTAMP] left for Firestore to set. */
     fun fieldsOf(post: Post): Map<String, Any> = mapOf(
         USERNAME to post.username,
         AVATAR_INITIALS to post.avatar.initials,
@@ -36,7 +38,7 @@ object PostDocument {
         CAPTION to post.caption,
         LIKE_COUNT to post.likeCount,
         COMMENT_COUNT to post.commentCount,
-        TIMESTAMP to Timestamp(post.timestamp)
+        TIMESTAMP to FieldValue.serverTimestamp()
     )
 
     /**
