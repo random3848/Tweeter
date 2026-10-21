@@ -3,8 +3,6 @@ import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
-    // Navigation routes are @Serializable classes.
-    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.google.services)
 }
 
@@ -52,7 +50,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
-    implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
@@ -61,8 +58,8 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.coil.compose)
     implementation(libs.androidx.exifinterface)
-    implementation(libs.kotlinx.serialization.core)
-    // The map's GeoJSON features hold their properties as JSON objects.
+    // The map's GeoJSON features hold their properties as JSON objects, and its camera is saved
+    // as JSON.
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.maplibre.compose)
     // The map engine draws with Vulkan; the library needs exactly one renderer at runtime.

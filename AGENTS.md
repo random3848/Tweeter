@@ -7,17 +7,18 @@ components are `@Composable` functions, not XML layouts or View classes.
 
 Layout:
 - `app/`: the app, package `edu.csuci.tweeter`, for Android 14 (API 34) and later.
-  `MainActivity` shows `ui/TweeterApp.kt`: one Scaffold with the top bar, the bottom bar and a
-  NavHost that opens to Feed.
+  `MainActivity` shows `ui/TweeterApp.kt`: one Scaffold with the top bar, the bottom bar and the
+  screen of the selected tab, Feed at first. There is no NavHost: a tab's screen is composed the
+  first time the tab opens and stays composed, but unplaced, while another tab is open, so
+  switching tabs is instant and every screen (the map above all) comes back as it was left.
 - `app/src/main/java/edu/csuci/tweeter/data/`: the `Post` model and `PostRepository`. Screens
   only use the interface; `AppContainer` (owned by `TweeterApplication`) creates the one
   instance, for now the in-memory `FakePostRepository`.
 
 Adding a screen (`ui/feed/` is the example):
-- Give it its own package, `ui/<feature>/`, holding the screen, a `@Serializable` route object
-  and a `NavGraphBuilder.add<Feature>Screen()` function that registers the screen under it.
-- Call that function in the NavHost in `TweeterApp.kt`. If the screen gets a bottom-bar tab, add
-  its `TopLevelDestination` to `TOP_LEVEL_DESTINATIONS` in the same change.
+- Give it its own package, `ui/<feature>/`, holding the screen.
+- If the screen gets a bottom-bar tab, add its `BottomBarItem`, with the screen, to
+  `BOTTOM_BAR_ITEMS` in `TweeterApp.kt` in the same change.
 - A screen that needs data gets a ViewModel with a factory that reads the repository from
   `AppContainer`; the example is in `AppContainer`'s KDoc.
 - `app/src/main/java/edu/csuci/tweeter/ui/theme/`: colors, Manrope typography and the Material 3

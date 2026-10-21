@@ -17,12 +17,12 @@ import androidx.compose.ui.unit.dp
 /**
  * Shared bottom navigation displaying permanent items in the supplied order.
  *
- * Items without a destination remain visible but disabled. Connected items use
- * their destination's icons, accessibility label, and navigation callback.
+ * Items without a screen remain visible but disabled. The others use their icons, accessibility
+ * label, and selection callback.
  *
  * @param items The permanent bar items in display order.
- * @param isSelected Whether a connected destination is currently displayed.
- * @param onSelect Opens the selected working destination.
+ * @param isSelected Whether an item's screen is the one shown.
+ * @param onSelect Called with the item the user taps; only items with a screen can be tapped.
  * @param modifier Applied to the whole bar.
  */
 
@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.dp
 fun TweeterBottomBar(
     items: List<BottomBarItem>,
     isSelected: (BottomBarItem) -> Boolean,
-    onSelect: (Any) -> Unit,
+    onSelect: (BottomBarItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
@@ -43,16 +43,16 @@ fun TweeterBottomBar(
             tonalElevation = 0.dp
         ) {
             items.forEach { item ->
-                val route = item.route
-                val selected = route != null && isSelected(item)
+                val enabled = item.screen != null
+                val selected = enabled && isSelected(item)
                 val icon = if (selected) item.selectedIcon else item.unselectedIcon
 
                 NavigationBarItem(
                     selected = selected,
-                    enabled = route != null,
+                    enabled = enabled,
                     onClick = {
-                        if (route != null) {
-                            onSelect(route)
+                        if (enabled) {
+                            onSelect(item)
                         }
                     },
                     icon = {

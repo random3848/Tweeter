@@ -19,7 +19,7 @@ import edu.csuci.tweeter.data.PostRepository
  * val factory = viewModelFactory {
  *     initializer {
  *         val application = this[APPLICATION_KEY] as TweeterApplication
- *         MapViewModel(application.container.postRepository)
+ *         MapViewModel(application.container.postRepository, createSavedStateHandle())
  *     }
  * }
  * ```
