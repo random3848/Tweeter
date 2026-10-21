@@ -33,6 +33,10 @@ data class FeedUiState(val photoPosts: List<Post> = emptyList())
  */
 class FeedViewModel(postRepository: PostRepository, private val photoRepository: PhotoRepository) :
     ViewModel() {
+    // Temporary: reads Firebase Storage while there's no post database. Removed when
+    // FakePostRepository() in AppContainer is replaced with the real database; at that point
+    // the feed should read only postRepository.getPosts(), and this flow, the combine,
+    // and PhotoRepository.fetchPhotoUrls() can be deleted.
     private val firebasePhotosFlow = flow {
         val urls = photoRepository.fetchPhotoUrls()
         val posts = urls.mapIndexed { index, url ->

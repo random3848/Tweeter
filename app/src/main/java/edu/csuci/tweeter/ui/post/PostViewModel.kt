@@ -37,9 +37,7 @@ class PostViewModel(
 ) : ViewModel() {
     private var locateJob: Job? = null
 
-    // Uploads photos and holds the upload state displayed by the post screen.
-
-    /**] Whether a photo upload is currently running. */
+    /** Whether a photo upload is currently running. */
     var isUploading by mutableStateOf(false)
         private set
 
