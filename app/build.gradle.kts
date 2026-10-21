@@ -68,7 +68,8 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.androidx.exifinterface)
     implementation(libs.kotlinx.serialization.core)
-    // The map's GeoJSON features hold their properties as JSON objects.
+    // The map's GeoJSON features hold their properties as JSON objects, and MapViewModel saves the
+    // map's camera as JSON.
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.maplibre.compose)
     // The map engine draws with Vulkan; the library needs exactly one renderer at runtime.

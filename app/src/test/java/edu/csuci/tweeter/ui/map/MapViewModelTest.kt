@@ -2,6 +2,7 @@
 
 package edu.csuci.tweeter.ui.map
 
+import androidx.lifecycle.SavedStateHandle
 import edu.csuci.tweeter.data.FakePostRepository
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.SAMPLE_POSTS
@@ -190,14 +191,17 @@ class MapViewModelTest {
         assertEquals(post.id, showInFeedRequest.postId.value)
     }
 
-    // The map follows its posts only while something collects its state, as MapScreen does.
+    // The map follows its posts only while something collects its state, as MapScreen does. No
+    // test shows the map, which needs MapLibre's native engine.
     private fun TestScope.mapViewModel(
         repository: PostRepository = FakePostRepository()
     ): MapViewModel {
         val viewModel = MapViewModel(
             postRepository = repository,
             showOnMapRequest = showOnMapRequest,
-            showInFeedRequest = showInFeedRequest
+            showInFeedRequest = showInFeedRequest,
+            savedStateHandle = SavedStateHandle(),
+            createMap = { error("Unit tests don't show the map") }
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect()

@@ -2,6 +2,8 @@
 
 package edu.csuci.tweeter.ui
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -78,6 +80,9 @@ private val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
  * It draws its own top bar with a back arrow, so the shared one is hidden there. Profile and Post
  * open Log in and Create account for guests, and the tab they were opened from stays selected.
  * Profile's "Edit profile" button opens Edit profile, which hides both bars.
+ *
+ * A tab left open keeps its state, the map included (see `MapViewModel.map`), but only the open
+ * screen is composed.
  *
  * @param modifier Applied to the whole app
  */
@@ -161,7 +166,11 @@ fun TweeterApp(modifier: Modifier = Modifier) {
             // it stops a screen's own top bar from padding below the status bar a second time.
             modifier = Modifier
                 .padding(innerPadding)
-                .consumeWindowInsets(innerPadding)
+                .consumeWindowInsets(innerPadding),
+            // Screens switch in one frame. The map draws in a SurfaceView, which can't fade, so a
+            // fade would leave it fully drawn over the next screen until the fade ended.
+            enterTransition = { EnterTransition.None },
+            exitTransition = { ExitTransition.None }
         ) {
             addFeedScreen(onShowOnMap = { navController.navigateToTopLevel(MapRoute) })
             addPostScreen(onLogIn = openLogIn, onCreateAccount = openCreateAccount)

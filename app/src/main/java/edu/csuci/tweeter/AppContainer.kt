@@ -30,7 +30,9 @@ import edu.csuci.tweeter.ui.navigation.ShowPostRequest
  *         MapViewModel(
  *             postRepository = application.container.postRepository,
  *             showOnMapRequest = application.container.showOnMapRequest,
- *             showInFeedRequest = application.container.showInFeedRequest
+ *             showInFeedRequest = application.container.showInFeedRequest,
+ *             savedStateHandle = createSavedStateHandle(),
+ *             createMap = ::PostMap
  *         )
  *     }
  * }

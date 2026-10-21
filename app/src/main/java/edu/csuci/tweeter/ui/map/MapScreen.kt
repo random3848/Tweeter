@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -20,7 +21,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.data.Post
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
-import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.camera.CameraUpdate
 import org.maplibre.compose.interaction.ClickResult
 import org.maplibre.compose.interaction.MapInteractions
@@ -30,7 +30,6 @@ import org.maplibre.compose.location.rememberDefaultHeadingProvider
 import org.maplibre.compose.location.rememberLocationState
 import org.maplibre.compose.map.MapState
 import org.maplibre.compose.map.MaplibreMap
-import org.maplibre.compose.map.rememberMapState
 import org.maplibre.compose.overlay.AttributionLinks
 import org.maplibre.compose.overlay.CompassButtonStyle
 import org.maplibre.compose.overlay.DisappearingCompassButton
@@ -39,7 +38,6 @@ import org.maplibre.compose.overlay.MapOverlay
 import org.maplibre.compose.overlay.MapOverlayScope
 import org.maplibre.compose.overlay.MaplibreLogo
 import org.maplibre.compose.overlay.attributions
-import org.maplibre.compose.style.BaseStyle
 import org.maplibre.spatialk.geojson.Position
 
 // OpenStreetMap's standard map, from its own tile servers. The style also holds the attribution
@@ -76,7 +74,8 @@ fun MapScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val locationState = rememberLocationState(headingProvider = rememberDefaultHeadingProvider())
-    val mapState = rememberPostMapState(uiState, locationState, onPinClick = viewModel::selectPost)
+    PostMapLayers(viewModel.map, uiState, locationState, onPinClick = viewModel::selectPost)
+    val mapState = viewModel.map.state
 
     BackHandler(enabled = uiState.selectedPost != null, onBack = viewModel::clearSelection)
     MapMoveEffect(uiState, mapState, locationState, onMoveFinished = viewModel::finishMove)
@@ -106,33 +105,36 @@ fun MapScreen(
 }
 
 /**
- * The map's state, opening over the campus, with a pin for each post and the user's location
- * drawn on it.
+ * Draws a pin for each post in [uiState], and the user's location, on [map] while this screen
+ * presents it.
  *
+ * @param map The map to draw on.
  * @param uiState The posts to pin and the selected one.
  * @param locationState The user's location, drawn as a blue dot.
  * @param onPinClick Called with the ID of the post whose pin the user taps.
  */
 @Composable
-private fun rememberPostMapState(
+private fun PostMapLayers(
+    map: PostMap,
     uiState: MapUiState,
     locationState: LocationState,
     onPinClick: (String) -> Unit
-): MapState {
+) {
     val currentOnPinClick by rememberUpdatedState(onPinClick)
-    return rememberMapState(
-        baseStyle = BaseStyle.Uri(MAP_STYLE_URI),
-        initialCameraPosition = CameraPosition(
-            center = Position(longitude = CAMPUS_LONGITUDE, latitude = CAMPUS_LATITUDE),
-            zoom = CAMPUS_ZOOM
-        )
-    ) {
+    // Set while composing, as rememberUpdatedState sets its value, rather than in a SideEffect:
+    // MapLibre composes the layers of a map it presents before SideEffects run, and layers it
+    // found missing then would disappear from the map for a frame.
+    map.layers = {
         PostPins(
             posts = uiState.posts,
             selectedPost = uiState.selectedPost,
             onPinClick = { currentOnPinClick(it) }
         )
         LocationIndicatorLayer(id = "user-location", locationState = locationState)
+    }
+    // The map outlives this screen; it mustn't keep the screen's location updates.
+    DisposableEffect(map) {
+        onDispose { map.layers = {} }
     }
 }
 
