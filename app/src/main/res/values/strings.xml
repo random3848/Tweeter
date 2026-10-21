@@ -6,6 +6,9 @@
     <string name="navigation_map">Map</string>
     <string name="navigation_profile">Profile</string>
 
+    <string name="feed_photo_description">Feed photo</string>
+    <string name="feed_empty_message">No photos shared yet.</string>
+
     <string name="take_picture">Take Picture</string>
     <string name="choose_from_camera_roll">Choose from Camera Roll</string>
     <string name="upload_photo">Upload Photo</string>

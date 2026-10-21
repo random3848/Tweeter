@@ -43,6 +43,7 @@ kotlin {
         languageVersion.set(
             KotlinVersion.fromVersion(libs.versions.ktlintKotlin.get().substringBeforeLast('.'))
         )
+        optIn.add("kotlin.time.ExperimentalTime")
     }
 }
 
@@ -58,6 +59,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.coil.compose)
     implementation(libs.androidx.exifinterface)
     implementation(libs.kotlinx.serialization.core)
     // The map's GeoJSON features hold their properties as JSON objects.
