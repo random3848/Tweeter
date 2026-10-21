@@ -1,0 +1,16 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /images/{userId}/{fileName} {
+      allow read: if request.auth != null
+                  && request.auth.uid == userId;
+
+      allow create: if request.auth != null
+                    && request.auth.uid == userId
+                    && request.resource.size > 0
+                    && request.resource.size < 20 * 1024 * 1024
+                    && request.resource.contentType == 'image/jpeg';
+    }
+  }
+}

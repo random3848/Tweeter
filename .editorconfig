@@ -1,0 +1,35 @@
+# Kotlin formatting follows the Android Kotlin style guide. `./gradlew ktlintCheck` enforces it
+# with ktlint's standard rules plus this repo's android-style rules (ktlint-rules/), and Android
+# Studio reads the same settings when it formats code.
+root = true
+
+[*.{kt,kts}]
+charset = utf-8
+indent_style = space
+indent_size = 4
+max_line_length = 100
+insert_final_newline = true
+
+# ktlint's preset for the Android Kotlin style guide.
+ktlint_code_style = android_studio
+
+# @Composable functions are named by android-style:composable-naming (PascalCase when they
+# return Unit, camelCase otherwise), so the standard function-naming rule skips them.
+ktlint_function_naming_ignore_when_annotated_with = Composable
+
+# Standard rules that contradict the guide, each replaced by an android-style rule:
+# - filename rejects plural camelCase file names like extensions.kt, which the guide allows.
+# - backing-property-naming rejects top-level backing properties, which the guide shows.
+# - chain-wrapping puts ?: at the start of a line; the guide breaks after every operator.
+ktlint_standard_filename = disabled
+ktlint_standard_backing-property-naming = disabled
+ktlint_standard_chain-wrapping = disabled
+
+# Imports are one ASCII-sorted list with no wildcards. The android_studio preset still allows
+# java.util.* and kotlinx.android.synthetic.**, so the allowlist is set to empty (not "unset":
+# ktlint reads "unset" as "use the preset"). The star-import thresholds stop Android Studio from
+# writing wildcard imports in the first place.
+ij_kotlin_imports_layout = *
+ij_kotlin_packages_to_use_import_on_demand =
+ij_kotlin_name_count_to_use_star_import = 2147483647
+ij_kotlin_name_count_to_use_star_import_for_members = 2147483647

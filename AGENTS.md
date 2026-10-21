@@ -5,16 +5,53 @@
 Tweeter is an Android app written in Kotlin. The UI is built with Jetpack Compose: screens and
 components are `@Composable` functions, not XML layouts or View classes.
 
+Layout:
+- `app/`: the app, package `edu.csuci.tweeter`, for Android 14 (API 34) and later.
+  `MainActivity` shows `ui/TweeterApp.kt`: one Scaffold with the top bar, the bottom bar and a
+  NavHost that opens to Feed.
+- `app/src/main/java/edu/csuci/tweeter/data/`: the `Post` model and `PostRepository`. Screens
+  only use the interface; `AppContainer` (owned by `TweeterApplication`) creates the one
+  instance, for now the in-memory `FakePostRepository`.
+
+Adding a screen (`ui/feed/` is the example):
+- Give it its own package, `ui/<feature>/`, holding the screen, a `@Serializable` route object
+  and a `NavGraphBuilder.add<Feature>Screen()` function that registers the screen under it.
+- Call that function in the NavHost in `TweeterApp.kt`. If the screen gets a bottom-bar tab, add
+  its `TopLevelDestination` to `TOP_LEVEL_DESTINATIONS` in the same change.
+- A screen that needs data gets a ViewModel with a factory that reads the repository from
+  `AppContainer`; the example is in `AppContainer`'s KDoc.
+- `app/src/main/java/edu/csuci/tweeter/ui/theme/`: colors, Manrope typography and the Material 3
+  theme, taken from the designs. Screens use `MaterialTheme.colorScheme` and
+  `MaterialTheme.typography` instead of hard-coded colors and text sizes.
+- `ktlint-rules/`: this repo's ktlint rules (see Lint below). Not part of the app.
+
 - Build: Gradle wrapper (`./gradlew build`), JDK 17. This is what the `build` check in
   `.github/workflows/build.yml` runs.
 - `gradle/wrapper/gradle-wrapper.jar` must be an official Gradle release; the
   `Validate Gradle Wrapper` workflow rejects anything else. Regenerate it with `./gradlew wrapper`,
   never by hand.
+- Lint: `./gradlew ktlintCheck` runs ktlint (version in `gradle/libs.versions.toml`) with its
+  standard rules plus this repo's `android-style` rules in `ktlint-rules/`, configured in
+  `.editorconfig`, over every `.kt`/`.kts` file outside `build/`. This is what the `ktlint` check
+  in `.github/workflows/lint.yml` runs. `./gradlew ktlintFormat` fixes what it can.
 
 ## Code style
 
 All Kotlin follows the [Android Kotlin style guide](https://developer.android.com/kotlin/style-guide).
-The guide is authoritative; the rules below are the ones most often gotten wrong.
+The guide is authoritative; the rules below are the ones most often gotten wrong. ktlint enforces
+every rule in the guide that a tool can check. Reviewers check the rest:
+- Classes, properties and constants are named with nouns, functions with verbs.
+- Each file has one theme, and declarations and class members are in an order its author could
+  explain.
+- KDoc says something a reader needs. The guide's exception for self-explanatory members
+  (`getFoo`) is applied with `@Suppress("ktlint:android-style:kdoc-required")`.
+- A `val` holding any deeply immutable value is a constant (UPPER_SNAKE_CASE) and one holding a
+  mutable value isn't. ktlint can only tell for literals and collections of literals.
+- Test classes start with the name of the class they test.
+- Every button, tab, link or other control does something when pressed. Don't add controls for
+  features that aren't built yet, or controls that open empty screens; add a control in the same
+  change as what it does.
+- Code that isn't used anymore is deleted, not commented out.
 
 Formatting:
 - UTF-8, spaces only (no tabs), 4-space indent, 100-column limit (`package`/`import` lines exempt).
@@ -24,6 +61,8 @@ Formatting:
   a single-line `if`/`else` expression with at most one `else`, or a single-line `when` branch.
 - A signature that doesn't fit on one line puts each parameter on its own line, indented +4, with
   `)` and the return type on their own line.
+- A line broken at an operator (including `?:` and infix functions like `and`) breaks after it;
+  only `.`, `?.` and `::` start the next line.
 
 Naming:
 - Packages: all lowercase, words concatenated, no underscores.
@@ -34,12 +73,15 @@ Naming:
   UPPER_SNAKE_CASE. Everything else: camelCase.
 - Backing properties: the public name prefixed with `_` (`_uiState` backs `uiState`). No other
   prefixes or suffixes (`mName`, `sName`, `kName`).
+- Acronyms are words: `XmlHttpRequest`, `newCustomerId`. A name with a one-letter word (`XAxis`)
+  needs `@Suppress("ktlint:android-style:camel-case")`.
 - Files: a file with one top-level class is named after it (`TweetCard.kt`); otherwise a
-  descriptive PascalCase name.
+  descriptive PascalCase name, or camelCase if the name is plural (`extensions.kt`).
 
 Documentation:
 - KDoc on every public type and every public/protected member of such a type. The only
-  exceptions are self-explanatory members (`getFoo`) and overrides.
+  exceptions are self-explanatory members (`getFoo`) and overrides. ktlint doesn't require KDoc
+  in test source sets (`src/test`, `src/androidTest`).
 - Each KDoc block opens with a short summary fragment.
 
 ## Git workflow (Gitflow)

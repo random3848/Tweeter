@@ -1,0 +1,31 @@
+<resources>
+    <string name="app_name">Tweeter</string>
+
+    <string name="navigation_home">Home</string>
+    <string name="navigation_create_post">Create post</string>
+    <string name="navigation_map">Map</string>
+    <string name="navigation_profile">Profile</string>
+
+    <string name="feed_photo_description">Feed photo</string>
+    <string name="feed_empty_message">No photos shared yet.</string>
+
+    <string name="take_picture">Take Picture</string>
+    <string name="choose_from_camera_roll">Choose from Camera Roll</string>
+    <string name="upload_photo">Share Post</string>
+    <string name="photo_uploading">Sharing post…</string>
+    <string name="photo_camera_failed">Could not open the camera. Please try again.</string>
+    <string name="photo_picker_failed">Could not open the camera roll. Please try again.</string>
+    <string name="photo_upload_failed">Could not share the post. Please try again.</string>
+    <string name="photo_uploaded">Post shared. It\'s on the feed and the map.</string>
+    <string name="photo_ready">Photo ready to share.</string>
+    <string name="photo_not_taken">Take or choose a photo to get started.</string>
+
+    <string name="post_location_finding">Finding where this photo was taken…</string>
+    <string name="post_location_needed">Tap the map to set where this photo was taken.</string>
+    <string name="post_location_from_photo">Location from the photo: %1$.5f, %2$.5f</string>
+    <string name="post_location_from_device">Location from your device: %1$.5f, %2$.5f</string>
+    <string name="post_location_picked">Location you picked: %1$.5f, %2$.5f</string>
+
+    <string name="location_picker_use_my_location">Use my location</string>
+    <string name="location_picker_no_fix">Couldn\'t get your location. Tap the map instead.</string>
+</resources>
