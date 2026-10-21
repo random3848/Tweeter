@@ -2,4 +2,5 @@
 <resources>
     <!-- INK from the designs (ui/theme/Color.kt). -->
     <color name="ic_launcher_background">#111614</color>
+    <color name="splash_background">#EEF1EE</color>
 </resources>
