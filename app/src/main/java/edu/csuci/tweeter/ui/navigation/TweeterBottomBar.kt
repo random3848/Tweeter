@@ -58,17 +58,13 @@ fun TweeterBottomBar(
                     },
                     icon = {
                         Icon(
-                            painter = painterResource(
-                                if (selected) item.selectedIcon else item.unselectedIcon
-                            ),
+                            painter = painterResource(icon),
                             contentDescription = stringResource(item.description),
                             tint = Color.Unspecified,
                             modifier = Modifier.size(65.dp)
                         )
                     },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = MaterialTheme.colorScheme.onSurface,
-                        unselectedIconColor = MaterialTheme.colorScheme.onSurface,
                         indicatorColor = Color.Transparent
                     )
                 )
