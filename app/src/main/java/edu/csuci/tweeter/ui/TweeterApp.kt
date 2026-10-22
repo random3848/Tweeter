@@ -36,19 +36,19 @@ import edu.csuci.tweeter.ui.profile.addProfileScreen
 private val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
     BottomBarItem(
         selectedIcon = R.drawable.ic_home_filled,
-        unselectedIcon = R.drawable.ic_home_outlined,
+        unselectedIcon = R.drawable.ic_home_unfilled,
         description = R.string.navigation_home,
         route = FeedRoute
     ),
     BottomBarItem(
-        selectedIcon = R.drawable.ic_add_post_filled,
-        unselectedIcon = R.drawable.ic_add_post_outlined,
+        selectedIcon = R.drawable.ic_upload_filled,
+        unselectedIcon = R.drawable.ic_upload_unfilled,
         description = R.string.navigation_create_post,
         route = PostRoute
     ),
     BottomBarItem(
         selectedIcon = R.drawable.ic_map_filled,
-        unselectedIcon = R.drawable.ic_map_outlined,
+        unselectedIcon = R.drawable.ic_map_unfilled,
         description = R.string.navigation_map,
         route = MapRoute
     )
