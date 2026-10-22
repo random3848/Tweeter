@@ -15,6 +15,7 @@ import java.time.Instant
 val SAMPLE_POSTS: List<Post> = listOf(
     Post(
         id = "sample-1",
+        authorUid = "",
         username = "maya.k",
         avatar = Avatar(initials = "MK"),
         locationName = "Library, oak tree",
@@ -30,6 +31,7 @@ val SAMPLE_POSTS: List<Post> = listOf(
     ),
     Post(
         id = "sample-2",
+        authorUid = "",
         username = "jordan.r",
         avatar = Avatar(initials = "JR"),
         locationName = "Santa Rosa Island",
@@ -45,6 +47,7 @@ val SAMPLE_POSTS: List<Post> = listOf(
     ),
     Post(
         id = "sample-3",
+        authorUid = "",
         username = "sam.t",
         avatar = Avatar(initials = "ST"),
         locationName = "Calleguas Creek",

@@ -17,6 +17,9 @@ object PostDocument {
     /** The field posts are ordered by: when the post was shared. */
     const val TIMESTAMP = "timestamp"
 
+    /** The field a user's posts are found by: the poster's ID, absent if nobody was logged in. */
+    const val AUTHOR_UID = "authorUid"
+
     private const val USERNAME = "username"
     private const val AVATAR_INITIALS = "avatarInitials"
     private const val LOCATION_NAME = "locationName"
@@ -27,7 +30,10 @@ object PostDocument {
     private const val LIKE_COUNT = "likeCount"
     private const val COMMENT_COUNT = "commentCount"
 
-    /** Returns the fields to store for [post], with [TIMESTAMP] left for Firestore to set. */
+    /**
+     * Returns the fields to store for [post], with [TIMESTAMP] left for Firestore to set and
+     * [AUTHOR_UID] left out when it is empty.
+     */
     fun fieldsOf(post: Post): Map<String, Any> = mapOf(
         USERNAME to post.username,
         AVATAR_INITIALS to post.avatar.initials,
@@ -39,13 +45,14 @@ object PostDocument {
         LIKE_COUNT to post.likeCount,
         COMMENT_COUNT to post.commentCount,
         TIMESTAMP to FieldValue.serverTimestamp()
-    )
+    ) + if (post.authorUid.isEmpty()) emptyMap() else mapOf(AUTHOR_UID to post.authorUid)
 
     /**
      * Returns the post stored in document [id] with [fields], or null if a required field is
      * missing or has the wrong type.
      *
-     * The text fields that may be empty and the counts default when missing, so a post added by
+     * The text fields that may be empty ([AUTHOR_UID] among them) and the counts default when
+     * missing, so a post added by
      * hand in the Firebase console only needs [USERNAME], [LATITUDE], [LONGITUDE], [IMAGE_URI]
      * and [TIMESTAMP].
      */
@@ -59,6 +66,7 @@ object PostDocument {
 
         return Post(
             id = id,
+            authorUid = fields[AUTHOR_UID] as? String ?: "",
             username = username,
             avatar = Avatar(
                 initials = fields[AVATAR_INITIALS] as? String ?: username.take(1).uppercase()

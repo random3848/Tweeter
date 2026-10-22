@@ -20,6 +20,7 @@ class FirebasePhotoRepository(
 ) : PhotoRepository {
     override suspend fun uploadPhoto(uri: Uri): String {
         try {
+            // Anonymous until create-account/login is built; that work changes or removes this.
             val user = auth.currentUser ?: auth.signInAnonymously().await().user
             if (user == null) {
                 throw PhotoUploadException(

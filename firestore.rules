@@ -2,6 +2,11 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // The fields match ProfileDocument in the app. Profiles can't be edited from the app yet.
+    match /users/{uid} {
+      allow read: if request.auth != null;
+    }
+
     // The fields match PostDocument in the app.
     match /posts/{postId} {
       allow read: if request.auth != null;
@@ -9,12 +14,16 @@ service cloud.firestore {
       // Posts can't be edited or deleted yet.
       allow create: if request.auth != null
                     && request.resource.data.keys().hasOnly([
-                         'username', 'avatarInitials', 'locationName', 'latitude', 'longitude',
-                         'imageUri', 'caption', 'likeCount', 'commentCount', 'timestamp'
+                         'authorUid', 'username', 'avatarInitials', 'locationName', 'latitude',
+                         'longitude', 'imageUri', 'caption', 'likeCount', 'commentCount',
+                         'timestamp'
                        ])
                     && request.resource.data.keys().hasAll([
                          'username', 'latitude', 'longitude', 'imageUri', 'timestamp'
                        ])
+                    // Left out when nobody is logged in; otherwise only the poster's own ID.
+                    && (!('authorUid' in request.resource.data)
+                        || request.resource.data.authorUid == request.auth.uid)
                     && request.resource.data.username is string
                     && request.resource.data.username.size() > 0
                     && request.resource.data.latitude is number

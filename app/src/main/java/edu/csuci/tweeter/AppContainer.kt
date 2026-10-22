@@ -5,8 +5,11 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import edu.csuci.tweeter.data.FirebasePhotoRepository
 import edu.csuci.tweeter.data.FirestorePostRepository
+import edu.csuci.tweeter.data.FirestoreProfileRepository
 import edu.csuci.tweeter.data.PhotoRepository
+import edu.csuci.tweeter.data.PlaceholderAccountRepository
 import edu.csuci.tweeter.data.PostRepository
+import edu.csuci.tweeter.data.ProfileRepository
 
 /**
  * The objects the whole app shares, created once by [TweeterApplication].
@@ -34,6 +37,20 @@ class AppContainer {
             auth = FirebaseAuth.getInstance(),
             firestore = FirebaseFirestore.getInstance()
         )
+    }
+
+    /** Every user's profile, stored in Firestore. */
+    val profileRepository: ProfileRepository by lazy {
+        FirestoreProfileRepository(firestore = FirebaseFirestore.getInstance())
+    }
+
+    /**
+     * Who is logged in. A placeholder until create-account/login is built; that work replaces it
+     * here. It is typed as the placeholder so Profile's log-in prompt can call
+     * [PlaceholderAccountRepository.logIn]; everything else uses it as an `AccountRepository`.
+     */
+    val accountRepository: PlaceholderAccountRepository by lazy {
+        PlaceholderAccountRepository(auth = FirebaseAuth.getInstance())
     }
 
     /** Uploads camera photos to Firebase Storage. */
