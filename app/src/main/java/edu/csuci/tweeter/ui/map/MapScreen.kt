@@ -3,7 +3,6 @@ package edu.csuci.tweeter.ui.map
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -78,44 +77,46 @@ private val PIN_HIT_PADDING = 16.dp
  * The map: every post as a pin where its photo was taken, and the user's location as a blue dot.
  * It opens over the campus.
  *
- * Tapping a pin selects its post: the map moves to the pin, and the post's photo and details show
- * below the map until the user closes them or taps the map anywhere else. Other screens show a
- * post here by selecting it in [MapSelection] before opening Map. The location button moves the
- * map to the user, asking for location permission first if the app doesn't have it.
+ * Tapping a pin selects its post: the map moves to the pin and opens a popup above it with the
+ * post's photo, until the user taps the map anywhere else. Pressing the popup shows the post on
+ * Home. Feed shows a post here by selecting it in [edu.csuci.tweeter.AppContainer.mapSelection]
+ * before opening Map. The location button moves the map to the user, asking for location
+ * permission first if the app doesn't have it.
  *
+ * @param onShowInFeed Opens Home, once the post whose popup the user pressed is selected there.
  * @param modifier Applied to the screen.
  * @param viewModel Supplies the posts and the selected one.
  */
 @Composable
 fun MapScreen(
+    onShowInFeed: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: MapViewModel = viewModel(factory = MapViewModel.factory)
 ) {
     val posts by viewModel.posts.collectAsStateWithLifecycle()
     val selectedPost by viewModel.selectedPost.collectAsStateWithLifecycle()
-    Column(modifier = modifier.fillMaxSize()) {
-        PostMap(
-            posts = posts,
-            selectedPost = selectedPost,
-            onPinClick = viewModel::selectPost,
-            onMapClick = viewModel::clearSelection,
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-        )
-        selectedPost?.let { post ->
-            SelectedPostCard(post = post, onClose = viewModel::clearSelection)
-        }
-    }
+    PostMap(
+        posts = posts,
+        selectedPost = selectedPost,
+        onPinClick = viewModel::selectPost,
+        onMapClick = viewModel::clearSelection,
+        onPopupClick = { post ->
+            viewModel.showInFeed(post)
+            onShowInFeed()
+        },
+        modifier = modifier.fillMaxSize()
+    )
 }
 
 /**
- * A map with one pin per post in [posts], the user's location, and a button that moves to it.
+ * A map with one pin per post in [posts], the selected post's popup, the user's location, and a
+ * button that moves to it.
  *
  * @param posts The posts to pin.
- * @param selectedPost The post whose pin stands out and that the map moves to, or null.
+ * @param selectedPost The post whose popup is open and that the map moves to, or null.
  * @param onPinClick Called with the ID of the post whose pin the user taps.
- * @param onMapClick Called when the user taps the map anywhere but on a pin.
+ * @param onMapClick Called when the user taps the map anywhere but on a pin or the popup.
+ * @param onPopupClick Called with the selected post when the user presses its popup.
  * @param modifier Applied to the map.
  */
 @Composable
@@ -124,6 +125,7 @@ private fun PostMap(
     selectedPost: Post?,
     onPinClick: (String) -> Unit,
     onMapClick: () -> Unit,
+    onPopupClick: (Post) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val currentOnPinClick by rememberUpdatedState(onPinClick)
@@ -173,6 +175,16 @@ private fun PostMap(
                     locationState = locationState,
                     mapState = mapState,
                     modifier = Modifier.padding(MapOverlay.Spacing)
+                )
+            }
+            selectedPost?.let { post ->
+                PostPopup(
+                    post = post,
+                    onClick = { onPopupClick(post) },
+                    modifier = Modifier
+                        .placedAt(post.position(), Alignment.BottomCenter)
+                        // The tail's tip touches the top of the selected pin.
+                        .padding(bottom = SELECTED_PIN_RADIUS + SELECTED_PIN_OUTLINE_WIDTH)
                 )
             }
         }

@@ -8,9 +8,13 @@ import kotlinx.serialization.Serializable
 @Serializable
 object MapRoute
 
-/** Registers [MapScreen] under [MapRoute] in the app's NavHost. */
-fun NavGraphBuilder.addMapScreen() {
+/**
+ * Registers [MapScreen] under [MapRoute] in the app's NavHost.
+ *
+ * @param onShowInFeed Opens Home, where the post whose popup the user pressed is selected.
+ */
+fun NavGraphBuilder.addMapScreen(onShowInFeed: () -> Unit) {
     composable<MapRoute> {
-        MapScreen()
+        MapScreen(onShowInFeed = onShowInFeed)
     }
 }

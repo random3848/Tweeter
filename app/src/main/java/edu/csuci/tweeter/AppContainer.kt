@@ -10,7 +10,7 @@ import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PlaceholderAccountRepository
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.ProfileRepository
-import edu.csuci.tweeter.ui.map.MapSelection
+import edu.csuci.tweeter.ui.navigation.PostSelection
 
 /**
  * The objects the whole app shares, created once by [TweeterApplication].
@@ -24,7 +24,11 @@ import edu.csuci.tweeter.ui.map.MapSelection
  * val factory = viewModelFactory {
  *     initializer {
  *         val application = this[APPLICATION_KEY] as TweeterApplication
- *         MapViewModel(application.container.postRepository, application.container.mapSelection)
+ *         MapViewModel(
+ *             postRepository = application.container.postRepository,
+ *             mapSelection = application.container.mapSelection,
+ *             feedSelection = application.container.feedSelection
+ *         )
  *     }
  * }
  * ```
@@ -62,6 +66,9 @@ class AppContainer {
         )
     }
 
-    /** The post selected on Map, which Feed sets to show a post there. */
-    val mapSelection: MapSelection = MapSelection()
+    /** The post whose popup is open on Map. Feed selects a post here to show it on Map. */
+    val mapSelection: PostSelection = PostSelection()
+
+    /** The post Feed scrolls to when it opens. Map's popup selects its post here. */
+    val feedSelection: PostSelection = PostSelection()
 }

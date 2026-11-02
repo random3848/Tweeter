@@ -1,17 +1,17 @@
-package edu.csuci.tweeter.ui.map
+package edu.csuci.tweeter.ui.navigation
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Which post is selected on Map, where its pin stands out and its photo and details show below
- * the map.
+ * A post that one screen asks another to show.
  *
- * The app shares one in [edu.csuci.tweeter.AppContainer], so another screen can show a post on
- * Map by selecting it before it opens Map, as Feed does.
+ * The app shares one for each screen that can be asked, in [edu.csuci.tweeter.AppContainer]:
+ * Feed selects a post for Map before opening Map, which opens the post's popup, and that popup
+ * selects the post for Feed before opening Home, which scrolls to it.
  */
-class MapSelection {
+class PostSelection {
     private val _postId = MutableStateFlow<String?>(null)
 
     /** The ID of the selected post, or null while none is selected. */

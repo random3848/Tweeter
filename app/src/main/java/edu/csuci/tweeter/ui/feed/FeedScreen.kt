@@ -11,11 +11,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,7 +35,8 @@ import edu.csuci.tweeter.R
  * The photo-only home feed, the screen the app opens to.
  *
  * Displays photo posts from [FeedViewModel], sorted by timestamp, in a clean scrolling layout.
- * Each photo has a label saying where it was taken; pressing it shows the post on Map.
+ * Each photo has a label saying where it was taken; pressing it shows the post on Map. When
+ * another screen asks the feed to show a post, as Map's popup does, the feed scrolls to it.
  *
  * @param onShowOnMap Opens Map once the post the user chose is selected there.
  * @param modifier Applied to the whole screen.
@@ -46,6 +49,22 @@ fun FeedScreen(
     feedViewModel: FeedViewModel = viewModel(factory = FeedViewModel.factory)
 ) {
     val uiState by feedViewModel.uiState.collectAsStateWithLifecycle()
+    val postToShow by feedViewModel.postToShow.collectAsStateWithLifecycle()
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(postToShow, uiState.photoPosts) {
+        val postId = postToShow ?: return@LaunchedEffect
+        val posts = uiState.photoPosts
+        // The post came from another screen, so an empty feed hasn't loaded yet.
+        if (posts.isEmpty()) {
+            return@LaunchedEffect
+        }
+        val index = posts.indexOfFirst { it.id == postId }
+        if (index >= 0) {
+            listState.scrollToItem(index)
+        }
+        feedViewModel.clearPostToShow()
+    }
 
     if (uiState.photoPosts.isEmpty()) {
         Box(
@@ -60,6 +79,7 @@ fun FeedScreen(
         }
     } else {
         LazyColumn(
+            state = listState,
             modifier = modifier.fillMaxSize(),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
