@@ -128,7 +128,7 @@ fun TweeterApp(modifier: Modifier = Modifier) {
                 .padding(innerPadding)
                 .consumeWindowInsets(innerPadding)
         ) {
-            addFeedScreen()
+            addFeedScreen(onShowOnMap = { navController.navigateToTopLevel(MapRoute) })
             addPostScreen()
             addMapScreen()
             addProfileScreen(onBack = { navController.navigateUp() })

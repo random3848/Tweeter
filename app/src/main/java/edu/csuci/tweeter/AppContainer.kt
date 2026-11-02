@@ -10,6 +10,7 @@ import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PlaceholderAccountRepository
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.ProfileRepository
+import edu.csuci.tweeter.ui.map.MapSelection
 
 /**
  * The objects the whole app shares, created once by [TweeterApplication].
@@ -23,7 +24,7 @@ import edu.csuci.tweeter.data.ProfileRepository
  * val factory = viewModelFactory {
  *     initializer {
  *         val application = this[APPLICATION_KEY] as TweeterApplication
- *         MapViewModel(application.container.postRepository)
+ *         MapViewModel(application.container.postRepository, application.container.mapSelection)
  *     }
  * }
  * ```
@@ -60,4 +61,7 @@ class AppContainer {
             storage = FirebaseStorage.getInstance()
         )
     }
+
+    /** The post selected on Map, which Feed sets to show a post there. */
+    val mapSelection: MapSelection = MapSelection()
 }

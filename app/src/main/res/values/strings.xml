@@ -9,6 +9,12 @@
 
     <string name="feed_photo_description">Feed photo</string>
     <string name="feed_empty_message">No photos shared yet.</string>
+    <string name="feed_show_on_map">Show on map</string>
+
+    <string name="map_my_location">Show my location</string>
+    <string name="map_post_photo_description">Photo taken here</string>
+    <string name="map_post_coordinates">%1$.5f, %2$.5f</string>
+    <string name="map_post_close">Close</string>
 
     <plurals name="profile_post_count">
         <item quantity="one">%d post</item>

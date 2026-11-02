@@ -9,6 +9,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.Post
 import edu.csuci.tweeter.data.PostRepository
+import edu.csuci.tweeter.ui.map.MapSelection
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -25,8 +26,10 @@ data class FeedUiState(val photoPosts: List<Post> = emptyList())
  * Holds photo posts for [FeedScreen].
  *
  * @param postRepository Where post data is read from.
+ * @param mapSelection The post selected on Map, which [showOnMap] sets.
  */
-class FeedViewModel(postRepository: PostRepository) : ViewModel() {
+class FeedViewModel(postRepository: PostRepository, private val mapSelection: MapSelection) :
+    ViewModel() {
     /**
      * The current state of the feed, updated whenever posts change.
      */
@@ -44,12 +47,20 @@ class FeedViewModel(postRepository: PostRepository) : ViewModel() {
             initialValue = FeedUiState()
         )
 
+    /** Selects [post] on Map, so that Map shows its pin and details when it opens. */
+    fun showOnMap(post: Post) {
+        mapSelection.select(post.id)
+    }
+
     companion object {
-        /** Creates a [FeedViewModel] that reads the app's shared post repository. */
+        /** Creates a [FeedViewModel] that reads the app's shared posts and Map selection. */
         val factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as TweeterApplication
-                FeedViewModel(postRepository = application.container.postRepository)
+                FeedViewModel(
+                    postRepository = application.container.postRepository,
+                    mapSelection = application.container.mapSelection
+                )
             }
         }
     }
