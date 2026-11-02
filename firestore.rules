@@ -1,0 +1,43 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // The fields match ProfileDocument in the app. Profiles can't be edited from the app yet.
+    match /users/{uid} {
+      allow read: if request.auth != null;
+    }
+
+    // The fields match PostDocument in the app.
+    match /posts/{postId} {
+      allow read: if request.auth != null;
+
+      // Posts can't be edited or deleted yet.
+      allow create: if request.auth != null
+                    && request.resource.data.keys().hasOnly([
+                         'authorUid', 'username', 'avatarInitials', 'locationName', 'latitude',
+                         'longitude', 'imageUri', 'caption', 'likeCount', 'commentCount',
+                         'timestamp'
+                       ])
+                    && request.resource.data.keys().hasAll([
+                         'username', 'latitude', 'longitude', 'imageUri', 'timestamp'
+                       ])
+                    // Left out when nobody is logged in; otherwise only the poster's own ID.
+                    && (!('authorUid' in request.resource.data)
+                        || request.resource.data.authorUid == request.auth.uid)
+                    && request.resource.data.username is string
+                    && request.resource.data.username.size() > 0
+                    && request.resource.data.latitude is number
+                    && request.resource.data.latitude >= -90
+                    && request.resource.data.latitude <= 90
+                    && request.resource.data.longitude is number
+                    && request.resource.data.longitude >= -180
+                    && request.resource.data.longitude <= 180
+                    && request.resource.data.imageUri is string
+                    && request.resource.data.imageUri.matches('https://.*')
+                    && request.resource.data.get('likeCount', 0) == 0
+                    && request.resource.data.get('commentCount', 0) == 0
+                    // Set by Firestore when it receives the post, not by the phone's clock.
+                    && request.resource.data.timestamp == request.time;
+    }
+  }
+}

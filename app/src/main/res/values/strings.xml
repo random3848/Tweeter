@@ -5,19 +5,52 @@
     <string name="navigation_create_post">Create post</string>
     <string name="navigation_map">Map</string>
     <string name="navigation_profile">Profile</string>
+    <string name="navigation_back">Back</string>
 
     <string name="feed_photo_description">Feed photo</string>
     <string name="feed_empty_message">No photos shared yet.</string>
 
+    <plurals name="profile_post_count">
+        <item quantity="one">%d post</item>
+        <item quantity="other">%d posts</item>
+    </plurals>
+    <string name="profile_photo_description">Profile photo</string>
+    <string name="profile_empty_title">No posts yet</string>
+    <string name="profile_empty_message">Photos you share show up here.</string>
+    <string name="profile_post_details">%1$s · %2$s</string>
+    <string name="profile_log_in_title">Log in to see your profile</string>
+    <string name="profile_log_in_message">Your profile shows your name, your bio and the photos you share.</string>
+    <string name="profile_log_in">Log in</string>
+    <string name="profile_create_account">Create account</string>
+    <string name="profile_log_in_failed">Could not log in. Please try again.</string>
+
+    <string name="time_ago_just_now">Just now</string>
+    <plurals name="time_ago_minutes">
+        <item quantity="one">%d minute ago</item>
+        <item quantity="other">%d minutes ago</item>
+    </plurals>
+    <plurals name="time_ago_hours">
+        <item quantity="one">%d hour ago</item>
+        <item quantity="other">%d hours ago</item>
+    </plurals>
+    <plurals name="time_ago_days">
+        <item quantity="one">%d day ago</item>
+        <item quantity="other">%d days ago</item>
+    </plurals>
+    <plurals name="time_ago_weeks">
+        <item quantity="one">%d week ago</item>
+        <item quantity="other">%d weeks ago</item>
+    </plurals>
+
     <string name="take_picture">Take Picture</string>
     <string name="choose_from_camera_roll">Choose from Camera Roll</string>
-    <string name="upload_photo">Upload Photo</string>
-    <string name="photo_uploading">Uploading photo…</string>
+    <string name="upload_photo">Share Post</string>
+    <string name="photo_uploading">Sharing post…</string>
     <string name="photo_camera_failed">Could not open the camera. Please try again.</string>
     <string name="photo_picker_failed">Could not open the camera roll. Please try again.</string>
-    <string name="photo_upload_failed">Could not upload the photo. Please try again.</string>
-    <string name="photo_uploaded">Photo uploaded.</string>
-    <string name="photo_ready">Photo ready to upload.</string>
+    <string name="photo_upload_failed">Could not share the post. Please try again.</string>
+    <string name="photo_uploaded">Post shared. It\'s on the feed and the map.</string>
+    <string name="photo_ready">Photo ready to share.</string>
     <string name="photo_not_taken">Take or choose a photo to get started.</string>
 
     <string name="post_location_finding">Finding where this photo was taken…</string>

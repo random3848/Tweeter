@@ -9,6 +9,8 @@ import java.time.Instant
  * agrees on. Screens get posts from a [PostRepository].
  *
  * @property id Unique among all posts.
+ * @property authorUid The poster's Firebase Authentication ID ([UserProfile.uid]), so their
+ *     profile can list their posts. Empty for posts shared while nobody was logged in.
  * @property username The poster's handle, such as "maya.k".
  * @property avatar The poster's profile picture.
  * @property locationName A human-readable place, such as "Library, oak tree". It is a label for
@@ -27,6 +29,7 @@ import java.time.Instant
  */
 data class Post(
     val id: String,
+    val authorUid: String,
     val username: String,
     val avatar: Avatar,
     val locationName: String,

@@ -25,6 +25,16 @@ class FakePostRepositoryTest {
     }
 
     @Test
+    fun getPostsBy_returnsOnlyThatAuthorsPostsInOrder() = runBlocking {
+        val newer = SAMPLE_POSTS[0].copy(id = "newer", authorUid = "maya")
+        val other = SAMPLE_POSTS[1].copy(id = "other", authorUid = "jordan")
+        val older = SAMPLE_POSTS[2].copy(id = "older", authorUid = "maya")
+        val repository = FakePostRepository(initialPosts = listOf(newer, other, older))
+
+        assertEquals(listOf(newer, older), repository.getPostsBy("maya").first())
+    }
+
+    @Test
     fun addPost_emptyRepository_containsOnlyNewPost() = runBlocking {
         val repository = FakePostRepository(initialPosts = emptyList())
         val post = SAMPLE_POSTS.first()

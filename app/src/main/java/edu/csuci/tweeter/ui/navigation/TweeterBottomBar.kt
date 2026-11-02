@@ -1,6 +1,7 @@
 package edu.csuci.tweeter.ui.navigation
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -58,12 +59,12 @@ fun TweeterBottomBar(
                     icon = {
                         Icon(
                             painter = painterResource(icon),
-                            contentDescription = stringResource(item.description)
+                            contentDescription = stringResource(item.description),
+                            tint = Color.Unspecified,
+                            modifier = Modifier.size(65.dp)
                         )
                     },
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = MaterialTheme.colorScheme.onSurface,
-                        unselectedIconColor = MaterialTheme.colorScheme.onSurface,
                         indicatorColor = Color.Transparent
                     )
                 )

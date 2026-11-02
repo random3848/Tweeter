@@ -12,9 +12,17 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.google.firebase.FirebaseException
 import edu.csuci.tweeter.TweeterApplication
+import edu.csuci.tweeter.data.AccountRepository
+import edu.csuci.tweeter.data.Avatar
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PhotoUploadException
+import edu.csuci.tweeter.data.Post
+import edu.csuci.tweeter.data.PostRepository
+import edu.csuci.tweeter.data.ProfileRepository
+import edu.csuci.tweeter.data.UserProfile
+import edu.csuci.tweeter.data.getLoggedInProfile
 import edu.csuci.tweeter.location.GeoPoint
 import edu.csuci.tweeter.location.LocationFix
 import edu.csuci.tweeter.location.LocationSource
@@ -22,43 +30,48 @@ import edu.csuci.tweeter.location.LocationTagRemover
 import edu.csuci.tweeter.location.PhotoLocator
 import java.io.File
 import java.io.IOException
+import java.time.Instant
+import java.util.UUID
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
+// Who a post is by when nobody is logged in.
+private const val GUEST_USERNAME = "guest"
+
 /**
- * Finds where the post's photo was taken, uploads the photo, and holds the state the post screen
- * displays.
+ * Finds where the post's photo was taken, uploads the photo, shares it as a post, and holds the
+ * state the post screen displays.
  */
 class PostViewModel(
     private val photoRepository: PhotoRepository,
+    private val postRepository: PostRepository,
+    private val profileRepository: ProfileRepository,
+    private val accountRepository: AccountRepository,
     private val photoLocator: PhotoLocator,
     private val locationTagRemover: LocationTagRemover,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     private var locateJob: Job? = null
 
-    /** Whether a photo upload is currently running. */
+    /** Whether the photo is being uploaded and shared. */
     var isUploading by mutableStateOf(false)
         private set
 
-    /** The uploaded photo's URL, or null before a successful upload. */
+    /** The shared photo's URL, or null until the post has been shared. */
     var uploadedPhotoUrl by mutableStateOf(
         savedStateHandle.get<String>("uploadedPhotoUrl")
     )
         private set
 
-    /** Whether the latest upload attempt failed. */
+    /** Whether the latest attempt to share the post failed. */
     var uploadFailed by mutableStateOf(false)
         private set
 
     /**
      * Where the post's photo was taken: found by [locatePhoto], or picked by the user with
-     * [pickLocation]. Null until either happens, or when no location could be found.
-     *
-     * Creating the post (#86) reads it: set [edu.csuci.tweeter.data.Post.latitude] and
-     * [edu.csuci.tweeter.data.Post.longitude] from its `point`, and don't create the post while
-     * it is null; ask the user to tap the map instead. It has no place name, so
-     * [edu.csuci.tweeter.data.Post.locationName] still has to come from the user.
+     * [pickLocation]. Null until either happens, or when no location could be found; the post
+     * can't be shared until it is set.
      */
     var location by mutableStateOf<LocationFix?>(null)
         private set
@@ -67,9 +80,14 @@ class PostViewModel(
     var isLocating by mutableStateOf(false)
         private set
 
-    /** Uploads [uri] without its location tags, ignoring duplicate requests while one runs. */
+    /**
+     * Uploads [uri] without its location tags and shares it as a post at [location], by the
+     * logged-in user or as a guest. Ignored while one runs, after the post is shared, or while
+     * [location] is null.
+     */
     fun uploadPhoto(uri: Uri) {
-        if (isUploading || uploadedPhotoUrl != null) {
+        val point = location?.point
+        if (isUploading || uploadedPhotoUrl != null || point == null) {
             return
         }
 
@@ -81,10 +99,16 @@ class PostViewModel(
             var copy: File? = null
             try {
                 copy = locationTagRemover.copyWithoutLocation(uri)
-                uploadedPhotoUrl = photoRepository.uploadPhoto(Uri.fromFile(copy))
+                val author = profileRepository.getLoggedInProfile(accountRepository).first()
+                val photoUrl = photoRepository.uploadPhoto(Uri.fromFile(copy))
+                postRepository.addPost(newPost(photoUrl, point, author))
+                uploadedPhotoUrl = photoUrl
                 savedStateHandle["uploadedPhotoUrl"] = uploadedPhotoUrl
             } catch (error: PhotoUploadException) {
                 Log.e("PostViewModel", "Photo upload failed", error)
+                uploadFailed = true
+            } catch (error: FirebaseException) {
+                Log.e("PostViewModel", "Could not save the post", error)
                 uploadFailed = true
             } catch (error: IOException) {
                 Log.e("PostViewModel", "Could not read photo for upload", error)
@@ -130,14 +154,36 @@ class PostViewModel(
         location = LocationFix(point, LocationSource.MANUAL)
     }
 
-    /** Creates ViewModels using the app's shared photo repository. */
+    // [author] is null when nobody is logged in.
+    private fun newPost(photoUrl: String, point: GeoPoint, author: UserProfile?): Post = Post(
+        id = UUID.randomUUID().toString(),
+        authorUid = author?.uid ?: "",
+        username = author?.displayName ?: GUEST_USERNAME,
+        avatar = author?.avatar ?: Avatar(initials = GUEST_USERNAME.take(1).uppercase()),
+        locationName = "",
+        latitude = point.latitude,
+        longitude = point.longitude,
+        imageUri = photoUrl,
+        caption = "",
+        likeCount = 0,
+        commentCount = 0,
+        isLiked = false,
+        isBookmarked = false,
+        // Firestore replaces this with the time it receives the post.
+        timestamp = Instant.now()
+    )
+
+    /** Creates ViewModels using the app's shared repositories. */
     companion object {
-        /** Supplies the photo repository from the application container. */
+        /** Supplies the repositories and helpers it needs from the application container. */
         val factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as TweeterApplication
                 PostViewModel(
                     photoRepository = application.container.photoRepository,
+                    postRepository = application.container.postRepository,
+                    profileRepository = application.container.profileRepository,
+                    accountRepository = application.container.accountRepository,
                     photoLocator = PhotoLocator(application),
                     locationTagRemover = LocationTagRemover(application),
                     savedStateHandle = createSavedStateHandle()

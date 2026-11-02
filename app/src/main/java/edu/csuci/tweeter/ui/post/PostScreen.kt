@@ -48,7 +48,7 @@ private fun deleteCachedPhoto(path: String?) {
 
 /**
  * Takes a photo or picks one from the camera roll, finds where it was taken, and lets the user
- * move that location on a map and upload the photo to Firebase.
+ * move that location on a map and share the photo as a post.
  */
 @Composable
 fun PostScreen(
@@ -202,6 +202,7 @@ fun PostScreen(
             enabled = photoUri != null &&
                 !postViewModel.isUploading &&
                 pendingPath == null &&
+                postViewModel.location != null &&
                 postViewModel.uploadedPhotoUrl == null,
             onClick = {
                 photoUri?.let { uri ->

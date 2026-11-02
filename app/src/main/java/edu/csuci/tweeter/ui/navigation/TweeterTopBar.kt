@@ -3,6 +3,7 @@ package edu.csuci.tweeter.ui.navigation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,14 +24,16 @@ import edu.csuci.tweeter.R
 import edu.csuci.tweeter.ui.theme.TweeterTheme
 
 /**
- * The bar at the top of every screen: the app name on white, with no divider below it.
+ * The bar at the top of the tabs' screens: the app name on white, with optional actions on the
+ * right. Screens opened from a tab use [BackTopBar] instead.
  *
  * It draws under the status bar and pads itself below it, since the app is edge to edge.
  *
  * @param modifier Applied to the whole bar.
+ * @param actions Buttons shown on the right, such as Feed's profile button.
  */
 @Composable
-fun TweeterTopBar(modifier: Modifier = Modifier) {
+fun TweeterTopBar(modifier: Modifier = Modifier, actions: @Composable RowScope.() -> Unit = {}) {
     Surface(color = MaterialTheme.colorScheme.surface, modifier = modifier) {
         Column(
             modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars)
@@ -47,6 +50,7 @@ fun TweeterTopBar(modifier: Modifier = Modifier) {
                     text = stringResource(R.string.app_name),
                     style = MaterialTheme.typography.headlineMedium
                 )
+                Row(verticalAlignment = Alignment.CenterVertically, content = actions)
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }

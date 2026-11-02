@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Window theme only; the UI itself is themed by TweeterTheme in Compose. -->
-    <style name="Theme.Tweeter" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Tweeter" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/tweeter_logo</item>
+        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+    </style>
 </resources>
