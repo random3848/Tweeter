@@ -16,7 +16,7 @@ service cloud.firestore {
                     && request.resource.data.keys().hasOnly([
                          'authorUid', 'username', 'avatarInitials', 'locationName', 'latitude',
                          'longitude', 'imageUri', 'caption', 'likeCount', 'commentCount',
-                         'timestamp'
+                         'timestamp', 'animalType', 'confidence'
                        ])
                     && request.resource.data.keys().hasAll([
                          'username', 'latitude', 'longitude', 'imageUri', 'timestamp'
