@@ -11,9 +11,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -33,6 +37,7 @@ import edu.csuci.tweeter.location.LocationSource
 import edu.csuci.tweeter.ui.location.LocationPicker
 import java.io.File
 import java.io.IOException
+import kotlin.math.roundToInt
 
 /** Deletes a temporary camera file and logs unsuccessful cleanup. */
 private fun deleteCachedPhoto(path: String?) {
@@ -64,6 +69,7 @@ fun PostScreen(
     var cameraFailed by rememberSaveable { mutableStateOf(false) }
     var pickerFailed by rememberSaveable { mutableStateOf(false) }
     var isFromCamera by rememberSaveable { mutableStateOf(false) }
+    var showPostDialog by rememberSaveable { mutableStateOf(false) }
 
     // Whatever the user answers, the photo is then located with what the app may read.
     val locationPermissionLauncher = rememberLauncherForActivityResult(
@@ -204,13 +210,20 @@ fun PostScreen(
                 pendingPath == null &&
                 postViewModel.location != null &&
                 postViewModel.uploadedPhotoUrl == null,
-            onClick = {
-                photoUri?.let { uri ->
-                    postViewModel.uploadPhoto(Uri.parse(uri))
-                }
-            }
+            onClick = { showPostDialog = true }
         ) {
             Text(stringResource(R.string.upload_photo))
+        }
+        if (showPostDialog) {
+            PostDetailsDialog(
+                onDismiss = { showPostDialog = false },
+                onPost = { caption, animalType, confidence ->
+                    showPostDialog = false
+                    photoUri?.let { uri ->
+                        postViewModel.uploadPhoto(Uri.parse(uri), caption, animalType, confidence)
+                    }
+                }
+            )
         }
 
         if (postViewModel.isUploading) {
@@ -277,4 +290,45 @@ private fun locationStatus(location: LocationFix?, isLocating: Boolean): String 
         }
         stringResource(text, location.point.latitude, location.point.longitude)
     }
+}
+
+@Composable
+private fun PostDetailsDialog(onDismiss: () -> Unit, onPost: (String, String, Int) -> Unit) {
+    var caption by rememberSaveable { mutableStateOf("") }
+    var animalType by rememberSaveable { mutableStateOf("") }
+    var confidence by rememberSaveable { mutableStateOf(3f) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Post details") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = caption,
+                    onValueChange = { caption = it },
+                    label = { Text("Caption") }
+                )
+                OutlinedTextField(
+                    value = animalType,
+                    onValueChange = { animalType = it },
+                    label = { Text("Animal type") }
+                )
+                Text("Confidence: ${confidence.roundToInt()} of 5")
+                Slider(
+                    value = confidence,
+                    onValueChange = { confidence = it },
+                    valueRange = 1f..5f,
+                    steps = 3
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onPost(caption, animalType, confidence.roundToInt()) }) {
+                Text("Post")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }

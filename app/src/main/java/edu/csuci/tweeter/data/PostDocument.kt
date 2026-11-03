@@ -29,6 +29,8 @@ object PostDocument {
     private const val CAPTION = "caption"
     private const val LIKE_COUNT = "likeCount"
     private const val COMMENT_COUNT = "commentCount"
+    private const val ANIMAL_TYPE = "animalType"
+    private const val CONFIDENCE = "confidence"
 
     /**
      * Returns the fields to store for [post], with [TIMESTAMP] left for Firestore to set and
@@ -42,10 +44,12 @@ object PostDocument {
         LONGITUDE to post.longitude,
         IMAGE_URI to post.imageUri,
         CAPTION to post.caption,
+        ANIMAL_TYPE to post.animalType,
         LIKE_COUNT to post.likeCount,
         COMMENT_COUNT to post.commentCount,
         TIMESTAMP to FieldValue.serverTimestamp()
-    ) + if (post.authorUid.isEmpty()) emptyMap() else mapOf(AUTHOR_UID to post.authorUid)
+    ) + (if (post.authorUid.isEmpty()) emptyMap() else mapOf(AUTHOR_UID to post.authorUid)) +
+        (post.confidence?.let { mapOf(CONFIDENCE to it) } ?: emptyMap())
 
     /**
      * Returns the post stored in document [id] with [fields], or null if a required field is
@@ -80,7 +84,9 @@ object PostDocument {
             commentCount = (fields[COMMENT_COUNT] as? Number)?.toInt() ?: 0,
             isLiked = false,
             isBookmarked = false,
-            timestamp = timestamp.toInstant()
+            timestamp = timestamp.toInstant(),
+            animalType = fields[ANIMAL_TYPE] as? String ?: "",
+            confidence = (fields[CONFIDENCE] as? Number)?.toInt()?.takeIf { it in 1..5 }
         )
     }
 }

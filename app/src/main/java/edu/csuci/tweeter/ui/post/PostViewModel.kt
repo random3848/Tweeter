@@ -85,7 +85,7 @@ class PostViewModel(
      * logged-in user or as a guest. Ignored while one runs, after the post is shared, or while
      * [location] is null.
      */
-    fun uploadPhoto(uri: Uri) {
+    fun uploadPhoto(uri: Uri, caption: String, animalType: String, confidence: Int?) {
         val point = location?.point
         if (isUploading || uploadedPhotoUrl != null || point == null) {
             return
@@ -101,7 +101,9 @@ class PostViewModel(
                 copy = locationTagRemover.copyWithoutLocation(uri)
                 val author = profileRepository.getLoggedInProfile(accountRepository).first()
                 val photoUrl = photoRepository.uploadPhoto(Uri.fromFile(copy))
-                postRepository.addPost(newPost(photoUrl, point, author))
+                postRepository.addPost(
+                    newPost(photoUrl, point, author, caption, animalType, confidence)
+                )
                 uploadedPhotoUrl = photoUrl
                 savedStateHandle["uploadedPhotoUrl"] = uploadedPhotoUrl
             } catch (error: PhotoUploadException) {
@@ -155,7 +157,14 @@ class PostViewModel(
     }
 
     // [author] is null when nobody is logged in.
-    private fun newPost(photoUrl: String, point: GeoPoint, author: UserProfile?): Post = Post(
+    private fun newPost(
+        photoUrl: String,
+        point: GeoPoint,
+        author: UserProfile?,
+        caption: String,
+        animalType: String,
+        confidence: Int?
+    ): Post = Post(
         id = UUID.randomUUID().toString(),
         authorUid = author?.uid ?: "",
         username = author?.displayName ?: GUEST_USERNAME,
@@ -164,13 +173,15 @@ class PostViewModel(
         latitude = point.latitude,
         longitude = point.longitude,
         imageUri = photoUrl,
-        caption = "",
+        caption = caption,
         likeCount = 0,
         commentCount = 0,
         isLiked = false,
         isBookmarked = false,
         // Firestore replaces this with the time it receives the post.
-        timestamp = Instant.now()
+        timestamp = Instant.now(),
+        animalType = animalType,
+        confidence = confidence
     )
 
     /** Creates ViewModels using the app's shared repositories. */
