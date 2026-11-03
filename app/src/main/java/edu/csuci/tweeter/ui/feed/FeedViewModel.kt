@@ -15,14 +15,15 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 /**
- * The UI state of the home photo feed screen.
+ * The UI state of the home feed screen.
  *
- * @property photoPosts The list of photo-only posts to display in the feed.
+ * @property posts The list of posts to display in the feed.
+ * @property isLoading Whether posts are currently being loaded from the repository.
  */
-data class FeedUiState(val photoPosts: List<Post> = emptyList())
+data class FeedUiState(val posts: List<Post> = emptyList(), val isLoading: Boolean = true)
 
 /**
- * Holds photo posts for [FeedScreen].
+ * Holds posts for [FeedScreen].
  *
  * @param postRepository Where post data is read from.
  */
@@ -33,15 +34,14 @@ class FeedViewModel(postRepository: PostRepository) : ViewModel() {
     val uiState: StateFlow<FeedUiState> = postRepository.getPosts()
         .map { posts ->
             FeedUiState(
-                photoPosts = posts
-                    .filter { it.imageUri.isNotBlank() }
-                    .sortPosts(FeedSortOrder.MOST_RECENT_FIRST)
+                posts = posts.sortPosts(FeedSortOrder.MOST_RECENT_FIRST),
+                isLoading = false
             )
         }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = FeedUiState()
+            initialValue = FeedUiState(isLoading = true)
         )
 
     companion object {
