@@ -35,7 +35,7 @@ fun ProfilePostItem(post: Post, modifier: Modifier = Modifier) {
             text = if (post.locationName.isBlank()) {
                 timeAgo
             } else {
-                stringResource(R.string.profile_post_details, post.locationName, timeAgo)
+                stringResource(R.string.post_details, post.locationName, timeAgo)
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant

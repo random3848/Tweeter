@@ -13,6 +13,7 @@ import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.location.LocationTagRemover
+import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 
 /**
  * The objects the whole app shares, created once by [TweeterApplication].
@@ -26,7 +27,11 @@ import edu.csuci.tweeter.location.LocationTagRemover
  * val factory = viewModelFactory {
  *     initializer {
  *         val application = this[APPLICATION_KEY] as TweeterApplication
- *         MapViewModel(application.container.postRepository)
+ *         MapViewModel(
+ *             postRepository = application.container.postRepository,
+ *             showOnMapRequest = application.container.showOnMapRequest,
+ *             showInFeedRequest = application.container.showInFeedRequest
+ *         )
  *     }
  * }
  * ```
@@ -64,4 +69,10 @@ class AppContainer(private val context: Context) {
             locationTagRemover = LocationTagRemover(context)
         )
     }
+
+    /** The post Feed asks Map to show. Map opens the post's popup, then clears the request. */
+    val showOnMapRequest: ShowPostRequest = ShowPostRequest()
+
+    /** The post Map's popup asks Feed to show. Feed scrolls to it, then clears the request. */
+    val showInFeedRequest: ShowPostRequest = ShowPostRequest()
 }

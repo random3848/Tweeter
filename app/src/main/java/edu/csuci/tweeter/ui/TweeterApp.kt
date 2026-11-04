@@ -163,9 +163,9 @@ fun TweeterApp(modifier: Modifier = Modifier) {
                 .padding(innerPadding)
                 .consumeWindowInsets(innerPadding)
         ) {
-            addFeedScreen()
+            addFeedScreen(onShowOnMap = { navController.navigateToTopLevel(MapRoute) })
             addPostScreen(onLogIn = openLogIn, onCreateAccount = openCreateAccount)
-            addMapScreen()
+            addMapScreen(onShowInFeed = { navController.navigateToFeed() })
             addProfileScreen(
                 onBack = { navController.navigateUp() },
                 onLogIn = openLogIn,
@@ -188,6 +188,15 @@ fun TweeterApp(modifier: Modifier = Modifier) {
             )
         }
     }
+}
+
+/**
+ * Opens the Home tab on the feed itself, closing any screen opened from it, such as Profile or
+ * Log in, which the tab would otherwise restore over the feed.
+ */
+private fun NavHostController.navigateToFeed() {
+    navigateToTopLevel(FeedRoute)
+    popBackStack(FeedRoute, inclusive = false)
 }
 
 /**
