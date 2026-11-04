@@ -1,10 +1,14 @@
 package edu.csuci.tweeter.ui.profile
 
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import com.google.firebase.FirebaseException
 import edu.csuci.tweeter.data.AccountRepository
+import edu.csuci.tweeter.data.PhotoRepository
+import edu.csuci.tweeter.data.PhotoUploadException
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.UserProfile
+import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -21,7 +25,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class EditProfileViewModelTest {
@@ -32,6 +38,10 @@ class EditProfileViewModelTest {
         photoUrl = ""
     )
     private val profileRepository = FakeProfileRepository(profile)
+    private val photoRepository = FakePhotoRepository()
+
+    @get:Rule
+    val temporaryFolder = TemporaryFolder()
 
     @Before
     fun setUp() {
@@ -163,16 +173,130 @@ class EditProfileViewModelTest {
         assertFalse(viewModel.isDone)
     }
 
+    @Test
+    fun hasPhoto_profileWithPhoto_true() {
+        profileRepository.profile = profile.copy(photoUrl = PHOTO_URL)
+
+        assertTrue(createViewModel().hasPhoto)
+    }
+
+    @Test
+    fun hasPhoto_profileWithoutPhoto_false() {
+        assertFalse(createViewModel().hasPhoto)
+    }
+
+    @Test
+    fun choosePhoto_avatarShowsChosenPhoto() {
+        val viewModel = createViewModel()
+
+        viewModel.choosePhoto(CHOSEN_PHOTO_URI)
+
+        assertEquals(CHOSEN_PHOTO_URI, viewModel.avatarProfile?.photoUrl)
+        assertTrue(viewModel.hasPhoto)
+    }
+
+    @Test
+    fun removePhoto_avatarShowsNoPhoto() {
+        profileRepository.profile = profile.copy(photoUrl = PHOTO_URL)
+        val viewModel = createViewModel()
+
+        viewModel.removePhoto()
+
+        assertEquals("", viewModel.avatarProfile?.photoUrl)
+        assertFalse(viewModel.hasPhoto)
+    }
+
+    @Test
+    fun init_savedPhotoChange_restoresIt() {
+        val savedStateHandle = SavedStateHandle()
+        createViewModel(savedStateHandle = savedStateHandle).choosePhoto(CHOSEN_PHOTO_URI)
+
+        val restored = createViewModel(savedStateHandle = savedStateHandle)
+
+        assertEquals(CHOSEN_PHOTO_URI, restored.avatarProfile?.photoUrl)
+    }
+
+    @Test
+    fun choosePhoto_afterCameraPhoto_deletesCameraFile() {
+        val viewModel = createViewModel()
+        val cameraFile = temporaryFolder.newFile("camera.jpg")
+        viewModel.choosePhoto(CHOSEN_PHOTO_URI, cachedFile = cameraFile)
+
+        viewModel.choosePhoto("content://photos/2")
+
+        assertFalse(cameraFile.exists())
+    }
+
+    @Test
+    fun removePhoto_afterCameraPhoto_deletesCameraFile() {
+        val viewModel = createViewModel()
+        val cameraFile = temporaryFolder.newFile("camera.jpg")
+        viewModel.choosePhoto(CHOSEN_PHOTO_URI, cachedFile = cameraFile)
+
+        viewModel.removePhoto()
+
+        assertFalse(cameraFile.exists())
+    }
+
+    @Test
+    fun save_photoChosen_uploadsItAndSavesItsUrl() {
+        val viewModel = createViewModel()
+        viewModel.choosePhoto(CHOSEN_PHOTO_URI)
+
+        viewModel.save()
+
+        assertEquals(CHOSEN_PHOTO_URI, photoRepository.uploadedPhotoUri)
+        assertEquals(FakePhotoRepository.UPLOADED_URL, profileRepository.savedProfile?.photoUrl)
+        assertTrue(viewModel.isDone)
+    }
+
+    @Test
+    fun save_photoRemoved_savesNoPhotoWithoutUploading() {
+        profileRepository.profile = profile.copy(photoUrl = PHOTO_URL)
+        val viewModel = createViewModel()
+        viewModel.removePhoto()
+
+        viewModel.save()
+
+        assertNull(photoRepository.uploadedPhotoUri)
+        assertEquals("", profileRepository.savedProfile?.photoUrl)
+    }
+
+    @Test
+    fun save_photoUnchanged_keepsPhotoWithoutUploading() {
+        profileRepository.profile = profile.copy(photoUrl = PHOTO_URL)
+        val viewModel = createViewModel()
+
+        viewModel.save()
+
+        assertNull(photoRepository.uploadedPhotoUri)
+        assertEquals(PHOTO_URL, profileRepository.savedProfile?.photoUrl)
+    }
+
+    @Test
+    fun save_uploadFails_reportsFailureAndSavesNothing() {
+        photoRepository.failsToUpload = true
+        val viewModel = createViewModel()
+        viewModel.choosePhoto(CHOSEN_PHOTO_URI)
+
+        viewModel.save()
+
+        assertTrue(viewModel.saveFailed)
+        assertNull(profileRepository.savedProfile)
+        assertFalse(viewModel.isDone)
+    }
+
     private fun createViewModel(
         loggedInUid: String? = profile.uid,
         savedStateHandle: SavedStateHandle = SavedStateHandle()
     ): EditProfileViewModel = EditProfileViewModel(
         profileRepository = profileRepository,
+        photoRepository = photoRepository,
         accountRepository = FakeAccountRepository(loggedInUid),
         savedStateHandle = savedStateHandle
     )
 
-    private class FakeProfileRepository(private val profile: UserProfile) : ProfileRepository {
+    private class FakeProfileRepository(var profile: UserProfile) : ProfileRepository {
         var failsToRead = false
         var failsToSave = false
         var savedProfile: UserProfile? = null
@@ -191,6 +315,25 @@ class EditProfileViewModelTest {
         }
     }
 
+    private class FakePhotoRepository : PhotoRepository {
+        var failsToUpload = false
+        var uploadedPhotoUri: String? = null
+
+        override suspend fun uploadPhoto(uri: Uri): String = error("Posts aren't edited here")
+
+        override suspend fun uploadProfilePhoto(photoUri: String): String {
+            if (failsToUpload) {
+                throw PhotoUploadException(IOException("Could not upload the photo"))
+            }
+            uploadedPhotoUri = photoUri
+            return UPLOADED_URL
+        }
+
+        companion object {
+            const val UPLOADED_URL = "https://example.com/uploaded.jpg"
+        }
+    }
+
     private class FakeAccountRepository(uid: String?) : AccountRepository {
         override val loggedInUid: StateFlow<String?> = MutableStateFlow(uid)
 
@@ -201,5 +344,10 @@ class EditProfileViewModelTest {
         override suspend fun logOut() = Unit
 
         override suspend fun resetPassword(email: String) = Unit
+    }
+
+    private companion object {
+        const val PHOTO_URL = "https://example.com/maya.jpg"
+        const val CHOSEN_PHOTO_URI = "content://photos/1"
     }
 }

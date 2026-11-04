@@ -15,27 +15,35 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.firebase.FirebaseException
 import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
+import edu.csuci.tweeter.data.PhotoRepository
+import edu.csuci.tweeter.data.PhotoUploadException
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.UserProfile
 import edu.csuci.tweeter.data.getLoggedInProfile
+import java.io.File
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 private const val DISPLAY_NAME_KEY = "displayName"
 private const val BIO_KEY = "bio"
+private const val PHOTO_URI_KEY = "photoUri"
+private const val PHOTO_REMOVED_KEY = "photoRemoved"
+private const val CACHED_FILE_KEY = "cachedFile"
 
 /**
- * Reads the logged-in user's profile, holds the name and bio they type on [EditProfileScreen],
- * and saves them.
+ * Reads the logged-in user's profile, holds the name, bio and photo they choose on
+ * [EditProfileScreen], and saves them.
  *
- * What they type survives the app being stopped in the background, through [savedStateHandle].
+ * What they choose survives the app being stopped in the background, through [savedStateHandle].
  *
  * @param profileRepository Where the profile is read from and saved to.
+ * @param photoRepository Uploads a new profile photo when the profile is saved.
  * @param accountRepository Who is logged in.
- * @param savedStateHandle Keeps the typed name and bio.
+ * @param savedStateHandle Keeps the typed name and bio and the photo change.
  */
 class EditProfileViewModel(
     private val profileRepository: ProfileRepository,
+    private val photoRepository: PhotoRepository,
     private val accountRepository: AccountRepository,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -46,6 +54,13 @@ class EditProfileViewModel(
     /** The name and bio as typed, or null while the profile is still being read. */
     var edits by mutableStateOf<ProfileEdits?>(null)
         private set
+
+    /** What saving does with the profile photo. */
+    var photoChange by mutableStateOf(savedPhotoChange())
+        private set
+
+    // The app's own copy of a camera photo in [photoChange], deleted once nothing needs it.
+    private var cachedFile: File? = savedStateHandle.get<String>(CACHED_FILE_KEY)?.let(::File)
 
     /** Whether the edits are being saved. */
     var isSaving by mutableStateOf(false)
@@ -65,6 +80,25 @@ class EditProfileViewModel(
     /** Whether [save] would save: the edits are valid and no save is running. */
     val canSave: Boolean
         get() = edits?.isValid == true && !isSaving
+
+    /**
+     * The profile as its avatar shows it while editing, or null while it's still being read: with
+     * the chosen photo, whose `photoUrl` is then a URI on the phone, or none once it's removed.
+     */
+    val avatarProfile: UserProfile?
+        get() {
+            val currentProfile = profile ?: return null
+            val photoUrl = when (val change = photoChange) {
+                PhotoChange.Unchanged -> currentProfile.photoUrl
+                is PhotoChange.Replace -> change.photoUri
+                PhotoChange.Remove -> ""
+            }
+            return currentProfile.copy(photoUrl = photoUrl)
+        }
+
+    /** Whether the avatar shows a photo, which the user can then remove. */
+    val hasPhoto: Boolean
+        get() = avatarProfile?.photoUrl?.isNotEmpty() == true
 
     init {
         viewModelScope.launch { loadProfile() }
@@ -86,7 +120,27 @@ class EditProfileViewModel(
         }
     }
 
-    /** Saves the edits to the profile, then sets [isDone]. Ignored unless [canSave]. */
+    /**
+     * Makes the photo at [photoUri] the new profile photo, uploaded when the profile is saved.
+     *
+     * @param cachedFile The app's own copy of the photo, such as one just taken with the camera,
+     *     which is deleted once nothing needs it; null for a photo the app doesn't own.
+     */
+    fun choosePhoto(photoUri: String, cachedFile: File? = null) {
+        replaceCachedFile(cachedFile)
+        updatePhotoChange(PhotoChange.Replace(photoUri))
+    }
+
+    /** Removes the profile photo when the profile is saved. */
+    fun removePhoto() {
+        replaceCachedFile(null)
+        updatePhotoChange(PhotoChange.Remove)
+    }
+
+    /**
+     * Saves the edits and the photo change to the profile, uploading a new photo first, then
+     * sets [isDone]. Ignored unless [canSave].
+     */
     fun save() {
         val currentProfile = profile ?: return
         val currentEdits = edits ?: return
@@ -96,7 +150,12 @@ class EditProfileViewModel(
 
         isSaving = true
         saveFailed = false
-        viewModelScope.launch { saveProfile(currentEdits.applyTo(currentProfile)) }
+        val change = photoChange
+        viewModelScope.launch { saveProfile(currentEdits.applyTo(currentProfile), change) }
+    }
+
+    override fun onCleared() {
+        cachedFile?.delete()
     }
 
     private suspend fun loadProfile() {
@@ -119,16 +178,49 @@ class EditProfileViewModel(
         null
     }
 
-    private suspend fun saveProfile(editedProfile: UserProfile) {
+    private suspend fun saveProfile(editedProfile: UserProfile, change: PhotoChange) {
         try {
-            profileRepository.saveProfile(editedProfile)
+            val photoUrl = photoUrlToSave(editedProfile.photoUrl, change)
+            profileRepository.saveProfile(editedProfile.copy(photoUrl = photoUrl))
             isDone = true
+        } catch (error: PhotoUploadException) {
+            Log.e("EditProfileViewModel", "Could not upload the profile photo", error)
+            saveFailed = true
         } catch (error: FirebaseException) {
             Log.e("EditProfileViewModel", "Could not save the profile", error)
             saveFailed = true
         } finally {
             isSaving = false
         }
+    }
+
+    // Uploads a replaced photo, so this can throw PhotoUploadException.
+    private suspend fun photoUrlToSave(currentPhotoUrl: String, change: PhotoChange): String =
+        when (change) {
+            PhotoChange.Unchanged -> currentPhotoUrl
+            is PhotoChange.Replace -> photoRepository.uploadProfilePhoto(change.photoUri)
+            PhotoChange.Remove -> ""
+        }
+
+    private fun savedPhotoChange(): PhotoChange {
+        val photoUri = savedStateHandle.get<String>(PHOTO_URI_KEY)
+        return when {
+            photoUri != null -> PhotoChange.Replace(photoUri)
+            savedStateHandle.get<Boolean>(PHOTO_REMOVED_KEY) == true -> PhotoChange.Remove
+            else -> PhotoChange.Unchanged
+        }
+    }
+
+    private fun updatePhotoChange(change: PhotoChange) {
+        photoChange = change
+        savedStateHandle[PHOTO_URI_KEY] = (change as? PhotoChange.Replace)?.photoUri
+        savedStateHandle[PHOTO_REMOVED_KEY] = change == PhotoChange.Remove
+    }
+
+    private fun replaceCachedFile(newFile: File?) {
+        cachedFile?.delete()
+        cachedFile = newFile
+        savedStateHandle[CACHED_FILE_KEY] = newFile?.path
     }
 
     private fun savedEdits(): ProfileEdits? {
@@ -150,6 +242,7 @@ class EditProfileViewModel(
                 val application = this[APPLICATION_KEY] as TweeterApplication
                 EditProfileViewModel(
                     profileRepository = application.container.profileRepository,
+                    photoRepository = application.container.photoRepository,
                     accountRepository = application.container.accountRepository,
                     savedStateHandle = createSavedStateHandle()
                 )
