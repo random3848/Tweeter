@@ -7,6 +7,7 @@ import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -23,7 +24,7 @@ class PostSharingTest {
     @Test
     fun sharePost_slowUpload_findsAuthorMeanwhile() = runTest {
         sharePost(
-            uploadPhoto = { uploadTaking(LONG_WAIT_MILLIS) },
+            photo = FakePostPhoto { uploadTaking(LONG_WAIT_MILLIS) },
             findAuthor = { authorFoundAfter(SHORT_WAIT_MILLIS) },
             addPost = { _, _ -> }
         )
@@ -36,7 +37,7 @@ class PostSharingTest {
         var postAddedAtMillis: Long? = null
 
         sharePost(
-            uploadPhoto = { uploadTaking(SHORT_WAIT_MILLIS) },
+            photo = FakePostPhoto { uploadTaking(SHORT_WAIT_MILLIS) },
             findAuthor = { authorFoundAfter(LONG_WAIT_MILLIS) },
             addPost = { _, _ -> postAddedAtMillis = testScheduler.currentTime }
         )
@@ -49,7 +50,7 @@ class PostSharingTest {
         var addedPost: Pair<String, UserProfile>? = null
 
         sharePost(
-            uploadPhoto = { PHOTO_URL },
+            photo = FakePostPhoto { PHOTO_URL },
             findAuthor = { author },
             addPost = { photoUrl, postAuthor -> addedPost = photoUrl to postAuthor }
         )
@@ -60,7 +61,7 @@ class PostSharingTest {
     @Test
     fun sharePost_returnsUploadedPhotoUrl() = runTest {
         val photoUrl = sharePost(
-            uploadPhoto = { PHOTO_URL },
+            photo = FakePostPhoto { PHOTO_URL },
             findAuthor = { author },
             addPost = { _, _ -> }
         )
@@ -69,12 +70,21 @@ class PostSharingTest {
     }
 
     @Test
+    fun sharePost_postAdded_deletesNothing() = runTest {
+        val photo = FakePostPhoto { PHOTO_URL }
+
+        sharePost(photo = photo, findAuthor = { author }, addPost = { _, _ -> })
+
+        assertEquals(emptyList<String>(), photo.deletedPhotoUrls)
+    }
+
+    @Test
     fun sharePost_uploadFails_throwsUploadErrorWithoutAddingPost() = runTest {
         var isPostAdded = false
 
         val error = runCatching {
             sharePost(
-                uploadPhoto = { throw IOException("Upload failed") },
+                photo = FakePostPhoto { throw IOException("Upload failed") },
                 findAuthor = { authorFoundAfter(SHORT_WAIT_MILLIS) },
                 addPost = { _, _ -> isPostAdded = true }
             )
@@ -90,7 +100,7 @@ class PostSharingTest {
 
         val error = runCatching {
             sharePost(
-                uploadPhoto = { uploadTaking(SHORT_WAIT_MILLIS) },
+                photo = FakePostPhoto { uploadTaking(SHORT_WAIT_MILLIS) },
                 findAuthor = { throw IllegalStateException("Profile unreadable") },
                 addPost = { _, _ -> isPostAdded = true }
             )
@@ -101,12 +111,30 @@ class PostSharingTest {
     }
 
     @Test
+    fun sharePost_authorLookupFailsAfterUpload_deletesPhoto() = runTest {
+        val photo = FakePostPhoto { PHOTO_URL }
+
+        runCatching {
+            sharePost(
+                photo = photo,
+                findAuthor = {
+                    delay(SHORT_WAIT_MILLIS)
+                    throw IllegalStateException("Profile unreadable")
+                },
+                addPost = { _, _ -> }
+            )
+        }
+
+        assertEquals(listOf(PHOTO_URL), photo.deletedPhotoUrls)
+    }
+
+    @Test
     fun sharePost_nobodyLoggedIn_throwsWithoutAddingPost() = runTest {
         var isPostAdded = false
 
         val error = runCatching {
             sharePost(
-                uploadPhoto = { uploadTaking(SHORT_WAIT_MILLIS) },
+                photo = FakePostPhoto { uploadTaking(SHORT_WAIT_MILLIS) },
                 findAuthor = { null },
                 addPost = { _, _ -> isPostAdded = true }
             )
@@ -117,12 +145,31 @@ class PostSharingTest {
     }
 
     @Test
+    fun sharePost_nobodyFoundAfterUpload_deletesPhotoAndThrows() = runTest {
+        val photo = FakePostPhoto { PHOTO_URL }
+
+        val error = runCatching {
+            sharePost(
+                photo = photo,
+                findAuthor = {
+                    delay(SHORT_WAIT_MILLIS)
+                    null
+                },
+                addPost = { _, _ -> }
+            )
+        }.exceptionOrNull()
+
+        assertEquals(NobodyLoggedInException::class, error?.let { it::class })
+        assertEquals(listOf(PHOTO_URL), photo.deletedPhotoUrls)
+    }
+
+    @Test
     fun sharePost_nobodyFoundMidUpload_cancelsUpload() = runTest {
         var isUploadCancelled = false
 
         runCatching {
             sharePost(
-                uploadPhoto = {
+                photo = FakePostPhoto {
                     try {
                         uploadTaking(LONG_WAIT_MILLIS)
                     } catch (error: CancellationException) {
@@ -141,6 +188,76 @@ class PostSharingTest {
         assertTrue(isUploadCancelled)
     }
 
+    @Test
+    fun sharePost_nobodyFoundMidUpload_deletesNothing() = runTest {
+        val photo = FakePostPhoto { uploadTaking(LONG_WAIT_MILLIS) }
+
+        runCatching {
+            sharePost(
+                photo = photo,
+                findAuthor = {
+                    delay(SHORT_WAIT_MILLIS)
+                    null
+                },
+                addPost = { _, _ -> }
+            )
+        }
+
+        assertEquals(emptyList<String>(), photo.deletedPhotoUrls)
+    }
+
+    @Test
+    fun sharePost_addPostFails_deletesPhotoAndRethrows() = runTest {
+        val photo = FakePostPhoto { PHOTO_URL }
+
+        val error = runCatching {
+            sharePost(
+                photo = photo,
+                findAuthor = { author },
+                addPost = { _, _ -> throw IOException("Could not add the post") }
+            )
+        }.exceptionOrNull()
+
+        assertEquals(IOException::class, error?.let { it::class })
+        assertEquals(listOf(PHOTO_URL), photo.deletedPhotoUrls)
+    }
+
+    @Test
+    fun sharePost_cancelledAfterUpload_deletesPhoto() = runTest {
+        val photo = FakePostPhoto { uploadTaking(SHORT_WAIT_MILLIS) }
+        val sharing = launch {
+            sharePost(
+                photo = photo,
+                findAuthor = { authorFoundAfter(LONG_WAIT_MILLIS) },
+                addPost = { _, _ -> }
+            )
+        }
+        testScheduler.advanceTimeBy(LONG_WAIT_MILLIS - 1)
+
+        sharing.cancel()
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(listOf(PHOTO_URL), photo.deletedPhotoUrls)
+    }
+
+    @Test
+    fun sharePost_cancelledWhileAddingPost_keepsPhoto() = runTest {
+        val photo = FakePostPhoto { PHOTO_URL }
+        val sharing = launch {
+            sharePost(
+                photo = photo,
+                findAuthor = { author },
+                addPost = { _, _ -> delay(LONG_WAIT_MILLIS) }
+            )
+        }
+        testScheduler.advanceTimeBy(SHORT_WAIT_MILLIS)
+
+        sharing.cancel()
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(emptyList<String>(), photo.deletedPhotoUrls)
+    }
+
     private suspend fun uploadTaking(millis: Long): String {
         delay(millis)
         return PHOTO_URL
@@ -149,5 +266,16 @@ class PostSharingTest {
     private suspend fun authorFoundAfter(millis: Long): UserProfile {
         delay(millis)
         return author
+    }
+
+    // Uploads with [uploading], and records the URLs of the photos deleted again.
+    private class FakePostPhoto(private val uploading: suspend () -> String) : PostPhoto {
+        val deletedPhotoUrls = mutableListOf<String>()
+
+        override suspend fun upload(): String = uploading()
+
+        override suspend fun delete(photoUrl: String) {
+            deletedPhotoUrls += photoUrl
+        }
     }
 }

@@ -21,6 +21,7 @@ import edu.csuci.tweeter.data.Post
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.UserProfile
+import edu.csuci.tweeter.data.deleteUnusedPhoto
 import edu.csuci.tweeter.data.getLoggedInProfile
 import edu.csuci.tweeter.location.DeviceLocationProvider
 import edu.csuci.tweeter.location.ExifLocationReader
@@ -100,7 +101,7 @@ class PostViewModel(
         viewModelScope.launch {
             try {
                 val photoUrl = sharePost(
-                    uploadPhoto = { uploadWithoutLocation(uri) },
+                    photo = LocationFreePhoto(uri),
                     findAuthor = {
                         profileRepository.getLoggedInProfile(accountRepository).first()
                     },
@@ -130,14 +131,20 @@ class PostViewModel(
         }
     }
 
-    // Uploads a copy of the photo at [uri] without its location tags, and deletes the copy once
-    // the upload is over.
-    private suspend fun uploadWithoutLocation(uri: Uri): String {
-        val copy = locationTagRemover.copyWithoutLocation(uri)
-        try {
-            return photoRepository.uploadPhoto(Uri.fromFile(copy))
-        } finally {
-            copy.delete()
+    // The photo at [uri], uploaded as a copy without its location tags.
+    private inner class LocationFreePhoto(private val uri: Uri) : PostPhoto {
+        // Deletes the copy once the upload is over.
+        override suspend fun upload(): String {
+            val copy = locationTagRemover.copyWithoutLocation(uri)
+            try {
+                return photoRepository.uploadPhoto(Uri.fromFile(copy))
+            } finally {
+                copy.delete()
+            }
+        }
+
+        override suspend fun delete(photoUrl: String) {
+            photoRepository.deleteUnusedPhoto(photoUrl)
         }
     }
 

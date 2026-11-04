@@ -290,6 +290,39 @@ class EditProfileViewModelTest {
     }
 
     @Test
+    fun save_writeFailsAfterPhotoUploaded_deletesUploadedPhoto() {
+        profileRepository.failsToSave = true
+        val viewModel = createViewModel()
+        viewModel.choosePhoto(CHOSEN_PHOTO_URI)
+
+        viewModel.save()
+
+        assertEquals(listOf(FakePhotoRepository.UPLOADED_URL), photoRepository.deletedPhotoUrls)
+        assertTrue(viewModel.saveFailed)
+    }
+
+    @Test
+    fun save_writeFailsWithPhotoUnchanged_deletesNothing() {
+        profileRepository.profile = profile.copy(photoUrl = PHOTO_URL)
+        profileRepository.failsToSave = true
+        val viewModel = createViewModel()
+
+        viewModel.save()
+
+        assertEquals(emptyList<String>(), photoRepository.deletedPhotoUrls)
+    }
+
+    @Test
+    fun save_photoUploadedAndSaved_deletesNothing() {
+        val viewModel = createViewModel()
+        viewModel.choosePhoto(CHOSEN_PHOTO_URI)
+
+        viewModel.save()
+
+        assertEquals(emptyList<String>(), photoRepository.deletedPhotoUrls)
+    }
+
+    @Test
     fun save_whileUploadingPhoto_isSavingButNotWritingProfile() {
         photoRepository.uploadFinished = CompletableDeferred()
         val viewModel = createViewModel()
@@ -387,6 +420,7 @@ class EditProfileViewModelTest {
     private class FakePhotoRepository : PhotoRepository {
         var failsToUpload = false
         var uploadedPhotoUri: String? = null
+        val deletedPhotoUrls = mutableListOf<String>()
 
         // When set, uploading waits for it, like a slow upload.
         var uploadFinished: CompletableDeferred<Unit>? = null
@@ -400,6 +434,10 @@ class EditProfileViewModelTest {
             }
             uploadedPhotoUri = photoUri
             return UPLOADED_URL
+        }
+
+        override suspend fun deletePhoto(photoUrl: String) {
+            deletedPhotoUrls += photoUrl
         }
 
         companion object {

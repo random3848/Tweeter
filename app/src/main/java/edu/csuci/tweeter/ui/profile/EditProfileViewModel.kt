@@ -19,6 +19,7 @@ import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PhotoUploadException
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.UserProfile
+import edu.csuci.tweeter.data.deleteUnusedPhoto
 import edu.csuci.tweeter.data.getLoggedInProfile
 import java.io.File
 import kotlinx.coroutines.flow.first
@@ -45,7 +46,8 @@ internal const val PROFILE_WRITE_TIMEOUT_MILLIS = 10_000L
  * What they choose survives the app being stopped in the background, through [savedStateHandle].
  *
  * @param profileRepository Where the profile is read from and saved to.
- * @param photoRepository Uploads a new profile photo when the profile is saved.
+ * @param photoRepository Uploads a new profile photo when the profile is saved, and deletes it
+ *     again if the profile then can't be written.
  * @param accountRepository Who is logged in.
  * @param savedStateHandle Keeps the typed name and bio and the photo change.
  */
@@ -195,8 +197,7 @@ class EditProfileViewModel(
 
     private suspend fun saveProfile(editedProfile: UserProfile, change: PhotoChange) {
         try {
-            val photoUrl = photoUrlToSave(editedProfile.photoUrl, change)
-            writeProfile(editedProfile.copy(photoUrl = photoUrl))
+            saveWithPhoto(editedProfile, change)
             isDone = true
         } catch (error: PhotoUploadException) {
             Log.e("EditProfileViewModel", "Could not upload the profile photo", error)
@@ -210,6 +211,18 @@ class EditProfileViewModel(
         }
     }
 
+    // Writes [editedProfile] with the photo [change] leaves it, uploading a new photo first. A new
+    // photo is deleted again if the profile can't be written, since nothing would use it.
+    private suspend fun saveWithPhoto(editedProfile: UserProfile, change: PhotoChange) {
+        val photoUrl = photoUrlToSave(editedProfile.photoUrl, change)
+        try {
+            writeProfile(editedProfile.copy(photoUrl = photoUrl))
+        } catch (error: FirebaseException) {
+            deleteIfUploaded(photoUrl, change)
+            throw error
+        }
+    }
+
     private suspend fun writeProfile(editedProfile: UserProfile) {
         isWritingProfile = true
         val confirmed = withTimeoutOrNull(PROFILE_WRITE_TIMEOUT_MILLIS) {
@@ -217,6 +230,12 @@ class EditProfileViewModel(
         }
         if (confirmed == null) {
             Log.w("EditProfileViewModel", "Profile saved on the phone; it syncs when back online")
+        }
+    }
+
+    private suspend fun deleteIfUploaded(photoUrl: String, change: PhotoChange) {
+        if (change is PhotoChange.Replace) {
+            photoRepository.deleteUnusedPhoto(photoUrl)
         }
     }
 

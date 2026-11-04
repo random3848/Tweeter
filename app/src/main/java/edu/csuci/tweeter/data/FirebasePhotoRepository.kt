@@ -20,9 +20,10 @@ private const val POST_PHOTOS = "images"
 private const val PROFILE_PHOTOS = "profile_photos"
 
 /**
- * Uploads JPEGs to the logged-in user's folders in Firebase Storage.
+ * Uploads JPEGs to the logged-in user's folders in Firebase Storage, and deletes them again.
  *
- * Guests can only browse, so the Storage rules refuse uploads from anonymous sessions.
+ * Guests can only browse, so the Storage rules refuse uploads and deletes from anonymous
+ * sessions.
  *
  * @param locationTagRemover Removes location tags from profile photos before they're uploaded.
  */
@@ -40,6 +41,10 @@ class FirebasePhotoRepository(
         } finally {
             copy.delete()
         }
+    }
+
+    override suspend fun deletePhoto(photoUrl: String) {
+        storage.getReferenceFromUrl(photoUrl).deleteStored()
     }
 
     private suspend fun copyWithoutLocation(photoUri: String): File = try {
