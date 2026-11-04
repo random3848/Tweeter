@@ -24,6 +24,7 @@ import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.maplibre.compose.sources.GeoJsonData
+import org.maplibre.spatialk.geojson.Position
 
 private const val UNKNOWN_POST_ID = "no-such-post"
 
@@ -227,6 +228,39 @@ class MapViewModelTest {
             GeoJsonData.JsonString(pinJsonOf(state.posts, SAMPLE_POSTS.indexOf(post))),
             state.selectedPin
         )
+    }
+
+    @Test
+    fun selectPost_movesToWherePhotoWasTaken() = runTest {
+        val viewModel = mapViewModel()
+        val post = SAMPLE_POSTS[1]
+
+        viewModel.selectPost(post.id)
+
+        assertEquals(
+            Position(longitude = post.longitude, latitude = post.latitude),
+            viewModel.uiState.value.selectedPosition
+        )
+    }
+
+    @Test
+    fun selectPost_latitudeIsNan_hasNoPositionToMoveTo() = runTest {
+        val post = SAMPLE_POSTS.first().copy(latitude = Double.NaN)
+        val viewModel = mapViewModel(FakePostRepository(initialPosts = listOf(post)))
+
+        viewModel.selectPost(post.id)
+
+        assertNull(viewModel.uiState.value.selectedPosition)
+    }
+
+    @Test
+    fun selectPost_longitudeInfinite_hasNoPositionToMoveTo() = runTest {
+        val post = SAMPLE_POSTS.first().copy(longitude = Double.POSITIVE_INFINITY)
+        val viewModel = mapViewModel(FakePostRepository(initialPosts = listOf(post)))
+
+        viewModel.selectPost(post.id)
+
+        assertNull(viewModel.uiState.value.selectedPosition)
     }
 
     // The map follows its posts while the test collects its state, as it does in the app while Map

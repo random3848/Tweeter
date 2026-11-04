@@ -77,8 +77,11 @@ data class MapUiState(
     /** The selected post's pin alone, drawn over the others, or no pin if none is selected. */
     val selectedPin: GeoJsonData = GeoJsonData.JsonString(pinJsonOf(posts, selectedRow))
 
-    /** Where the selected post's photo was taken, or null if no post is selected. */
-    val selectedPosition: Position? = selectedRow?.let(posts::positionOf)
+    /**
+     * Where the selected post's pin is, or null if no post is selected or the selected post has no
+     * pin, as its coordinates can't be pinned.
+     */
+    val selectedPosition: Position? = selectedRow?.let(posts::pinPositionOf)
 }
 
 /**

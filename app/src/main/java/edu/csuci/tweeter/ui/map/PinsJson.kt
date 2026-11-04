@@ -61,7 +61,7 @@ internal fun pinJsonOf(posts: PostTable, row: Int?): String {
  */
 internal fun pinJsonAt(point: GeoPoint?): String {
     val json = pinsJsonBuilder(pinCount = 1, idLength = 0)
-    if (point != null && isFinite(point.latitude, point.longitude)) {
+    if (point != null && isPinnable(point.latitude, point.longitude)) {
         json.appendPinStart().appendPinCoordinates(point.latitude, point.longitude)
     }
     return json.append(COLLECTION_END).toString()
@@ -81,18 +81,22 @@ private fun pinsJsonBuilder(pinCount: Int, idLength: Int): StringBuilder = Strin
         COLLECTION_END.length
 ).append(COLLECTION_START)
 
-// Skips a post whose coordinates aren't finite: NaN and the infinities have no JSON spelling.
+// Skips a post whose coordinates can't be pinned.
 private fun StringBuilder.appendPin(posts: PostTable, row: Int) {
     val latitude = posts.latitude(row)
     val longitude = posts.longitude(row)
-    if (isFinite(latitude, longitude)) {
+    if (isPinnable(latitude, longitude)) {
         appendPinStart()
             .append(ID_START).appendJsonString(posts.id(row)).append(',')
             .appendPinCoordinates(latitude, longitude)
     }
 }
 
-private fun isFinite(latitude: Double, longitude: Double): Boolean =
+/**
+ * Returns whether a pin can be drawn at [latitude] and [longitude]: whether both are finite. NaN
+ * and the infinities have no JSON spelling and no place on the map.
+ */
+internal fun isPinnable(latitude: Double, longitude: Double): Boolean =
     latitude.isFinite() && longitude.isFinite()
 
 private fun StringBuilder.appendPinStart(): StringBuilder {

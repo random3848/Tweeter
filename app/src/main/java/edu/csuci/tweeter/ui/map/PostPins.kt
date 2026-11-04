@@ -83,9 +83,19 @@ internal fun PostTable.nearestPinnedRow(pins: List<Feature<*, *>>, tap: Position
     return nearestRow
 }
 
-/** Returns where the photo of the post in [row] was taken, as a map position. */
-internal fun PostTable.positionOf(row: Int) =
-    Position(longitude = longitude(row), latitude = latitude(row))
+/**
+ * Returns where the pin of the post in [row] is drawn, where its photo was taken, or null if the
+ * post has no pin because its coordinates can't be pinned.
+ */
+internal fun PostTable.pinPositionOf(row: Int): Position? {
+    val latitude = latitude(row)
+    val longitude = longitude(row)
+    return if (isPinnable(latitude, longitude)) {
+        Position(longitude = longitude, latitude = latitude)
+    } else {
+        null
+    }
+}
 
 // The row of the post whose ID the pin carries, or null if this table doesn't hold that post.
 private fun PostTable.rowOf(pin: Feature<*, *>): Int? = pin.id?.contentOrNull?.let(::rowOf)
