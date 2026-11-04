@@ -8,6 +8,7 @@ import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.SAMPLE_POSTS
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 import java.time.Instant
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
@@ -111,10 +112,14 @@ class FeedViewModelTest {
         assertEquals(SAMPLE_POSTS[0].id, viewModel.postToShow.value)
     }
 
-    private fun feedViewModel(repository: PostRepository = FakePostRepository()) = FeedViewModel(
+    private fun feedViewModel(
+        repository: PostRepository = FakePostRepository(),
+        postsDispatcher: CoroutineDispatcher = UnconfinedTestDispatcher()
+    ) = FeedViewModel(
         postRepository = repository,
         showInFeedRequest = showInFeedRequest,
         showOnMapRequest = showOnMapRequest,
+        postsDispatcher = postsDispatcher,
         sharing = SharingStarted.WhileSubscribed()
     )
 
@@ -123,7 +128,7 @@ class FeedViewModelTest {
     private fun TestScope.collectedFeedViewModel(
         repository: PostRepository = FakePostRepository()
     ): FeedViewModel {
-        val viewModel = feedViewModel(repository)
+        val viewModel = feedViewModel(repository, UnconfinedTestDispatcher(testScheduler))
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect()
         }

@@ -42,6 +42,7 @@ private const val SHARING_STOP_TIMEOUT_MILLIS = 5_000L
  *             postRepository = application.container.postRepository,
  *             showInFeedRequest = application.container.showInFeedRequest,
  *             showOnMapRequest = application.container.showOnMapRequest,
+ *             postsDispatcher = Dispatchers.Default,
  *             sharing = application.container.whileScreenCollects
  *         )
  *     }
