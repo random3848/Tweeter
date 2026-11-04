@@ -1,11 +1,8 @@
 package edu.csuci.tweeter.ui.map
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -17,14 +14,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.data.Post
+import edu.csuci.tweeter.ui.feed.PhotoCard
 import edu.csuci.tweeter.ui.profile.timeAgoText
 
 private val POPUP_WIDTH = 200.dp
@@ -54,18 +50,13 @@ internal fun PostPopup(post: Post, onClick: () -> Unit, modifier: Modifier = Mod
                     onClick = onClick
                 )
             ) {
-                AsyncImage(
-                    model = post.imageUri,
-                    contentDescription = stringResource(R.string.map_post_photo_description),
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                PhotoCard(
+                    imageUri = post.imageUri,
+                    contentDescription = stringResource(R.string.map_post_photo_description)
                 )
                 Text(
                     text = stringResource(
-                        R.string.map_popup_details,
+                        R.string.post_details,
                         post.username,
                         timeAgoText(post.timestamp)
                     ),

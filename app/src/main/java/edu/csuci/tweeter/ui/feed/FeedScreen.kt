@@ -40,11 +40,11 @@ import edu.csuci.tweeter.ui.profile.timeAgoText
 /**
  * The home feed, the screen the app opens to.
  *
- * Displays posts from [FeedViewModel], sorted by timestamp, in a clean scrolling layout. Each
- * post's photo has a label saying where it was taken; pressing it shows the post on Map. When
- * another screen asks the feed to show a post, as Map's popup does, the feed scrolls to it.
+ * Displays posts from [FeedViewModel], sorted by timestamp, in a clean scrolling layout. A label
+ * on each post's photo shows the post on Map. When another screen asks the feed to show a post,
+ * as Map's popup does, the feed scrolls to it.
  *
- * @param onShowOnMap Opens Map once the post the user chose is selected there.
+ * @param onShowOnMap Opens Map, once the post the user chose is requested there.
  * @param modifier Applied to the whole screen.
  * @param feedViewModel Supplies posts and UI state for the feed.
  */
@@ -131,7 +131,7 @@ fun FeedScreen(
  * @param modifier Applied to the item container.
  */
 @Composable
-fun FeedPostItem(post: Post, onShowOnMap: () -> Unit, modifier: Modifier = Modifier) {
+private fun FeedPostItem(post: Post, onShowOnMap: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -162,7 +162,7 @@ fun FeedPostItem(post: Post, onShowOnMap: () -> Unit, modifier: Modifier = Modif
                 )
                 val timeAgo = timeAgoText(post.timestamp)
                 val locationDetails = if (post.locationName.isNotBlank()) {
-                    stringResource(R.string.profile_post_details, post.locationName, timeAgo)
+                    stringResource(R.string.post_details, post.locationName, timeAgo)
                 } else {
                     timeAgo
                 }
@@ -176,8 +176,7 @@ fun FeedPostItem(post: Post, onShowOnMap: () -> Unit, modifier: Modifier = Modif
 
         Box {
             PhotoCard(imageUri = post.imageUri)
-            LocationLabel(
-                locationName = post.locationName,
+            ShowOnMapLabel(
                 onClick = onShowOnMap,
                 modifier = Modifier
                     .align(Alignment.BottomStart)
@@ -216,19 +215,14 @@ fun FeedPostItem(post: Post, onShowOnMap: () -> Unit, modifier: Modifier = Modif
 }
 
 /**
- * A label over a post's photo with the name of the place where it was taken, or "Show on map" if
- * the place has no name. Pressing it shows the post on Map.
+ * A label over a post's photo that shows the post on Map when pressed. The place's name, if the
+ * post has one, is already in the post's header.
  *
- * @param locationName The place's name, or blank if it has none.
  * @param onClick Shows the post on Map.
  * @param modifier Applied to the label.
  */
 @Composable
-private fun LocationLabel(
-    locationName: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
+private fun ShowOnMapLabel(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val showOnMap = stringResource(R.string.feed_show_on_map)
     Row(
         modifier = modifier
@@ -246,7 +240,7 @@ private fun LocationLabel(
             modifier = Modifier.size(16.dp)
         )
         Text(
-            text = locationName.ifBlank { showOnMap },
+            text = showOnMap,
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
