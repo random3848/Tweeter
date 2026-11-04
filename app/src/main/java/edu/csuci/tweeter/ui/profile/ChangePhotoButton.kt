@@ -1,8 +1,6 @@
 package edu.csuci.tweeter.ui.profile
 
 import android.content.ActivityNotFoundException
-import android.content.Context
-import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -25,17 +23,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.core.content.FileProvider
 import edu.csuci.tweeter.R
-import java.io.File
-import java.io.IOException
-
-// Where camera photos are written, inside the app's cache directory. FileProvider shares this
-// folder with the camera app (the "photos" path in res/xml/file_paths.xml).
-private const val CAMERA_DIRECTORY = "photos"
 
 /**
  * "Change photo", which opens a bottom sheet to take a picture, choose one from the camera roll,
@@ -44,9 +34,12 @@ private const val CAMERA_DIRECTORY = "photos"
  * Camera roll photos come from Android's photo picker, which leaves out where they were taken.
  *
  * @param hasPhoto Whether there's a photo to remove; "Remove photo" is offered only then.
- * @param onPhotoChosen Called with the new photo's URI and, for a camera photo, the app's own file
- *     holding it.
+ * @param cameraFailed Whether the latest picture couldn't be taken, which the button says.
+ * @param onTakePicture Called when the user takes a picture with the camera app.
+ * @param onPhotoChosen Called with the URI of the photo chosen from the camera roll.
  * @param onRemovePhoto Called when the user removes the photo.
+ * @param onDismissCameraFailure Called when the user opens the sheet again, so [cameraFailed]
+ *     is no longer reported.
  * @param modifier Applied to the button and the message shown when the camera or camera roll
  *     can't open.
  */
@@ -54,55 +47,21 @@ private const val CAMERA_DIRECTORY = "photos"
 @Composable
 fun ChangePhotoButton(
     hasPhoto: Boolean,
-    onPhotoChosen: (photoUri: String, cachedFile: File?) -> Unit,
+    cameraFailed: Boolean,
+    onTakePicture: () -> Unit,
+    onPhotoChosen: (photoUri: String) -> Unit,
     onRemovePhoto: () -> Unit,
+    onDismissCameraFailure: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     var isSheetOpen by rememberSaveable { mutableStateOf(false) }
-    // Survives the app being stopped while the camera app is open.
-    var cameraFilePath by rememberSaveable { mutableStateOf<String?>(null) }
-    // The string resource of why the camera or camera roll didn't open, or null.
-    var failureMessageId by rememberSaveable { mutableStateOf<Int?>(null) }
+    var pickerFailed by rememberSaveable { mutableStateOf(false) }
 
-    val cameraLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.TakePicture()
-    ) { isSaved ->
-        val file = cameraFilePath?.let(::File) ?: return@rememberLauncherForActivityResult
-        cameraFilePath = null
-        if (isSaved) {
-            onPhotoChosen(Uri.fromFile(file).toString(), file)
-        } else {
-            file.delete()
-        }
-    }
     val photoPickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
-            onPhotoChosen(uri.toString(), null)
-        }
-    }
-
-    fun takePicture() {
-        val file = try {
-            createCameraFile(context)
-        } catch (error: IOException) {
-            Log.e("ChangePhotoButton", "Could not create a file for the camera photo", error)
-            failureMessageId = R.string.photo_camera_failed
-            return
-        }
-
-        try {
-            cameraFilePath = file.path
-            cameraLauncher.launch(
-                FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-            )
-        } catch (error: ActivityNotFoundException) {
-            Log.e("ChangePhotoButton", "No camera app", error)
-            file.delete()
-            cameraFilePath = null
-            failureMessageId = R.string.photo_camera_failed
+            onPhotoChosen(uri.toString())
         }
     }
 
@@ -113,20 +72,21 @@ fun ChangePhotoButton(
             )
         } catch (error: ActivityNotFoundException) {
             Log.e("ChangePhotoButton", "No photo picker", error)
-            failureMessageId = R.string.photo_picker_failed
+            pickerFailed = true
         }
     }
 
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         TextButton(
             onClick = {
-                failureMessageId = null
+                pickerFailed = false
+                onDismissCameraFailure()
                 isSheetOpen = true
             }
         ) {
             Text(text = stringResource(R.string.edit_profile_change_photo))
         }
-        failureMessageId?.let { message ->
+        failureMessage(cameraFailed, pickerFailed)?.let { message ->
             Text(
                 text = stringResource(message),
                 style = MaterialTheme.typography.bodyMedium,
@@ -139,7 +99,7 @@ fun ChangePhotoButton(
         ModalBottomSheet(onDismissRequest = { isSheetOpen = false }) {
             SheetOption(R.string.take_picture) {
                 isSheetOpen = false
-                takePicture()
+                onTakePicture()
             }
             SheetOption(R.string.choose_from_camera_roll) {
                 isSheetOpen = false
@@ -161,6 +121,14 @@ fun ChangePhotoButton(
     }
 }
 
+// The string resource of why the camera or camera roll didn't open, or null when neither failed.
+@StringRes
+private fun failureMessage(cameraFailed: Boolean, pickerFailed: Boolean): Int? = when {
+    cameraFailed -> R.string.photo_camera_failed
+    pickerFailed -> R.string.photo_picker_failed
+    else -> null
+}
+
 @Composable
 private fun SheetOption(
     @StringRes label: Int,
@@ -176,12 +144,4 @@ private fun SheetOption(
             .clickable(onClick = onClick)
             .padding(horizontal = 24.dp, vertical = 16.dp)
     )
-}
-
-private fun createCameraFile(context: Context): File {
-    val directory = File(context.cacheDir, CAMERA_DIRECTORY)
-    if (!directory.isDirectory && !directory.mkdirs()) {
-        throw IOException("Could not create $directory")
-    }
-    return File.createTempFile("profile_", ".jpg", directory)
 }

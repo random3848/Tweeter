@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.data.UserProfile
+import edu.csuci.tweeter.ui.camera.CameraOpener
 
 /**
  * Lets the logged-in user change their photo, name and bio. Save stores them and returns to
@@ -69,6 +70,13 @@ fun EditProfileScreen(
     // Consumes Back until the write is done; leaving couldn't undo it.
     BackHandler(enabled = isWritingProfile) {}
 
+    CameraOpener(
+        uriToOpen = editProfileViewModel.cameraUriToOpen,
+        onOpened = editProfileViewModel::cameraOpened,
+        onUnavailable = editProfileViewModel::cameraUnavailable,
+        onResult = editProfileViewModel::pictureTaken
+    )
+
     val avatarProfile = editProfileViewModel.avatarProfile
     val edits = editProfileViewModel.edits
     Column(modifier = modifier.fillMaxSize()) {
@@ -96,8 +104,11 @@ fun EditProfileScreen(
                 )
                 ChangePhotoButton(
                     hasPhoto = editProfileViewModel.hasPhoto,
+                    cameraFailed = editProfileViewModel.cameraFailed,
+                    onTakePicture = editProfileViewModel::takePicture,
                     onPhotoChosen = editProfileViewModel::choosePhoto,
-                    onRemovePhoto = editProfileViewModel::removePhoto
+                    onRemovePhoto = editProfileViewModel::removePhoto,
+                    onDismissCameraFailure = editProfileViewModel::dismissCameraFailure
                 )
                 DisplayNameField(
                     displayName = edits.displayName,

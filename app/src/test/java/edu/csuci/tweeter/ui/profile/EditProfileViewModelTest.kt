@@ -2,12 +2,19 @@ package edu.csuci.tweeter.ui.profile
 
 import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.firebase.FirebaseException
 import edu.csuci.tweeter.data.AccountRepository
+import edu.csuci.tweeter.data.CameraFiles
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PhotoUploadException
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.UserProfile
+import edu.csuci.tweeter.ui.camera.CameraCapture
+import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -17,6 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -45,6 +53,12 @@ class EditProfileViewModelTest {
     val temporaryFolder = TemporaryFolder()
 
     private val dispatcher = UnconfinedTestDispatcher()
+
+    // Outlives the ViewModels, as the app's scope does, to delete camera photos they discard.
+    private val appScope = TestScope(dispatcher)
+
+    private val cameraDirectory: File
+        get() = File(temporaryFolder.root, "photos")
 
     @Before
     fun setUp() {
@@ -220,25 +234,77 @@ class EditProfileViewModelTest {
     }
 
     @Test
+    fun pictureTaken_saved_avatarShowsIt() {
+        val viewModel = createViewModel()
+
+        val cameraUri = takeCameraPhoto(viewModel)
+
+        assertEquals(cameraUri, viewModel.avatarProfile?.photoUrl)
+        assertFalse(viewModel.isTakingPicture)
+    }
+
+    @Test
+    fun pictureTaken_notSaved_deletesFileAndKeepsPhoto() {
+        val viewModel = createViewModel()
+        openCamera(viewModel)
+
+        viewModel.pictureTaken(isSaved = false)
+
+        assertEquals(PhotoChange.Unchanged, viewModel.photoChange)
+        assertEquals(emptyList<File>(), filesInDirectory())
+    }
+
+    @Test
+    fun cameraUnavailable_failsAndDeletesFile() {
+        val viewModel = createViewModel()
+        viewModel.takePicture()
+
+        viewModel.cameraUnavailable()
+
+        assertTrue(viewModel.cameraFailed)
+        assertEquals(emptyList<File>(), filesInDirectory())
+    }
+
+    @Test
+    fun dismissCameraFailure_clearsFailure() {
+        val viewModel = createViewModel()
+        viewModel.takePicture()
+        viewModel.cameraUnavailable()
+
+        viewModel.dismissCameraFailure()
+
+        assertFalse(viewModel.cameraFailed)
+    }
+
+    @Test
     fun choosePhoto_afterCameraPhoto_deletesCameraFile() {
         val viewModel = createViewModel()
-        val cameraFile = temporaryFolder.newFile("camera.jpg")
-        viewModel.choosePhoto(CHOSEN_PHOTO_URI, cachedFile = cameraFile)
+        takeCameraPhoto(viewModel)
 
-        viewModel.choosePhoto("content://photos/2")
+        viewModel.choosePhoto(CHOSEN_PHOTO_URI)
 
-        assertFalse(cameraFile.exists())
+        assertEquals(emptyList<File>(), filesInDirectory())
     }
 
     @Test
     fun removePhoto_afterCameraPhoto_deletesCameraFile() {
         val viewModel = createViewModel()
-        val cameraFile = temporaryFolder.newFile("camera.jpg")
-        viewModel.choosePhoto(CHOSEN_PHOTO_URI, cachedFile = cameraFile)
+        takeCameraPhoto(viewModel)
 
         viewModel.removePhoto()
 
-        assertFalse(cameraFile.exists())
+        assertEquals(emptyList<File>(), filesInDirectory())
+    }
+
+    @Test
+    fun cleared_afterCameraPhoto_deletesCameraFile() {
+        val store = ViewModelStore()
+        val factory = viewModelFactory { initializer { createViewModel() } }
+        takeCameraPhoto(ViewModelProvider.create(store, factory)[EditProfileViewModel::class])
+
+        store.clear()
+
+        assertEquals(emptyList<File>(), filesInDirectory())
     }
 
     @Test
@@ -384,15 +450,39 @@ class EditProfileViewModelTest {
         assertTrue(viewModel.isWritingProfile)
     }
 
+    // Takes a picture up to the camera app opening, and returns the URI it saves into.
+    private fun openCamera(viewModel: EditProfileViewModel): String {
+        viewModel.takePicture()
+        val cameraUri = checkNotNull(viewModel.cameraUriToOpen) { "The camera wasn't asked for" }
+        viewModel.cameraOpened()
+        return cameraUri
+    }
+
+    // Takes a picture that the camera app saves, and returns its URI.
+    private fun takeCameraPhoto(viewModel: EditProfileViewModel): String =
+        openCamera(viewModel).also { viewModel.pictureTaken(isSaved = true) }
+
+    private fun filesInDirectory(): List<File> = cameraDirectory.listFiles().orEmpty().toList()
+
     private fun createViewModel(
         loggedInUid: String? = profile.uid,
         savedStateHandle: SavedStateHandle = SavedStateHandle()
-    ): EditProfileViewModel = EditProfileViewModel(
-        profileRepository = profileRepository,
-        photoRepository = photoRepository,
-        accountRepository = FakeAccountRepository(loggedInUid),
-        savedStateHandle = savedStateHandle
-    )
+    ): EditProfileViewModel {
+        val cameraFiles = CameraFiles(
+            directory = cameraDirectory,
+            scope = appScope,
+            ioDispatcher = dispatcher,
+            contentUriOf = { file -> CAMERA_URI_PREFIX + file.name }
+        )
+        return EditProfileViewModel(
+            profileRepository = profileRepository,
+            photoRepository = photoRepository,
+            accountRepository = FakeAccountRepository(loggedInUid),
+            cameraFiles = cameraFiles,
+            cameraCapture = CameraCapture(cameraFiles, savedStateHandle),
+            savedStateHandle = savedStateHandle
+        )
+    }
 
     private class FakeProfileRepository(var profile: UserProfile) : ProfileRepository {
         var failsToRead = false
@@ -460,5 +550,6 @@ class EditProfileViewModelTest {
     private companion object {
         const val PHOTO_URL = "https://example.com/maya.jpg"
         const val CHOSEN_PHOTO_URI = "content://photos/1"
+        const val CAMERA_URI_PREFIX = "content://camera/"
     }
 }

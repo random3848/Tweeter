@@ -15,13 +15,14 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.firebase.FirebaseException
 import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
+import edu.csuci.tweeter.data.CameraFiles
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PhotoUploadException
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.UserProfile
 import edu.csuci.tweeter.data.deleteUnusedPhoto
 import edu.csuci.tweeter.data.getLoggedInProfile
-import java.io.File
+import edu.csuci.tweeter.ui.camera.CameraCapture
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -49,12 +50,17 @@ internal const val PROFILE_WRITE_TIMEOUT_MILLIS = 10_000L
  * @param photoRepository Uploads a new profile photo when the profile is saved, and deletes it
  *     again if the profile then can't be written.
  * @param accountRepository Who is logged in.
+ * @param cameraFiles Deletes the file of a camera photo once nothing needs it, even after this
+ *     ViewModel is cleared.
+ * @param cameraCapture Takes pictures with the camera app.
  * @param savedStateHandle Keeps the typed name and bio and the photo change.
  */
 class EditProfileViewModel(
     private val profileRepository: ProfileRepository,
     private val photoRepository: PhotoRepository,
     private val accountRepository: AccountRepository,
+    private val cameraFiles: CameraFiles,
+    private val cameraCapture: CameraCapture,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     // The profile as it's stored, before the edits, or null while it's still being read.
@@ -68,8 +74,20 @@ class EditProfileViewModel(
     var photoChange by mutableStateOf(savedPhotoChange())
         private set
 
-    // The app's own copy of a camera photo in [photoChange], deleted once nothing needs it.
-    private var cachedFile: File? = savedStateHandle.get<String>(CACHED_FILE_KEY)?.let(::File)
+    // The app's own file holding a camera photo in [photoChange], deleted once nothing needs it.
+    private var cachedFilePath: String? = savedStateHandle[CACHED_FILE_KEY]
+
+    /** The URI the screen opens the camera app with, as [CameraCapture.uriToOpen] says. */
+    val cameraUriToOpen: String?
+        get() = cameraCapture.uriToOpen
+
+    /** Whether a picture is being taken, from [takePicture] until the camera app answers. */
+    val isTakingPicture: Boolean
+        get() = cameraCapture.isTakingPicture
+
+    /** Whether the latest picture couldn't be taken. */
+    val cameraFailed: Boolean
+        get() = cameraCapture.failed
 
     /** Whether the edits are being saved. */
     var isSaving by mutableStateOf(false)
@@ -137,14 +155,48 @@ class EditProfileViewModel(
         }
     }
 
+    /** Starts taking a picture: the screen then opens the camera app with [cameraUriToOpen]. */
+    fun takePicture() {
+        viewModelScope.launch { cameraCapture.start() }
+    }
+
+    /** Stops asking to open the camera app, which the screen has opened. */
+    fun cameraOpened() {
+        cameraCapture.cameraOpened()
+    }
+
     /**
-     * Makes the photo at [photoUri] the new profile photo, uploaded when the profile is saved.
-     *
-     * @param cachedFile The app's own copy of the photo, such as one just taken with the camera,
-     *     which is deleted once nothing needs it; null for a photo the app doesn't own.
+     * Makes the picture the camera app took the new profile photo when [isSaved], and otherwise
+     * deletes its file.
      */
-    fun choosePhoto(photoUri: String, cachedFile: File? = null) {
-        replaceCachedFile(cachedFile)
+    fun pictureTaken(isSaved: Boolean) {
+        if (isSaved) {
+            cameraCapture.keep()?.let { picture -> replacePhoto(picture.contentUri, picture.path) }
+        } else {
+            cameraCapture.discard()
+        }
+    }
+
+    /** Gives up on the picture, since no camera app could open, and reports [cameraFailed]. */
+    fun cameraUnavailable() {
+        cameraCapture.cameraUnavailable()
+    }
+
+    /** Stops reporting [cameraFailed], once the user moves on. */
+    fun dismissCameraFailure() {
+        cameraCapture.dismissFailure()
+    }
+
+    /**
+     * Makes the photo at [photoUri], chosen from the camera roll, the new profile photo, uploaded
+     * when the profile is saved.
+     */
+    fun choosePhoto(photoUri: String) {
+        replacePhoto(photoUri, cameraFilePath = null)
+    }
+
+    private fun replacePhoto(photoUri: String, cameraFilePath: String?) {
+        replaceCachedFile(cameraFilePath)
         updatePhotoChange(PhotoChange.Replace(photoUri))
     }
 
@@ -172,7 +224,7 @@ class EditProfileViewModel(
     }
 
     override fun onCleared() {
-        cachedFile?.delete()
+        cachedFilePath?.let(cameraFiles::discard)
     }
 
     private suspend fun loadProfile() {
@@ -262,10 +314,11 @@ class EditProfileViewModel(
         savedStateHandle[PHOTO_REMOVED_KEY] = change == PhotoChange.Remove
     }
 
-    private fun replaceCachedFile(newFile: File?) {
-        cachedFile?.delete()
-        cachedFile = newFile
-        savedStateHandle[CACHED_FILE_KEY] = newFile?.path
+    private fun replaceCachedFile(newPath: String?) {
+        val replacedPath = cachedFilePath
+        cachedFilePath = newPath
+        savedStateHandle[CACHED_FILE_KEY] = newPath
+        replacedPath?.let(cameraFiles::discard)
     }
 
     private fun savedEdits(): ProfileEdits? {
@@ -285,11 +338,15 @@ class EditProfileViewModel(
         val factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as TweeterApplication
+                val cameraFiles = application.container.cameraFiles
+                val savedStateHandle = createSavedStateHandle()
                 EditProfileViewModel(
                     profileRepository = application.container.profileRepository,
                     photoRepository = application.container.photoRepository,
                     accountRepository = application.container.accountRepository,
-                    savedStateHandle = createSavedStateHandle()
+                    cameraFiles = cameraFiles,
+                    cameraCapture = CameraCapture(cameraFiles, savedStateHandle),
+                    savedStateHandle = savedStateHandle
                 )
             }
         }
