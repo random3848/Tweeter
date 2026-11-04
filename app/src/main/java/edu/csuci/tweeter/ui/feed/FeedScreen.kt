@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,13 +34,16 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
-import edu.csuci.tweeter.data.Post
+import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.ui.profile.timeAgoText
+
+// Between a post's animal type and its confidence rating.
+private const val ANIMAL_DETAILS_SEPARATOR = " · "
 
 /**
  * The home feed, the screen the app opens to.
  *
- * Displays posts from [FeedViewModel], sorted by timestamp, in a clean scrolling layout. A label
+ * Displays posts from [FeedViewModel], newest first, in a clean scrolling layout. A label
  * on each post's photo shows the post on Map. When another screen asks the feed to show a post,
  * as Map's popup does, the feed scrolls to it.
  *
@@ -60,13 +63,11 @@ fun FeedScreen(
 
     LaunchedEffect(postToShow, uiState.posts) {
         val postId = postToShow ?: return@LaunchedEffect
-        val index = uiState.posts.indexOfFirst { it.id == postId }
         // The feed can still show the posts it had before this one was shared, so the request
-        // stays until a list with the post arrives.
-        if (index >= 0) {
-            listState.scrollToItem(index)
-            feedViewModel.clearPostToShow()
-        }
+        // stays until a table with the post arrives.
+        val row = uiState.posts.rowOf(postId) ?: return@LaunchedEffect
+        listState.scrollToItem(row)
+        feedViewModel.clearPostToShow()
     }
 
     when {
@@ -79,7 +80,7 @@ fun FeedScreen(
             }
         }
 
-        uiState.posts.isEmpty() -> {
+        uiState.posts.size == 0 -> {
             Box(
                 modifier = modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -93,23 +94,23 @@ fun FeedScreen(
         }
 
         else -> {
+            val posts = uiState.posts
+            val lastRow = posts.size - 1
             LazyColumn(
                 state = listState,
                 modifier = modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 16.dp)
             ) {
-                itemsIndexed(
-                    items = uiState.posts,
-                    key = { _, post -> post.id }
-                ) { index, post ->
+                items(count = posts.size, key = { row -> posts.id(row) }) { row ->
                     FeedPostItem(
-                        post = post,
+                        posts = posts,
+                        row = row,
                         onShowOnMap = {
-                            feedViewModel.showOnMap(post)
+                            feedViewModel.showOnMap(posts.id(row))
                             onShowOnMap()
                         }
                     )
-                    if (index < uiState.posts.lastIndex) {
+                    if (row < lastRow) {
                         HorizontalDivider(
                             modifier = Modifier.padding(vertical = 12.dp),
                             thickness = 1.dp,
@@ -126,56 +127,23 @@ fun FeedScreen(
  * A post item in the home feed displaying poster info, photo or placeholder, caption,
  * animal type, confidence, and location details. A label on the photo shows the post on Map.
  *
- * @param post The post to render.
+ * @param posts The table holding the post.
+ * @param row The post's row in [posts].
  * @param onShowOnMap Shows the post on Map.
  * @param modifier Applied to the item container.
  */
 @Composable
-private fun FeedPostItem(post: Post, onShowOnMap: () -> Unit, modifier: Modifier = Modifier) {
+private fun FeedPostItem(
+    posts: PostTable,
+    row: Int,
+    onShowOnMap: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Column(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.Top,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = post.avatar.initials,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = post.username,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                val timeAgo = timeAgoText(post.timestamp)
-                val locationDetails = if (post.locationName.isNotBlank()) {
-                    stringResource(R.string.post_details, post.locationName, timeAgo)
-                } else {
-                    timeAgo
-                }
-                Text(
-                    text = locationDetails,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
+        PostHeader(posts = posts, row = row)
 
         Box {
-            PhotoCard(imageUri = post.imageUri)
+            PhotoCard(imageUri = posts.imageUri(row))
             ShowOnMapLabel(
                 onClick = onShowOnMap,
                 modifier = Modifier
@@ -184,33 +152,99 @@ private fun FeedPostItem(post: Post, onShowOnMap: () -> Unit, modifier: Modifier
             )
         }
 
-        val hasCaption = post.caption.isNotBlank()
-
-        if (hasCaption) {
+        val caption = posts.caption(row)
+        if (caption.isNotBlank()) {
             Text(
-                text = post.caption,
+                text = caption,
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 12.dp, top = 8.dp, end = 12.dp)
             )
         }
-        val hasAnimalType = post.animalType.isNotBlank()
-        val hasConfidence = post.confidence != null
 
-        if (hasAnimalType || hasConfidence) {
-            val animalStr = if (hasAnimalType) post.animalType else null
-            val confidenceStr = post.confidence?.let {
-                stringResource(R.string.feed_confidence_rating, it)
-            }
-            val infoText = listOfNotNull(animalStr, confidenceStr).joinToString(" · ")
-
+        val animalDetails = animalDetailsOf(posts, row)
+        if (animalDetails != null) {
             Text(
-                text = infoText,
+                text = animalDetails,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 12.dp, top = 4.dp, end = 12.dp, bottom = 8.dp)
             )
         }
+    }
+}
+
+/**
+ * The top of a feed post: the poster's avatar and name, where the post was shared and how long
+ * ago.
+ *
+ * @param posts The table holding the post.
+ * @param row The post's row in [posts].
+ */
+@Composable
+private fun PostHeader(posts: PostTable, row: Int) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = posts.avatarInitials(row),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = posts.username(row),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = locationDetailsOf(posts, row),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/** Where the post in [row] of [posts] was shared, if it names a place, and how long ago. */
+@Composable
+private fun locationDetailsOf(posts: PostTable, row: Int): String {
+    val timeAgo = timeAgoText(posts.timestampMillis(row))
+    val locationName = posts.locationName(row)
+    return if (locationName.isNotBlank()) {
+        stringResource(R.string.post_details, locationName, timeAgo)
+    } else {
+        timeAgo
+    }
+}
+
+/**
+ * The animal type and confidence rating of the post in [row] of [posts], joined by
+ * [ANIMAL_DETAILS_SEPARATOR] when it has both, or null when it has neither.
+ */
+@Composable
+private fun animalDetailsOf(posts: PostTable, row: Int): String? {
+    val animalType = posts.animalType(row)
+    val confidenceRating = posts.confidence(row)?.let {
+        stringResource(R.string.feed_confidence_rating, it)
+    }
+    return when {
+        animalType.isBlank() -> confidenceRating
+        confidenceRating == null -> animalType
+        else -> animalType + ANIMAL_DETAILS_SEPARATOR + confidenceRating
     }
 }
 
