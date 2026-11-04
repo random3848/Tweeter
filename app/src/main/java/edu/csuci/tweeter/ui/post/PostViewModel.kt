@@ -22,6 +22,8 @@ import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.UserProfile
 import edu.csuci.tweeter.data.getLoggedInProfile
+import edu.csuci.tweeter.location.DeviceLocationProvider
+import edu.csuci.tweeter.location.ExifLocationReader
 import edu.csuci.tweeter.location.GeoPoint
 import edu.csuci.tweeter.location.LocationFix
 import edu.csuci.tweeter.location.LocationSource
@@ -31,6 +33,7 @@ import java.io.File
 import java.io.IOException
 import java.time.Instant
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -45,7 +48,7 @@ class PostViewModel(
     private val postRepository: PostRepository,
     private val profileRepository: ProfileRepository,
     private val accountRepository: AccountRepository,
-    private val photoLocator: PhotoLocator,
+    private val photoLocator: PhotoLocator<Uri>,
     private val locationTagRemover: LocationTagRemover,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -200,7 +203,11 @@ class PostViewModel(
                     postRepository = application.container.postRepository,
                     profileRepository = application.container.profileRepository,
                     accountRepository = application.container.accountRepository,
-                    photoLocator = PhotoLocator(application),
+                    photoLocator = PhotoLocator(
+                        readExif = ExifLocationReader(application)::read,
+                        currentDeviceFix = DeviceLocationProvider(application)::currentFix,
+                        ioDispatcher = Dispatchers.IO
+                    ),
                     locationTagRemover = LocationTagRemover(application),
                     savedStateHandle = createSavedStateHandle()
                 )
