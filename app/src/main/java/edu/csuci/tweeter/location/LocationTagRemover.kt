@@ -5,7 +5,7 @@ import android.net.Uri
 import androidx.exifinterface.media.ExifInterface
 import java.io.File
 import java.io.IOException
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 
 // Where the copies are written, inside the app's cache directory.
 private const val COPY_DIRECTORY = "uploads"
@@ -56,8 +56,9 @@ private val LOCATION_TAGS = listOf(
  * moved the pin away from it.
  *
  * @param context Any context; only its application context is kept.
+ * @param ioDispatcher Where photos are read and copies written.
  */
-class LocationTagRemover(context: Context) {
+class LocationTagRemover(context: Context, private val ioDispatcher: CoroutineDispatcher) {
     private val appContext = context.applicationContext
 
     /**
@@ -69,7 +70,7 @@ class LocationTagRemover(context: Context) {
      *     coroutine is cancelled.
      */
     suspend fun copyWithoutLocation(uri: Uri): File = writeNewFile(
-        dispatcher = Dispatchers.IO,
+        dispatcher = ioDispatcher,
         create = ::createCopy,
         write = { copy -> writeWithoutLocation(uri, copy) }
     )

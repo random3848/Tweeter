@@ -225,7 +225,10 @@ class PostViewModel(
                         currentDeviceFix = DeviceLocationProvider(application)::currentFix,
                         ioDispatcher = Dispatchers.IO
                     ),
-                    locationTagRemover = LocationTagRemover(application),
+                    locationTagRemover = LocationTagRemover(
+                        context = application,
+                        ioDispatcher = Dispatchers.IO
+                    ),
                     savedStateHandle = createSavedStateHandle()
                 )
             }

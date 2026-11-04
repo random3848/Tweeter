@@ -86,7 +86,7 @@ class AppContainer(private val context: Context) {
         FirebasePhotoRepository(
             auth = FirebaseAuth.getInstance(),
             storage = FirebaseStorage.getInstance(),
-            locationTagRemover = LocationTagRemover(context)
+            locationTagRemover = LocationTagRemover(context, ioDispatcher = Dispatchers.IO)
         )
     }
 
