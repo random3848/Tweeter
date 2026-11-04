@@ -17,6 +17,12 @@ interface PostRepository {
     /** All posts, newest first. Emits again whenever a post is added. */
     fun getPosts(): Flow<List<Post>>
 
+    /**
+     * All posts as one [PostTable], newest first. Emits a new table whenever a post is added or
+     * changes.
+     */
+    fun getPostTable(): Flow<PostTable>
+
     /** The posts shared by user [authorUid] ([Post.authorUid]), newest first. */
     fun getPostsBy(authorUid: String): Flow<List<Post>>
 

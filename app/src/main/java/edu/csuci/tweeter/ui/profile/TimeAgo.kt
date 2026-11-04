@@ -4,8 +4,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import edu.csuci.tweeter.R
-import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.TimeUnit
+
+private val MILLIS_PER_MINUTE = TimeUnit.MINUTES.toMillis(1)
+private val MILLIS_PER_HOUR = TimeUnit.HOURS.toMillis(1)
+private val MILLIS_PER_DAY = TimeUnit.DAYS.toMillis(1)
+private val MILLIS_PER_WEEK = TimeUnit.DAYS.toMillis(7)
 
 /**
  * How long ago something happened, counted in the largest unit that fits, such as 12 minutes or
@@ -34,22 +39,42 @@ enum class TimeAgoUnit {
     WEEKS
 }
 
-/** Returns how long before [now] the moment [then] was. */
-fun timeAgoOf(then: Instant, now: Instant): TimeAgo {
-    val elapsed = Duration.between(then, now)
+/** Returns how long before [nowMillis] the moment [thenMillis] was, both since the epoch. */
+fun timeAgoOf(thenMillis: Long, nowMillis: Long): TimeAgo {
+    val elapsedMillis = nowMillis - thenMillis
     return when {
-        elapsed < Duration.ofMinutes(1) -> TimeAgo(0, TimeAgoUnit.JUST_NOW)
-        elapsed < Duration.ofHours(1) -> TimeAgo(elapsed.toMinutes(), TimeAgoUnit.MINUTES)
-        elapsed < Duration.ofDays(1) -> TimeAgo(elapsed.toHours(), TimeAgoUnit.HOURS)
-        elapsed < Duration.ofDays(7) -> TimeAgo(elapsed.toDays(), TimeAgoUnit.DAYS)
-        else -> TimeAgo(elapsed.toDays() / 7, TimeAgoUnit.WEEKS)
+        elapsedMillis < MILLIS_PER_MINUTE -> TimeAgo(0, TimeAgoUnit.JUST_NOW)
+
+        elapsedMillis < MILLIS_PER_HOUR -> {
+            TimeAgo(elapsedMillis / MILLIS_PER_MINUTE, TimeAgoUnit.MINUTES)
+        }
+
+        elapsedMillis < MILLIS_PER_DAY -> {
+            TimeAgo(
+                elapsedMillis / MILLIS_PER_HOUR,
+                TimeAgoUnit.HOURS
+            )
+        }
+
+        elapsedMillis < MILLIS_PER_WEEK -> TimeAgo(elapsedMillis / MILLIS_PER_DAY, TimeAgoUnit.DAYS)
+
+        else -> TimeAgo(elapsedMillis / MILLIS_PER_WEEK, TimeAgoUnit.WEEKS)
     }
 }
 
-/** Returns how long ago [then] was as text, such as "12 minutes ago". */
+/** Returns how long before [now] the moment [then] was. */
+fun timeAgoOf(then: Instant, now: Instant): TimeAgo =
+    timeAgoOf(then.toEpochMilli(), now.toEpochMilli())
+
+/**
+ * Returns how long ago [thenMillis] was as text, such as "12 minutes ago".
+ *
+ * @param thenMillis The moment, in milliseconds since the epoch.
+ * @param nowMillis The current time, in milliseconds since the epoch.
+ */
 @Composable
-fun timeAgoText(then: Instant, now: Instant = Instant.now()): String {
-    val timeAgo = timeAgoOf(then, now)
+fun timeAgoText(thenMillis: Long, nowMillis: Long = System.currentTimeMillis()): String {
+    val timeAgo = timeAgoOf(thenMillis, nowMillis)
     val amount = timeAgo.amount.toInt()
     val plurals = when (timeAgo.unit) {
         TimeAgoUnit.JUST_NOW -> return stringResource(R.string.time_ago_just_now)
@@ -60,3 +85,8 @@ fun timeAgoText(then: Instant, now: Instant = Instant.now()): String {
     }
     return pluralStringResource(plurals, amount, amount)
 }
+
+/** Returns how long ago [then] was as text, such as "12 minutes ago". */
+@Composable
+fun timeAgoText(then: Instant, now: Instant = Instant.now()): String =
+    timeAgoText(then.toEpochMilli(), now.toEpochMilli())

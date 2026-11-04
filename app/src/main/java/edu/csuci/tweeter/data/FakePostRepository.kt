@@ -17,6 +17,8 @@ class FakePostRepository(initialPosts: List<Post> = SAMPLE_POSTS) : PostReposito
 
     override fun getPosts(): Flow<List<Post>> = posts.asStateFlow()
 
+    override fun getPostTable(): Flow<PostTable> = posts.map(PostTable::of)
+
     override fun getPostsBy(authorUid: String): Flow<List<Post>> =
         posts.map { allPosts -> allPosts.filter { it.authorUid == authorUid } }
 

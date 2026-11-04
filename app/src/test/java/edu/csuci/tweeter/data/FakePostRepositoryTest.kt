@@ -43,4 +43,21 @@ class FakePostRepositoryTest {
 
         assertEquals(listOf(post), repository.getPosts().first())
     }
+
+    @Test
+    fun getPostTable_startsWithSamplePosts() = runBlocking {
+        val repository = FakePostRepository()
+
+        assertEquals(PostTable.of(SAMPLE_POSTS), repository.getPostTable().first())
+    }
+
+    @Test
+    fun getPostTable_afterAddPost_hasNewPostFirst() = runBlocking {
+        val repository = FakePostRepository()
+        val post = SAMPLE_POSTS.first().copy(id = "new", timestamp = Instant.now())
+
+        repository.addPost(post)
+
+        assertEquals(PostTable.of(listOf(post) + SAMPLE_POSTS), repository.getPostTable().first())
+    }
 }

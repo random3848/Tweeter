@@ -26,6 +26,8 @@ class FirestorePostRepository(
     override fun getPosts(): Flow<List<Post>> =
         postsIn(posts.orderBy(PostDocument.TIMESTAMP, Query.Direction.DESCENDING))
 
+    override fun getPostTable(): Flow<PostTable> = getPosts().map(PostTable::of)
+
     // Sorted here rather than with orderBy, which together with whereEqualTo would need a
     // composite index in Firestore.
     override fun getPostsBy(authorUid: String): Flow<List<Post>> =
