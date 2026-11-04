@@ -6,11 +6,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import edu.csuci.tweeter.R
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.ui.feed.PhotoCard
+import edu.csuci.tweeter.ui.feed.postDetailsText
 
 /**
  * One of the user's posts on their profile: the photo as Feed shows it, the caption, and where
@@ -23,7 +22,6 @@ import edu.csuci.tweeter.ui.feed.PhotoCard
 @Composable
 fun ProfilePostItem(table: PostTable, row: Int, modifier: Modifier = Modifier) {
     val caption = table.caption(row)
-    val locationName = table.locationName(row)
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -33,13 +31,8 @@ fun ProfilePostItem(table: PostTable, row: Int, modifier: Modifier = Modifier) {
             Text(text = caption, style = MaterialTheme.typography.bodyMedium)
         }
 
-        val timeAgo = timeAgoText(table.timestampMillis(row))
         Text(
-            text = if (locationName.isBlank()) {
-                timeAgo
-            } else {
-                stringResource(R.string.post_details, locationName, timeAgo)
-            },
+            text = postDetailsText(table.locationName(row), table.timestampMillis(row)),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

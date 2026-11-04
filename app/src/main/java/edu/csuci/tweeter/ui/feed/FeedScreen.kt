@@ -35,7 +35,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.data.PostTable
-import edu.csuci.tweeter.ui.profile.timeAgoText
 
 // Between a post's animal type and its confidence rating.
 private const val ANIMAL_DETAILS_SEPARATOR = " · "
@@ -211,23 +210,11 @@ private fun PostHeader(posts: PostTable, row: Int) {
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = locationDetailsOf(posts, row),
+                text = postDetailsText(posts.locationName(row), posts.timestampMillis(row)),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-    }
-}
-
-/** Where the post in [row] of [posts] was shared, if it names a place, and how long ago. */
-@Composable
-private fun locationDetailsOf(posts: PostTable, row: Int): String {
-    val timeAgo = timeAgoText(posts.timestampMillis(row))
-    val locationName = posts.locationName(row)
-    return if (locationName.isNotBlank()) {
-        stringResource(R.string.post_details, locationName, timeAgo)
-    } else {
-        timeAgo
     }
 }
 
