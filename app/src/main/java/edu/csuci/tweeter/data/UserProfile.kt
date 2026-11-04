@@ -25,6 +25,12 @@ data class UserProfile(
         /** The name of a user who hasn't set one. */
         const val DEFAULT_DISPLAY_NAME = "Guest"
 
+        /** The most characters a [displayName] can have. The Firestore rules check it too. */
+        const val MAX_DISPLAY_NAME_LENGTH = 30
+
+        /** The most characters a [bio] can have. The Firestore rules check it too. */
+        const val MAX_BIO_LENGTH = 150
+
         /** Returns the profile of user [uid] before they have set anything up. */
         fun createDefault(uid: String): UserProfile = UserProfile(
             uid = uid,
