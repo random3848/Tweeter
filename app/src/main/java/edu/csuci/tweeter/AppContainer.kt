@@ -1,12 +1,19 @@
 package edu.csuci.tweeter
 
+import android.content.Context
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
+import edu.csuci.tweeter.data.AccountRepository
+import edu.csuci.tweeter.data.FirebaseAccountRepository
 import edu.csuci.tweeter.data.FirebasePhotoRepository
 import edu.csuci.tweeter.data.FirestorePostRepository
+import edu.csuci.tweeter.data.FirestoreProfileRepository
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PostRepository
+import edu.csuci.tweeter.data.ProfileRepository
+import edu.csuci.tweeter.location.LocationTagRemover
+import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 
 /**
  * The objects the whole app shares, created once by [TweeterApplication].
@@ -20,14 +27,20 @@ import edu.csuci.tweeter.data.PostRepository
  * val factory = viewModelFactory {
  *     initializer {
  *         val application = this[APPLICATION_KEY] as TweeterApplication
- *         MapViewModel(application.container.postRepository)
+ *         MapViewModel(
+ *             postRepository = application.container.postRepository,
+ *             showOnMapRequest = application.container.showOnMapRequest,
+ *             showInFeedRequest = application.container.showInFeedRequest
+ *         )
  *     }
  * }
  * ```
  * and its screen creates it with `viewModel(factory = MapViewModel.factory)`, from
  * `androidx.lifecycle:lifecycle-viewmodel-compose`. `ui/map/MapViewModel.kt` is this example.
+ *
+ * @param context Any context; objects that need one keep only its application context.
  */
-class AppContainer {
+class AppContainer(private val context: Context) {
     /** Every post in the app, stored in Firestore. */
     val postRepository: PostRepository by lazy {
         FirestorePostRepository(
@@ -36,11 +49,30 @@ class AppContainer {
         )
     }
 
-    /** Uploads camera photos to Firebase Storage. */
+    /** Every user's profile, stored in Firestore. */
+    val profileRepository: ProfileRepository by lazy {
+        FirestoreProfileRepository(firestore = FirebaseFirestore.getInstance())
+    }
+
+    /**
+     * Shared authentication operations and the registered user's identity.
+     */
+    val accountRepository: AccountRepository by lazy {
+        FirebaseAccountRepository(auth = FirebaseAuth.getInstance())
+    }
+
+    /** Uploads post and profile photos to Firebase Storage. */
     val photoRepository: PhotoRepository by lazy {
         FirebasePhotoRepository(
             auth = FirebaseAuth.getInstance(),
-            storage = FirebaseStorage.getInstance()
+            storage = FirebaseStorage.getInstance(),
+            locationTagRemover = LocationTagRemover(context)
         )
     }
+
+    /** The post Feed asks Map to show. Map opens the post's popup, then clears the request. */
+    val showOnMapRequest: ShowPostRequest = ShowPostRequest()
+
+    /** The post Map's popup asks Feed to show. Feed scrolls to it, then clears the request. */
+    val showInFeedRequest: ShowPostRequest = ShowPostRequest()
 }

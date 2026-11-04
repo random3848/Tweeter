@@ -8,9 +8,14 @@ import kotlinx.serialization.Serializable
 @Serializable
 object PostRoute
 
-/** Registers [PostScreen] under [PostRoute] in the app's NavHost. */
-fun NavGraphBuilder.addPostScreen() {
+/**
+ * Registers [PostScreen] under [PostRoute] in the app's NavHost.
+ *
+ * @param onLogIn Opens the login form.
+ * @param onCreateAccount Opens the registration form.
+ */
+fun NavGraphBuilder.addPostScreen(onLogIn: () -> Unit, onCreateAccount: () -> Unit) {
     composable<PostRoute> {
-        PostScreen()
+        PostScreen(onLogIn = onLogIn, onCreateAccount = onCreateAccount)
     }
 }

@@ -8,9 +8,13 @@ import kotlinx.serialization.Serializable
 @Serializable
 object FeedRoute
 
-/** Registers [FeedScreen] under [FeedRoute] in the app's NavHost. */
-fun NavGraphBuilder.addFeedScreen() {
+/**
+ * Registers [FeedScreen] under [FeedRoute] in the app's NavHost.
+ *
+ * @param onShowOnMap Opens Map, where the post the user chose to show is requested.
+ */
+fun NavGraphBuilder.addFeedScreen(onShowOnMap: () -> Unit) {
     composable<FeedRoute> {
-        FeedScreen()
+        FeedScreen(onShowOnMap = onShowOnMap)
     }
 }

@@ -2,19 +2,47 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // The fields and limits match ProfileDocument and UserProfile in the app.
+    match /users/{uid} {
+      allow read: if request.auth != null;
+
+      // Only the logged-in user (not a guest) can save their own profile.
+      allow create, update: if request.auth != null
+                            && request.auth.token.firebase.sign_in_provider != 'anonymous'
+                            && request.auth.uid == uid
+                            && request.resource.data.keys().hasOnly([
+                                 'displayName', 'bio', 'photoUrl'
+                               ])
+                            && request.resource.data.keys().hasAll([
+                                 'displayName', 'bio', 'photoUrl'
+                               ])
+                            && request.resource.data.displayName is string
+                            && request.resource.data.displayName.size() > 0
+                            && request.resource.data.displayName.size() <= 30
+                            && request.resource.data.bio is string
+                            && request.resource.data.bio.size() <= 150
+                            && request.resource.data.photoUrl is string
+                            && (request.resource.data.photoUrl == ''
+                                || request.resource.data.photoUrl.matches('https://.*'));
+    }
+
     // The fields match PostDocument in the app.
     match /posts/{postId} {
+      // Guests (anonymous sessions) can read posts but not share them.
       allow read: if request.auth != null;
 
       // Posts can't be edited or deleted yet.
       allow create: if request.auth != null
+                    && request.auth.token.firebase.sign_in_provider != 'anonymous'
                     && request.resource.data.keys().hasOnly([
-                         'username', 'avatarInitials', 'locationName', 'latitude', 'longitude',
-                         'imageUri', 'caption', 'likeCount', 'commentCount', 'timestamp'
+                         'authorUid', 'username', 'avatarInitials', 'locationName', 'latitude',
+                         'longitude', 'imageUri', 'caption', 'likeCount', 'commentCount',
+                         'timestamp', 'animalType', 'confidence'
                        ])
                     && request.resource.data.keys().hasAll([
-                         'username', 'latitude', 'longitude', 'imageUri', 'timestamp'
+                         'authorUid', 'username', 'latitude', 'longitude', 'imageUri', 'timestamp'
                        ])
+                    && request.resource.data.authorUid == request.auth.uid
                     && request.resource.data.username is string
                     && request.resource.data.username.size() > 0
                     && request.resource.data.latitude is number

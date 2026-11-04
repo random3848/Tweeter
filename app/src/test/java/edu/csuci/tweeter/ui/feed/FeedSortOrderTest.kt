@@ -29,6 +29,7 @@ class FeedSortOrderTest {
 
     private fun createTestPost(id: String, timestamp: Instant): Post = Post(
         id = id,
+        authorUid = "",
         username = "testuser",
         avatar = Avatar(initials = "TU"),
         locationName = "Test Place",
