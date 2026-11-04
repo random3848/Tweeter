@@ -11,7 +11,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination.Companion.hasRoute
-import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -41,7 +40,7 @@ import edu.csuci.tweeter.ui.profile.addProfileScreen
  * Bottom-bar items in display order.
  * A non-null route connects an item to its registered screen.
  */
-private val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
+internal val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
     BottomBarItem(
         selectedIcon = R.drawable.ic_home_filled,
         unselectedIcon = R.drawable.ic_home_unfilled,
@@ -103,7 +102,7 @@ fun TweeterApp(modifier: Modifier = Modifier) {
     } else {
         destination
     }
-    val isOnProfileTab = tabDestination?.hasRoute(ProfileRoute::class) == true
+    val selectedIndex = selectedTabIndex(BOTTOM_BAR_ITEMS, tabDestination)
     val openLogIn = {
         navController.navigate(LogInRoute) {
             launchSingleTop = true
@@ -137,23 +136,12 @@ fun TweeterApp(modifier: Modifier = Modifier) {
             if (!isOnEditProfile) {
                 TweeterBottomBar(
                     items = BOTTOM_BAR_ITEMS,
-                    isSelected = { item ->
-                        val route = item.route
-                        when {
-                            route == null -> false
-
-                            // Profile opens from Feed, so Home stays selected on it.
-                            route == FeedRoute && isOnProfileTab -> true
-
-                            else -> {
-                                tabDestination?.hierarchy.orEmpty().any {
-                                    it.hasRoute(route::class)
-                                }
-                            }
+                    selectedIndex = selectedIndex,
+                    onSelect = { index ->
+                        val route = BOTTOM_BAR_ITEMS[index].route
+                        if (route != null) {
+                            navController.navigateToTopLevel(route)
                         }
-                    },
-                    onSelect = { route ->
-                        navController.navigateToTopLevel(route)
                     }
                 )
             }

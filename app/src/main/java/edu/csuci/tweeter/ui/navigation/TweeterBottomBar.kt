@@ -22,16 +22,17 @@ import androidx.compose.ui.unit.dp
  * their destination's icons, accessibility label, and navigation callback.
  *
  * @param items The permanent bar items in display order.
- * @param isSelected Whether a connected destination is currently displayed.
- * @param onSelect Opens the selected working destination.
+ * @param selectedIndex The index in [items] of the displayed destination's item; an index
+ *     outside [items], such as -1, selects none.
+ * @param onSelect Opens the destination of the item at the given index, which has a route.
  * @param modifier Applied to the whole bar.
  */
 
 @Composable
 fun TweeterBottomBar(
     items: List<BottomBarItem>,
-    isSelected: (BottomBarItem) -> Boolean,
-    onSelect: (Any) -> Unit,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
@@ -43,19 +44,16 @@ fun TweeterBottomBar(
             containerColor = MaterialTheme.colorScheme.surface,
             tonalElevation = 0.dp
         ) {
-            items.forEach { item ->
-                val route = item.route
-                val selected = route != null && isSelected(item)
+            for (index in items.indices) {
+                val item = items[index]
+                val enabled = item.route != null
+                val selected = enabled && index == selectedIndex
                 val icon = if (selected) item.selectedIcon else item.unselectedIcon
 
                 NavigationBarItem(
                     selected = selected,
-                    enabled = route != null,
-                    onClick = {
-                        if (route != null) {
-                            onSelect(route)
-                        }
-                    },
+                    enabled = enabled,
+                    onClick = { onSelect(index) },
                     icon = {
                         Icon(
                             painter = painterResource(icon),
