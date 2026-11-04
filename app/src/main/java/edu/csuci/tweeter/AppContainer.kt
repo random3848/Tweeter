@@ -14,6 +14,9 @@ import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.location.LocationTagRemover
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 /**
  * The objects the whole app shares, created once by [TweeterApplication].
@@ -43,11 +46,19 @@ import edu.csuci.tweeter.ui.navigation.ShowPostRequest
  * @param context Any context; objects that need one keep only its application context.
  */
 class AppContainer(private val context: Context) {
-    /** Every post in the app, stored in Firestore. */
+    // Lives as long as the app; runs the listeners repositories share between screens.
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /**
+     * Every post in the app, stored in Firestore. Its post table is one listener shared by every
+     * screen, parsed on [Dispatchers.Default].
+     */
     val postRepository: PostRepository by lazy {
         FirestorePostRepository(
             auth = FirebaseAuth.getInstance(),
-            firestore = FirebaseFirestore.getInstance()
+            firestore = FirebaseFirestore.getInstance(),
+            scope = applicationScope,
+            dispatcher = Dispatchers.Default
         )
     }
 

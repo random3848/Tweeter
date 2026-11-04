@@ -27,7 +27,7 @@ class ProfileDocumentTest {
     fun toProfile_fieldsOfProfile_returnsSameProfile() {
         val fields = ProfileDocument.fieldsOf(profile)
 
-        assertEquals(profile, ProfileDocument.toProfile(profile.uid, fields))
+        assertEquals(profile, ProfileDocument.toProfile(profile.uid, fieldArrayOf(fields)))
     }
 
     @Test
@@ -50,13 +50,16 @@ class ProfileDocumentTest {
                 bio = "Spiders, mostly.",
                 photoUrl = "https://example.com/maya.jpg"
             ),
-            ProfileDocument.toProfile("uid", fields)
+            ProfileDocument.toProfile("uid", fieldArrayOf(fields))
         )
     }
 
     @Test
     fun toProfile_missingFields_defaults() {
-        val result = ProfileDocument.toProfile("uid", mapOf("displayName" to "Maya Kim"))
+        val result = ProfileDocument.toProfile(
+            "uid",
+            fieldArrayOf(mapOf("displayName" to "Maya Kim"))
+        )
 
         assertEquals(
             UserProfile(uid = "uid", displayName = "Maya Kim", bio = "", photoUrl = ""),
@@ -66,7 +69,7 @@ class ProfileDocumentTest {
 
     @Test
     fun toProfile_blankName_defaultName() {
-        val result = ProfileDocument.toProfile("uid", mapOf("displayName" to "  "))
+        val result = ProfileDocument.toProfile("uid", fieldArrayOf(mapOf("displayName" to "  ")))
 
         assertEquals(UserProfile.DEFAULT_DISPLAY_NAME, result.displayName)
     }
@@ -75,6 +78,13 @@ class ProfileDocumentTest {
     fun toProfile_wrongTypes_defaults() {
         val fields = mapOf("displayName" to 42L, "bio" to true, "photoUrl" to null)
 
-        assertEquals(UserProfile.createDefault("uid"), ProfileDocument.toProfile("uid", fields))
+        assertEquals(
+            UserProfile.createDefault("uid"),
+            ProfileDocument.toProfile("uid", fieldArrayOf(fields))
+        )
     }
+
+    // The fields as Firestore reads them into the array, in ProfileDocument.Field order.
+    private fun fieldArrayOf(fields: Map<String, Any?>): Array<Any?> =
+        Array(ProfileDocument.Field.entries.size) { fields[ProfileDocument.Field.entries[it].key] }
 }

@@ -35,21 +35,21 @@ class PostDocumentTest {
         val postWithAuthor = post.copy(authorUid = "uid")
         val fields = storedFieldsOf(postWithAuthor)
 
-        assertEquals(postWithAuthor, PostDocument.toPost(post.id, fields))
+        assertEquals(postWithAuthor, PostDocument.toPost(post.id, fieldArrayOf(fields)))
     }
 
     @Test
     fun toPost_fieldsOfPost_returnsSamePost() {
         val fields = storedFieldsOf(post)
 
-        assertEquals(post, PostDocument.toPost(post.id, fields))
+        assertEquals(post, PostDocument.toPost(post.id, fieldArrayOf(fields)))
     }
 
     @Test
     fun toPost_likedAndBookmarked_readsBackAsFalse() {
         val fields = storedFieldsOf(post.copy(isLiked = true, isBookmarked = true))
 
-        assertEquals(post, PostDocument.toPost(post.id, fields))
+        assertEquals(post, PostDocument.toPost(post.id, fieldArrayOf(fields)))
     }
 
     @Test
@@ -62,7 +62,7 @@ class PostDocumentTest {
             "timestamp" to Timestamp(post.timestamp)
         )
 
-        val result = PostDocument.toPost("id", fields)
+        val result = PostDocument.toPost("id", fieldArrayOf(fields))
 
         assertEquals(
             Post(
@@ -89,17 +89,39 @@ class PostDocumentTest {
     fun toPost_missingTimestamp_returnsNull() {
         val fields = storedFieldsOf(post) - "timestamp"
 
-        assertNull(PostDocument.toPost(post.id, fields))
+        assertNull(PostDocument.toPost(post.id, fieldArrayOf(fields)))
     }
 
     @Test
     fun toPost_latitudeIsText_returnsNull() {
         val fields = storedFieldsOf(post) + ("latitude" to "34.16")
 
-        assertNull(PostDocument.toPost(post.id, fields))
+        assertNull(PostDocument.toPost(post.id, fieldArrayOf(fields)))
     }
+
+    @Test
+    fun toPost_confidenceOutOfRange_dropsConfidence() {
+        val fields = storedFieldsOf(post) + ("confidence" to OUT_OF_RANGE_CONFIDENCE)
+
+        assertNull(PostDocument.toPost(post.id, fieldArrayOf(fields))?.confidence)
+    }
+
+    @Test
+    fun toPost_missingUsername_returnsNull() {
+        val fields = storedFieldsOf(post) - "username"
+
+        assertNull(PostDocument.toPost(post.id, fieldArrayOf(fields)))
+    }
+
+    // The fields as Firestore reads them into the array, in PostDocument.Field order.
+    private fun fieldArrayOf(fields: Map<String, Any>): Array<Any?> =
+        Array(PostDocument.Field.entries.size) { fields[PostDocument.Field.entries[it].key] }
 
     // The fields as Firestore stores them, once it has set the timestamp to post.timestamp.
     private fun storedFieldsOf(post: Post): Map<String, Any> =
         PostDocument.fieldsOf(post) + ("timestamp" to Timestamp(post.timestamp))
+
+    private companion object {
+        const val OUT_OF_RANGE_CONFIDENCE = 6L
+    }
 }
