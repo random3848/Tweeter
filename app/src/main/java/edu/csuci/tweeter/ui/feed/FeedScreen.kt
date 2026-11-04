@@ -126,6 +126,8 @@ fun FeedScreen(
  * A post item in the home feed displaying poster info, photo or placeholder, caption,
  * animal type, confidence, and location details. A label on the photo shows the post on Map.
  *
+ * This is where a feed item reads its post's row; the parts it's made of get the values they show.
+ *
  * @param posts The table holding the post.
  * @param row The post's row in [posts].
  * @param onShowOnMap Shows the post on Map.
@@ -139,7 +141,11 @@ private fun FeedPostItem(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
-        PostHeader(posts = posts, row = row)
+        PostHeader(
+            avatarInitials = posts.avatarInitials(row),
+            username = posts.username(row),
+            details = postDetailsText(posts.locationName(row), posts.timestampMillis(row))
+        )
 
         Box {
             PhotoCard(imageUri = posts.imageUri(row))
@@ -161,7 +167,7 @@ private fun FeedPostItem(
             )
         }
 
-        val animalDetails = animalDetailsOf(posts, row)
+        val animalDetails = animalDetailsOf(posts.animalType(row), posts.confidence(row))
         if (animalDetails != null) {
             Text(
                 text = animalDetails,
@@ -175,13 +181,15 @@ private fun FeedPostItem(
 
 /**
  * The top of a feed post: the poster's avatar and name, where the post was shared and how long
- * ago.
+ * ago. It takes the three texts it shows rather than the post's row, so it's skipped when the feed
+ * recomposes with the same texts.
  *
- * @param posts The table holding the post.
- * @param row The post's row in [posts].
+ * @param avatarInitials The initials in the poster's avatar.
+ * @param username The poster's name.
+ * @param details Where the post was shared and how long ago, as [postDetailsText] puts it.
  */
 @Composable
-private fun PostHeader(posts: PostTable, row: Int) {
+private fun PostHeader(avatarInitials: String, username: String, details: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -197,7 +205,7 @@ private fun PostHeader(posts: PostTable, row: Int) {
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = posts.avatarInitials(row),
+                text = avatarInitials,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -205,12 +213,12 @@ private fun PostHeader(posts: PostTable, row: Int) {
 
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                text = posts.username(row),
+                text = username,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = postDetailsText(posts.locationName(row), posts.timestampMillis(row)),
+                text = details,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -219,13 +227,15 @@ private fun PostHeader(posts: PostTable, row: Int) {
 }
 
 /**
- * The animal type and confidence rating of the post in [row] of [posts], joined by
- * [ANIMAL_DETAILS_SEPARATOR] when it has both, or null when it has neither.
+ * The animal type and confidence rating of a post, joined by [ANIMAL_DETAILS_SEPARATOR] when it
+ * has both, or null when it has neither.
+ *
+ * @param animalType The animal the poster identified; blank when unspecified.
+ * @param confidence The poster's confidence in [animalType], from 1 to 5, or null when unspecified.
  */
 @Composable
-private fun animalDetailsOf(posts: PostTable, row: Int): String? {
-    val animalType = posts.animalType(row)
-    val confidenceRating = posts.confidence(row)?.let {
+private fun animalDetailsOf(animalType: String, confidence: Int?): String? {
+    val confidenceRating = confidence?.let {
         stringResource(R.string.feed_confidence_rating, it)
     }
     return when {
