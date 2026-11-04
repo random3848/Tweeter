@@ -4,17 +4,14 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import kotlinx.serialization.Serializable
 
-/** The route of [MapScreen], which shows every post as a pin. */
+/** The route of the Map tab, where [MapScreen] shows every post as a pin. */
 @Serializable
 object MapRoute
 
 /**
- * Registers [MapScreen] under [MapRoute] in the app's NavHost.
- *
- * @param onShowInFeed Opens Home's feed, where the post whose popup the user pressed is requested.
+ * Registers the Map tab under [MapRoute] in the app's NavHost. The tab draws nothing itself:
+ * [MapScreen], which the app keeps composed under the NavHost, shows through it.
  */
-fun NavGraphBuilder.addMapScreen(onShowInFeed: () -> Unit) {
-    composable<MapRoute> {
-        MapScreen(onShowInFeed = onShowInFeed)
-    }
+fun NavGraphBuilder.addMapScreen() {
+    composable<MapRoute> {}
 }

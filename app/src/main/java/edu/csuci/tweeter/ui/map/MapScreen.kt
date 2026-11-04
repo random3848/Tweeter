@@ -15,6 +15,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -61,42 +64,58 @@ private const val CLOSE_UP_ZOOM = 16.0
  * button moves the map to the user, asking for location permission first if the app doesn't
  * have it.
  *
+ * The app keeps this screen composed under every other screen, so the map is drawn and ready the
+ * moment the user switches to it. While hidden, it takes no touches, shows no controls and stops
+ * following the user's location.
+ *
+ * @param isShown Whether the user is on Map, rather than on a screen drawn over the map.
  * @param onShowInFeed Opens Home, once the post whose popup the user pressed is requested there.
  * @param modifier Applied to the screen.
  * @param viewModel Supplies the posts, the open popup and where the map moves next.
  */
 @Composable
 fun MapScreen(
+    isShown: Boolean,
     onShowInFeed: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: MapViewModel = viewModel(factory = MapViewModel.factory)
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val locationState = rememberLocationState(headingProvider = rememberDefaultHeadingProvider())
+    val locationState = rememberLocationState(
+        headingProvider = rememberDefaultHeadingProvider(),
+        enabled = isShown
+    )
     PostMapLayers(viewModel, uiState, locationState)
     val mapState = viewModel.mapState
 
-    BackHandler(enabled = uiState.selectedRow != null, onBack = viewModel::clearSelection)
+    if (isShown) {
+        // Composed as Map opens, after the NavHost's own handler, so that it takes Back first.
+        BackHandler(enabled = uiState.selectedRow != null, onBack = viewModel::clearSelection)
+    }
     MapMoveEffect(uiState, mapState, locationState, onMoveFinished = viewModel::finishMove)
     MaplibreMap(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .then(if (isShown) Modifier else Modifier.consumingEveryTouch()),
         state = mapState,
         interactions = rememberMapInteractions(onMapClick = viewModel::clearSelection),
         overlay = {
-            MapControls(mapState) {
-                MyLocationButton(
-                    locationState = locationState,
-                    onClick = viewModel::moveToUser,
-                    modifier = Modifier.padding(MapOverlay.Spacing)
+            if (isShown) {
+                MapControls(mapState) {
+                    MyLocationButton(
+                        locationState = locationState,
+                        onClick = viewModel::moveToUser,
+                        modifier = Modifier.padding(MapOverlay.Spacing)
+                    )
+                }
+                PinnedPostPopup(
+                    uiState = uiState,
+                    onClick = { postId ->
+                        viewModel.showInFeed(postId)
+                        onShowInFeed()
+                    }
                 )
             }
-            PinnedPostPopup(
-                uiState = uiState,
-                onClick = { postId ->
-                    viewModel.showInFeed(postId)
-                    onShowInFeed()
-                }
-            )
         }
     )
 }
@@ -125,9 +144,20 @@ private fun PostMapLayers(
         PostPins(uiState, onPinClick = viewModel::selectPost)
         LocationIndicatorLayer(id = "user-location", locationState = locationState)
     }
-    // The map outlives this screen; it mustn't keep the screen's location updates.
+    // The map outlives this screen, which goes with its activity; it mustn't keep the screen's
+    // location state.
     DisposableEffect(viewModel) {
         onDispose { viewModel.clearLayers() }
+    }
+}
+
+// Hidden under another screen, the map must not move or open popups for the touches that screen
+// lets through: this takes them first, and the map ignores a touch taken before it.
+private fun Modifier.consumingEveryTouch(): Modifier = pointerInput(Unit) {
+    awaitPointerEventScope {
+        while (true) {
+            awaitPointerEvent(PointerEventPass.Initial).changes.forEach(PointerInputChange::consume)
+        }
     }
 }
 

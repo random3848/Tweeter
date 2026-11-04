@@ -5,6 +5,7 @@ package edu.csuci.tweeter.ui
 import androidx.annotation.VisibleForTesting
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -25,6 +26,7 @@ import edu.csuci.tweeter.ui.auth.addLogInScreen
 import edu.csuci.tweeter.ui.feed.FeedRoute
 import edu.csuci.tweeter.ui.feed.addFeedScreen
 import edu.csuci.tweeter.ui.map.MapRoute
+import edu.csuci.tweeter.ui.map.MapScreen
 import edu.csuci.tweeter.ui.map.addMapScreen
 import edu.csuci.tweeter.ui.navigation.BottomBarItem
 import edu.csuci.tweeter.ui.navigation.TweeterBottomBar
@@ -69,7 +71,7 @@ internal val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
  * Feed is the screen the app opens to. To add a screen with its own tab:
  * 1. In its own package, `ui/<feature>/`, add the screen, a `@Serializable` route object, and a
  *    `NavGraphBuilder.add<Feature>Screen()` function that registers the screen under the route
- *    `ui/feed/FeedRoute.kt` is the example
+ *    with `opaqueComposable`; `ui/feed/FeedRoute.kt` is the example
  * 2. Call that function in the NavHost below
  * 3. Set the matching item's route in [BOTTOM_BAR_ITEMS]
  *    to the feature's route object.
@@ -82,8 +84,10 @@ internal val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
  * open Log in and Create account for guests, and the tab they were opened from stays selected.
  * Profile's "Edit profile" button opens Edit profile, which hides both bars.
  *
- * A tab left open keeps its state, the map included (see `MapViewModel.map`), but only the open
- * screen is composed.
+ * A tab left open keeps its state, but only the open screen is composed, with one exception: the
+ * map stays composed under the NavHost, so that it is drawn and ready the moment the user switches
+ * to Map. Every other screen hides it with a background of its own (see `opaqueComposable`), and
+ * Map's route draws nothing over it.
  *
  * @param modifier Applied to the whole app
  */
@@ -93,6 +97,7 @@ fun TweeterApp(modifier: Modifier = Modifier) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val destination = backStackEntry?.destination
     val isOnFeed = destination?.hasRoute(FeedRoute::class) == true
+    val isOnMap = destination?.hasRoute(MapRoute::class) == true
     val isOnProfile = destination?.hasRoute(ProfileRoute::class) == true
     val isOnAuth = destination?.hasRoute(LogInRoute::class) == true ||
         destination?.hasRoute(CreateAccountRoute::class) == true
@@ -149,42 +154,46 @@ fun TweeterApp(modifier: Modifier = Modifier) {
             }
         }
     ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = FeedRoute,
-            // Without the shared top bar, innerPadding already includes the status bar; consuming
-            // it stops a screen's own top bar from padding below the status bar a second time.
+        // Without the shared top bar, innerPadding already includes the status bar; consuming it
+        // stops a screen's own top bar from padding below the status bar a second time.
+        Box(
             modifier = Modifier
                 .padding(innerPadding)
-                .consumeWindowInsets(innerPadding),
-            // Screens switch in one frame. The map draws in a SurfaceView, which can't fade, so a
-            // fade would leave it fully drawn over the next screen until the fade ended.
-            enterTransition = { EnterTransition.None },
-            exitTransition = { ExitTransition.None }
+                .consumeWindowInsets(innerPadding)
         ) {
-            addFeedScreen(onShowOnMap = { navController.navigateToTopLevel(MapRoute) })
-            addPostScreen(onLogIn = openLogIn, onCreateAccount = openCreateAccount)
-            addMapScreen(onShowInFeed = { navController.navigateToFeed() })
-            addProfileScreen(
-                onBack = { navController.navigateUp() },
-                onLogIn = openLogIn,
-                onCreateAccount = openCreateAccount,
-                onEditProfile = {
-                    navController.navigate(EditProfileRoute) {
-                        launchSingleTop = true
+            MapScreen(isShown = isOnMap, onShowInFeed = { navController.navigateToFeed() })
+            NavHost(
+                navController = navController,
+                startDestination = FeedRoute,
+                // Screens switch without fading: a fade keeps the screen being left on view for
+                // its whole length.
+                enterTransition = { EnterTransition.None },
+                exitTransition = { ExitTransition.None }
+            ) {
+                addFeedScreen(onShowOnMap = { navController.navigateToTopLevel(MapRoute) })
+                addPostScreen(onLogIn = openLogIn, onCreateAccount = openCreateAccount)
+                addMapScreen()
+                addProfileScreen(
+                    onBack = { navController.navigateUp() },
+                    onLogIn = openLogIn,
+                    onCreateAccount = openCreateAccount,
+                    onEditProfile = {
+                        navController.navigate(EditProfileRoute) {
+                            launchSingleTop = true
+                        }
                     }
-                }
-            )
-            addEditProfileScreen(onClose = { navController.navigateUp() })
-            addLogInScreen(
-                onBack = { navController.navigateUp() },
-                onAuthenticated = { navController.popBackStack() }
-            )
+                )
+                addEditProfileScreen(onClose = { navController.navigateUp() })
+                addLogInScreen(
+                    onBack = { navController.navigateUp() },
+                    onAuthenticated = { navController.popBackStack() }
+                )
 
-            addCreateAccountScreen(
-                onBack = { navController.navigateUp() },
-                onAuthenticated = { navController.popBackStack() }
-            )
+                addCreateAccountScreen(
+                    onBack = { navController.navigateUp() },
+                    onAuthenticated = { navController.popBackStack() }
+                )
+            }
         }
     }
 }

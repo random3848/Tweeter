@@ -1,7 +1,7 @@
 package edu.csuci.tweeter.ui.feed
 
 import androidx.navigation.NavGraphBuilder
-import androidx.navigation.compose.composable
+import edu.csuci.tweeter.ui.navigation.opaqueComposable
 import kotlinx.serialization.Serializable
 
 /** The route of [FeedScreen], the screen the app opens to. */
@@ -14,7 +14,7 @@ object FeedRoute
  * @param onShowOnMap Opens Map, where the post the user chose to show is requested.
  */
 fun NavGraphBuilder.addFeedScreen(onShowOnMap: () -> Unit) {
-    composable<FeedRoute> {
+    opaqueComposable<FeedRoute> {
         FeedScreen(onShowOnMap = onShowOnMap)
     }
 }

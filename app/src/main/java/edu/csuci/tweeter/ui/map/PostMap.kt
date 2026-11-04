@@ -13,9 +13,9 @@ import org.maplibre.compose.style.BaseStyle
  * The map engine that Map shows: OpenStreetMap's style with the layers the presenting screen
  * declares.
  *
- * [MapViewModel] keeps it while Map is open or in the back stack, so Map opened again presents the
- * map it left, with its style and tiles already loaded, instead of creating and loading another.
- * Only the screen around it is composed again.
+ * [MapViewModel] keeps it as long as the activity, rotations included, so [MapScreen] composed
+ * again presents the map it left, with its style and tiles already loaded, instead of creating and
+ * loading another.
  *
  * @param camera Where the map opens.
  */
