@@ -5,6 +5,7 @@ import com.google.firebase.FirebaseException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageMetadata
+import com.google.firebase.storage.StorageReference
 import com.google.firebase.storage.UploadTask
 import edu.csuci.tweeter.location.LocationTagRemover
 import java.io.File
@@ -67,15 +68,29 @@ class FirebasePhotoRepository(
                 .setContentType("image/jpeg")
                 .build()
 
-            photoReference.putFile(uri, metadata).awaitOrCancel()
-
-            return photoReference.downloadUrl.await().toString()
+            return photoReference.putFileAndGetUrl(uri, metadata)
         } catch (error: FirebaseException) {
             throw PhotoUploadException(error)
         } catch (error: IOException) {
             throw PhotoUploadException(error)
         } catch (error: SecurityException) {
             throw PhotoUploadException(error)
+        }
+    }
+
+    // Uploads [uri] here and returns its download URL. A photo that was uploaded but whose URL
+    // couldn't be fetched, or stopped being waited for, is deleted again: nothing could show it.
+    private suspend fun StorageReference.putFileAndGetUrl(
+        uri: Uri,
+        metadata: StorageMetadata
+    ): String {
+        val upload = putFile(uri, metadata)
+        try {
+            upload.awaitOrCancel()
+            return downloadUrl.await().toString()
+        } catch (error: Throwable) {
+            deleteIfStored(upload)
+            throw error
         }
     }
 
@@ -87,6 +102,22 @@ class FirebasePhotoRepository(
         } catch (error: CancellationException) {
             cancel()
             throw error
+        }
+    }
+
+    // Deletes the photo [upload] put here, if it got here. This cleans up after a failure or
+    // cancellation, so it doesn't throw.
+    private suspend fun StorageReference.deleteIfStored(upload: UploadTask) {
+        if (upload.isSuccessful) {
+            cleanUpUnusedPhoto { deleteStored() }
+        }
+    }
+
+    private suspend fun StorageReference.deleteStored() {
+        try {
+            delete().await()
+        } catch (error: FirebaseException) {
+            throw PhotoDeletionException(error)
         }
     }
 }
