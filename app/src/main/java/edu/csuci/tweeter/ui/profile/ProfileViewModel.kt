@@ -10,10 +10,11 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.firebase.FirebaseException
 import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
-import edu.csuci.tweeter.data.Post
 import edu.csuci.tweeter.data.PostRepository
+import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.UserProfile
+import java.util.Objects
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -35,10 +36,25 @@ sealed interface ProfileUiState {
     /**
      * The logged-in user's profile.
      *
+     * Equal to another [LoggedIn] with the same profile, table contents and rows, so tests and
+     * the state flow compare what is shown rather than which arrays hold it.
+     *
      * @property profile What they show about themselves.
-     * @property posts The posts they shared, newest first.
+     * @property table Every post, newest first.
+     * @property rows The rows of [table] holding the posts they shared, newest first.
      */
-    data class LoggedIn(val profile: UserProfile, val posts: List<Post>) : ProfileUiState
+    class LoggedIn(val profile: UserProfile, val table: PostTable, val rows: IntArray) :
+        ProfileUiState {
+        override fun equals(other: Any?): Boolean = other is LoggedIn &&
+            profile == other.profile &&
+            table == other.table &&
+            rows.contentEquals(other.rows)
+
+        override fun hashCode(): Int = Objects.hash(profile, table, rows.contentHashCode())
+
+        override fun toString(): String =
+            "LoggedIn(profile=$profile, table=$table, rows=${rows.contentToString()})"
+    }
 }
 
 /**
@@ -48,7 +64,7 @@ sealed interface ProfileUiState {
  *
  * @param accountRepository Supplies the registered user's identity.
  * @param profileRepository Where the profile is read from.
- * @param postRepository Where the user's posts are read from.
+ * @param postRepository Where every post is read from; Profile shows the user's rows of it.
  */
 class ProfileViewModel(
     private val accountRepository: AccountRepository,
@@ -64,9 +80,9 @@ class ProfileViewModel(
             } else {
                 combine(
                     profileRepository.getProfile(uid),
-                    postRepository.getPostsBy(uid)
-                ) { profile, posts ->
-                    ProfileUiState.LoggedIn(profile, posts)
+                    postRepository.getPostTable()
+                ) { profile, table ->
+                    ProfileUiState.LoggedIn(profile, table, table.rowsBy(uid))
                 }.catch { error ->
                     // Keep showing the last profile.
                     Log.e("ProfileViewModel", "Could not read the profile", error)
@@ -75,7 +91,7 @@ class ProfileViewModel(
         }
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
+            started = SharingStarted.WhileSubscribed(),
             initialValue = ProfileUiState.Loading
         )
 

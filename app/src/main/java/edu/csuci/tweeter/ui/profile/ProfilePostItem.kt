@@ -9,33 +9,36 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import edu.csuci.tweeter.R
-import edu.csuci.tweeter.data.Post
+import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.ui.feed.PhotoCard
 
 /**
  * One of the user's posts on their profile: the photo as Feed shows it, the caption, and where
  * and how long ago it was shared.
  *
- * @param post The post to show.
+ * @param table The posts the item's post is in.
+ * @param row The row of [table] holding the post to show.
  * @param modifier Applied to the whole item.
  */
 @Composable
-fun ProfilePostItem(post: Post, modifier: Modifier = Modifier) {
+fun ProfilePostItem(table: PostTable, row: Int, modifier: Modifier = Modifier) {
+    val caption = table.caption(row)
+    val locationName = table.locationName(row)
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        PhotoCard(imageUri = post.imageUri)
-        if (post.caption.isNotBlank()) {
-            Text(text = post.caption, style = MaterialTheme.typography.bodyMedium)
+        PhotoCard(imageUri = table.imageUri(row))
+        if (caption.isNotBlank()) {
+            Text(text = caption, style = MaterialTheme.typography.bodyMedium)
         }
 
-        val timeAgo = timeAgoText(post.timestamp)
+        val timeAgo = timeAgoText(table.timestampMillis(row))
         Text(
-            text = if (post.locationName.isBlank()) {
+            text = if (locationName.isBlank()) {
                 timeAgo
             } else {
-                stringResource(R.string.post_details, post.locationName, timeAgo)
+                stringResource(R.string.post_details, locationName, timeAgo)
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant

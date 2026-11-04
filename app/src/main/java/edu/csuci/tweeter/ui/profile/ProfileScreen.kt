@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
@@ -27,7 +26,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
-import edu.csuci.tweeter.data.Post
 import edu.csuci.tweeter.data.UserProfile
 import edu.csuci.tweeter.ui.auth.LogInPrompt
 import edu.csuci.tweeter.ui.navigation.BackTopBar
@@ -85,8 +83,7 @@ fun ProfileScreen(
 
             is ProfileUiState.LoggedIn -> {
                 ProfileContent(
-                    profile = state.profile,
-                    posts = state.posts,
+                    state = state,
                     onEditProfile = onEditProfile
                 )
             }
@@ -95,7 +92,9 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun ProfileContent(profile: UserProfile, posts: List<Post>, onEditProfile: () -> Unit) {
+private fun ProfileContent(state: ProfileUiState.LoggedIn, onEditProfile: () -> Unit) {
+    val table = state.table
+    val rows = state.rows
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(vertical = 16.dp),
@@ -103,8 +102,8 @@ private fun ProfileContent(profile: UserProfile, posts: List<Post>, onEditProfil
     ) {
         item {
             ProfileHeader(
-                profile = profile,
-                postCount = posts.size,
+                profile = state.profile,
+                postCount = rows.size,
                 onEditProfile = onEditProfile,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
@@ -112,13 +111,17 @@ private fun ProfileContent(profile: UserProfile, posts: List<Post>, onEditProfil
         item {
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
-        if (posts.isEmpty()) {
+        if (rows.isEmpty()) {
             item {
                 NoPostsMessage(modifier = Modifier.padding(16.dp))
             }
         } else {
-            items(items = posts, key = { post -> post.id }) { post ->
-                ProfilePostItem(post = post, modifier = Modifier.padding(horizontal = 16.dp))
+            items(count = rows.size, key = { i -> table.id(rows[i]) }) { i ->
+                ProfilePostItem(
+                    table = table,
+                    row = rows[i],
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
             }
         }
     }
