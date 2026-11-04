@@ -6,20 +6,17 @@ import edu.csuci.tweeter.ui.feed.FeedRoute
 import edu.csuci.tweeter.ui.navigation.BottomBarItem
 import edu.csuci.tweeter.ui.profile.ProfileRoute
 
-/** The index [selectedTabIndex] returns when no tab is selected. */
-const val NO_SELECTED_TAB = -1
-
 /**
- * Returns the index in [items] of the tab to show selected for [tabDestination], or
- * [NO_SELECTED_TAB] when none is.
+ * Returns the index in [items] of the tab to show selected for [tabDestination], or null when no
+ * tab is.
  *
  * [tabDestination] is the screen whose tab stays selected: the open screen, or for Log in and
  * Create account the screen that opened them. Home stays selected while Profile, which opens from
  * Feed, is open.
  */
-fun selectedTabIndex(items: List<BottomBarItem>, tabDestination: NavDestination?): Int {
+internal fun selectedTabIndex(items: List<BottomBarItem>, tabDestination: NavDestination?): Int? {
     if (tabDestination == null) {
-        return NO_SELECTED_TAB
+        return null
     }
 
     val isOnProfile = tabDestination.hasRoute(ProfileRoute::class)
@@ -29,7 +26,7 @@ fun selectedTabIndex(items: List<BottomBarItem>, tabDestination: NavDestination?
             return index
         }
     }
-    return NO_SELECTED_TAB
+    return null
 }
 
 // Whether [destination] or a graph containing it is registered under [route], walking the parents

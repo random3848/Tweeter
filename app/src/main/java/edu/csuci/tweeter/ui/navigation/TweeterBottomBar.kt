@@ -22,8 +22,8 @@ import androidx.compose.ui.unit.dp
  * their destination's icons, accessibility label, and navigation callback.
  *
  * @param items The permanent bar items in display order.
- * @param selectedIndex The index in [items] of the displayed destination's item; an index
- *     outside [items], such as -1, selects none.
+ * @param selectedIndex The index in [items] of the displayed destination's item, or null when the
+ *     displayed destination has none.
  * @param onSelect Opens the destination of the item at the given index, which has a route.
  * @param modifier Applied to the whole bar.
  */
@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun TweeterBottomBar(
     items: List<BottomBarItem>,
-    selectedIndex: Int,
+    selectedIndex: Int?,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {

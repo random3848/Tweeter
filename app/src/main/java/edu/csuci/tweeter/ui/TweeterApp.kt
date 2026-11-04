@@ -2,6 +2,7 @@
 
 package edu.csuci.tweeter.ui
 
+import androidx.annotation.VisibleForTesting
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -40,6 +41,7 @@ import edu.csuci.tweeter.ui.profile.addProfileScreen
  * Bottom-bar items in display order.
  * A non-null route connects an item to its registered screen.
  */
+@VisibleForTesting
 internal val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
     BottomBarItem(
         selectedIcon = R.drawable.ic_home_filled,

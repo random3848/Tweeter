@@ -15,6 +15,7 @@ import edu.csuci.tweeter.ui.post.PostRoute
 import edu.csuci.tweeter.ui.profile.EditProfileRoute
 import edu.csuci.tweeter.ui.profile.ProfileRoute
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class BottomBarSelectionTest {
@@ -22,45 +23,37 @@ class BottomBarSelectionTest {
 
     @Test
     fun selectedTabIndex_noDestination_noTab() {
-        val index = selectedTabIndex(BOTTOM_BAR_ITEMS, tabDestination = null)
-
-        assertEquals(NO_SELECTED_TAB, index)
+        assertNull(selectedTabIndex(BOTTOM_BAR_ITEMS, tabDestination = null))
     }
 
     @Test
     fun selectedTabIndex_feed_homeTab() {
-        val index = selectedTabIndex(BOTTOM_BAR_ITEMS, destinationOf(FeedRoute))
-
-        assertEquals(FeedRoute, BOTTOM_BAR_ITEMS[index].route)
+        assertEquals(FeedRoute, selectedTabRouteOn(FeedRoute))
     }
 
     @Test
     fun selectedTabIndex_post_postTab() {
-        val index = selectedTabIndex(BOTTOM_BAR_ITEMS, destinationOf(PostRoute))
-
-        assertEquals(PostRoute, BOTTOM_BAR_ITEMS[index].route)
+        assertEquals(PostRoute, selectedTabRouteOn(PostRoute))
     }
 
     @Test
     fun selectedTabIndex_map_mapTab() {
-        val index = selectedTabIndex(BOTTOM_BAR_ITEMS, destinationOf(MapRoute))
-
-        assertEquals(MapRoute, BOTTOM_BAR_ITEMS[index].route)
+        assertEquals(MapRoute, selectedTabRouteOn(MapRoute))
     }
 
     @Test
     fun selectedTabIndex_profile_homeTab() {
-        val index = selectedTabIndex(BOTTOM_BAR_ITEMS, destinationOf(ProfileRoute))
-
-        assertEquals(FeedRoute, BOTTOM_BAR_ITEMS[index].route)
+        assertEquals(FeedRoute, selectedTabRouteOn(ProfileRoute))
     }
 
     @Test
     fun selectedTabIndex_logIn_noTab() {
-        val index = selectedTabIndex(BOTTOM_BAR_ITEMS, destinationOf(LogInRoute))
-
-        assertEquals(NO_SELECTED_TAB, index)
+        assertNull(selectedTabIndex(BOTTOM_BAR_ITEMS, destinationOf(LogInRoute)))
     }
+
+    // The route of the tab selected while the screen of [route] is open, or null for none.
+    private fun selectedTabRouteOn(route: Any): Any? =
+        selectedTabIndex(BOTTOM_BAR_ITEMS, destinationOf(route))?.let { BOTTOM_BAR_ITEMS[it].route }
 
     private fun destinationOf(route: Any): NavDestination = checkNotNull(graph.findNode(route))
 
