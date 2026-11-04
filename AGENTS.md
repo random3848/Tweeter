@@ -23,6 +23,10 @@ Layout:
 - `app/src/main/java/edu/csuci/tweeter/location/`: finding where a photo was taken
   (`PhotoLocator`, from its EXIF tags or the device) and removing its location tags before upload
   (`LocationTagRemover`).
+- `app/src/main/java/edu/csuci/tweeter/ui/camera/`: taking a picture with the camera app, for the
+  post and profile screens: `CameraCapture`, held by the screen's ViewModel, and `CameraOpener`,
+  which the screen draws to open the camera app. The file the picture goes into comes from
+  `CameraFiles` (in `data/`), which creates and deletes such files off the main thread.
 - `app/src/main/java/edu/csuci/tweeter/ui/theme/`: colors, Manrope typography and the Material 3
   theme, taken from the designs. Screens use `MaterialTheme.colorScheme` and
   `MaterialTheme.typography` instead of hard-coded colors and text sizes.
