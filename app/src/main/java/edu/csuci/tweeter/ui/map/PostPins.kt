@@ -38,7 +38,7 @@ internal fun PostPins(uiState: MapUiState, onPinClick: (String) -> Unit) {
     val posts = uiState.posts
     CircleLayer(
         id = "post-pins",
-        source = rememberGeoJsonSource(uiState.pins.geoJson),
+        source = rememberGeoJsonSource(uiState.pinnedPosts.pins),
         color = const(MaterialTheme.colorScheme.primary),
         radius = const(PIN_RADIUS),
         strokeColor = const(MaterialTheme.colorScheme.surface),

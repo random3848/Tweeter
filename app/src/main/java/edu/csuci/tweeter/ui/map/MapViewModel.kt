@@ -13,11 +13,16 @@ import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -53,19 +58,21 @@ sealed interface MapMove {
 /**
  * What [MapScreen] shows.
  *
- * @property posts Every post, each shown as a pin; empty until the posts load.
+ * @property pinnedPosts Every post with its pin; none until the posts load.
  * @property selectedRow The row in [posts] of the post whose popup is open, or null if none is or
  *     it hasn't loaded.
  * @property pendingMove Where the camera moves next, or null if it stays where the user left it.
- * @property pins The pins of [posts], written once per table.
  */
 data class MapUiState(
-    val posts: PostTable = PostTable.EMPTY,
+    val pinnedPosts: PinnedPosts = PinnedPosts(PostTable.EMPTY),
     val selectedRow: Int? = null,
-    val pendingMove: MapMove? = null,
-    val pins: MapPins = MapPins(posts)
+    val pendingMove: MapMove? = null
 ) {
-    /** The selected post's pin alone, drawn over [pins], or no pin if none is selected. */
+    /** Every post, each shown as a pin; empty until the posts load. */
+    val posts: PostTable
+        get() = pinnedPosts.posts
+
+    /** The selected post's pin alone, drawn over the others, or no pin if none is selected. */
     val selectedPin: GeoJsonData = GeoJsonData.JsonString(pinJsonOf(posts, selectedRow))
 
     /** Where the selected post's photo was taken, or null if no post is selected. */
@@ -73,12 +80,14 @@ data class MapUiState(
 }
 
 /**
- * The pins of [posts], as the GeoJSON the map draws, written when the table arrives rather than
- * each time the selection changes.
+ * Posts with their pins, as the GeoJSON the map draws. The pins are written from [posts] when the
+ * table arrives, rather than each time the selection changes.
+ *
+ * @property posts The posts that the pins show.
  */
-data class MapPins(private val posts: PostTable) {
+data class PinnedPosts(val posts: PostTable) {
     /** A pin for each post, identified by the post's ID. */
-    val geoJson: GeoJsonData = GeoJsonData.JsonString(pinsJsonOf(posts))
+    val pins: GeoJsonData = GeoJsonData.JsonString(pinsJsonOf(posts))
 }
 
 /**
@@ -93,13 +102,16 @@ data class MapPins(private val posts: PostTable) {
  * @param showInFeedRequest Where [showInFeed] asks Feed to show a post.
  * @param savedStateHandle Keeps the camera if Android ends the app while it is in the background.
  * @param createMap Creates the map, opening where the camera given to it points.
+ * @param pinsDispatcher Where the pins are written: off the main thread, since writing a pin for
+ *     every post takes a while.
  */
 class MapViewModel internal constructor(
     postRepository: PostRepository,
     private val showOnMapRequest: ShowPostRequest,
     private val showInFeedRequest: ShowPostRequest,
     savedStateHandle: SavedStateHandle,
-    createMap: (CameraPosition) -> PostMap
+    createMap: (CameraPosition) -> PostMap,
+    pinsDispatcher: CoroutineDispatcher
 ) : ViewModel() {
     private val selection = MutableStateFlow(Selection())
 
@@ -115,16 +127,21 @@ class MapViewModel internal constructor(
      */
     internal val map: PostMap by lazyMap
 
+    // Written once per distinct table: a table equal to the last one, as Firestore sends when only
+    // a post's write status changes, keeps the pins already written.
+    private val pinnedPosts: Flow<PinnedPosts> = postRepository.getPostTable()
+        .distinctUntilChanged()
+        .map(::PinnedPosts)
+        .flowOn(pinsDispatcher)
+
     /**
-     * What the map shows, updated as the posts change and the user taps. Every pin is written once
-     * per table; a new selection only finds its post's row and writes that one pin.
+     * What the map shows, updated as the posts change and the user taps. A new selection only
+     * finds its post's row and writes that one pin.
      */
-    val uiState: StateFlow<MapUiState> = combine(
-        postRepository.getPostTable().map(::MapUiState),
-        selection
-    ) { postsState, selection ->
-        postsState.copy(
-            selectedRow = selection.postId?.let(postsState.posts::rowOf),
+    val uiState: StateFlow<MapUiState> = combine(pinnedPosts, selection) { pinnedPosts, selection ->
+        MapUiState(
+            pinnedPosts = pinnedPosts,
+            selectedRow = selection.postId?.let(pinnedPosts.posts::rowOf),
             pendingMove = selection.pendingMove
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(), MapUiState())
@@ -195,7 +212,8 @@ class MapViewModel internal constructor(
                     showOnMapRequest = application.container.showOnMapRequest,
                     showInFeedRequest = application.container.showInFeedRequest,
                     savedStateHandle = createSavedStateHandle(),
-                    createMap = ::PostMap
+                    createMap = ::PostMap,
+                    pinsDispatcher = Dispatchers.Default
                 )
             }
         }

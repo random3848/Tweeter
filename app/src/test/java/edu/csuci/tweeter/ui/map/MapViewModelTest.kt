@@ -31,7 +31,7 @@ private const val ONLY_ROW = 0
 class MapViewModelTest {
     private val showOnMapRequest = ShowPostRequest()
     private val showInFeedRequest = ShowPostRequest()
-    private val samplePosts = PostTable.of(SAMPLE_POSTS)
+    private val samplePosts = PinnedPosts(PostTable.of(SAMPLE_POSTS))
 
     @Before
     fun useTestMainDispatcher() {
@@ -52,7 +52,7 @@ class MapViewModelTest {
 
         assertEquals(
             MapUiState(
-                posts = samplePosts,
+                pinnedPosts = samplePosts,
                 selectedRow = SAMPLE_POSTS.indexOf(post),
                 pendingMove = MapMove.ToPost(post.id)
             ),
@@ -88,7 +88,7 @@ class MapViewModelTest {
 
         viewModel.clearSelection()
 
-        assertEquals(MapUiState(posts = samplePosts), viewModel.uiState.value)
+        assertEquals(MapUiState(pinnedPosts = samplePosts), viewModel.uiState.value)
     }
 
     @Test
@@ -111,7 +111,7 @@ class MapViewModelTest {
 
         assertEquals(
             MapUiState(
-                posts = samplePosts,
+                pinnedPosts = samplePosts,
                 selectedRow = SAMPLE_POSTS.indexOf(post),
                 pendingMove = null
             ),
@@ -162,7 +162,7 @@ class MapViewModelTest {
 
         assertEquals(
             MapUiState(
-                posts = samplePosts,
+                pinnedPosts = samplePosts,
                 selectedRow = SAMPLE_POSTS.indexOf(post),
                 pendingMove = MapMove.ToPost(post.id)
             ),
@@ -187,7 +187,7 @@ class MapViewModelTest {
 
         val reopenedMap = mapViewModel()
 
-        assertEquals(MapUiState(posts = samplePosts), reopenedMap.uiState.value)
+        assertEquals(MapUiState(pinnedPosts = samplePosts), reopenedMap.uiState.value)
     }
 
     @Test
@@ -201,12 +201,17 @@ class MapViewModelTest {
     }
 
     @Test
-    fun uiState_pinsEveryPostOfItsTable() = runTest {
-        val viewModel = mapViewModel()
+    fun uiState_postAdded_pinsIt() = runTest {
+        val repository = FakePostRepository(initialPosts = emptyList())
+        val viewModel = mapViewModel(repository)
+        val post = SAMPLE_POSTS.first()
 
-        val state = viewModel.uiState.value
+        repository.addPost(post)
 
-        assertEquals(GeoJsonData.JsonString(pinsJsonOf(state.posts)), state.pins.geoJson)
+        assertEquals(
+            GeoJsonData.JsonString(pinsJsonOf(PostTable.of(listOf(post)))),
+            viewModel.uiState.value.pinnedPosts.pins
+        )
     }
 
     @Test
@@ -233,7 +238,8 @@ class MapViewModelTest {
             showOnMapRequest = showOnMapRequest,
             showInFeedRequest = showInFeedRequest,
             savedStateHandle = SavedStateHandle(),
-            createMap = { error("Unit tests don't show the map") }
+            createMap = { error("Unit tests don't show the map") },
+            pinsDispatcher = UnconfinedTestDispatcher(testScheduler)
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect()
