@@ -23,12 +23,20 @@ import edu.csuci.tweeter.data.getLoggedInProfile
 import java.io.File
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 private const val DISPLAY_NAME_KEY = "displayName"
 private const val BIO_KEY = "bio"
 private const val PHOTO_URI_KEY = "photoUri"
 private const val PHOTO_REMOVED_KEY = "photoRemoved"
 private const val CACHED_FILE_KEY = "cachedFile"
+
+/**
+ * How long saving waits for the server to confirm the profile write. Firestore applies the write
+ * on the phone at once and sends it when it can, so a write still unconfirmed after this, usually
+ * because the phone is offline, counts as saved.
+ */
+internal const val PROFILE_WRITE_TIMEOUT_MILLIS = 10_000L
 
 /**
  * Reads the logged-in user's profile, holds the name, bio and photo they choose on
@@ -63,6 +71,14 @@ class EditProfileViewModel(
 
     /** Whether the edits are being saved. */
     var isSaving by mutableStateOf(false)
+        private set
+
+    /**
+     * Whether saving is writing the profile, after any new photo has uploaded. The write can't be
+     * taken back, so the screen doesn't let the user leave until it's done. Leaving while the
+     * photo uploads is fine: it stops the upload and nothing is saved.
+     */
+    var isWritingProfile by mutableStateOf(false)
         private set
 
     /** Whether the latest attempt to save failed. */
@@ -180,7 +196,7 @@ class EditProfileViewModel(
     private suspend fun saveProfile(editedProfile: UserProfile, change: PhotoChange) {
         try {
             val photoUrl = photoUrlToSave(editedProfile.photoUrl, change)
-            profileRepository.saveProfile(editedProfile.copy(photoUrl = photoUrl))
+            writeProfile(editedProfile.copy(photoUrl = photoUrl))
             isDone = true
         } catch (error: PhotoUploadException) {
             Log.e("EditProfileViewModel", "Could not upload the profile photo", error)
@@ -189,7 +205,18 @@ class EditProfileViewModel(
             Log.e("EditProfileViewModel", "Could not save the profile", error)
             saveFailed = true
         } finally {
+            isWritingProfile = false
             isSaving = false
+        }
+    }
+
+    private suspend fun writeProfile(editedProfile: UserProfile) {
+        isWritingProfile = true
+        val confirmed = withTimeoutOrNull(PROFILE_WRITE_TIMEOUT_MILLIS) {
+            profileRepository.saveProfile(editedProfile)
+        }
+        if (confirmed == null) {
+            Log.w("EditProfileViewModel", "Profile saved on the phone; it syncs when back online")
         }
     }
 

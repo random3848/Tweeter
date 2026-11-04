@@ -5,10 +5,12 @@ import com.google.firebase.FirebaseException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageMetadata
+import com.google.firebase.storage.UploadTask
 import edu.csuci.tweeter.location.LocationTagRemover
 import java.io.File
 import java.io.IOException
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.tasks.await
 
 // The Storage folders photos go in, each with a subfolder per user. The rules in storage.rules
@@ -65,7 +67,7 @@ class FirebasePhotoRepository(
                 .setContentType("image/jpeg")
                 .build()
 
-            photoReference.putFile(uri, metadata).await()
+            photoReference.putFile(uri, metadata).awaitOrCancel()
 
             return photoReference.downloadUrl.await().toString()
         } catch (error: FirebaseException) {
@@ -74,6 +76,17 @@ class FirebasePhotoRepository(
             throw PhotoUploadException(error)
         } catch (error: SecurityException) {
             throw PhotoUploadException(error)
+        }
+    }
+
+    // Waits for the upload. Cancelling the wait, such as by leaving Edit profile, cancels the
+    // upload too; await() alone would let it finish and leave a photo nothing uses.
+    private suspend fun UploadTask.awaitOrCancel() {
+        try {
+            await()
+        } catch (error: CancellationException) {
+            cancel()
+            throw error
         }
     }
 }

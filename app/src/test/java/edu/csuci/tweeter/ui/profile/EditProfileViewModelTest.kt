@@ -9,6 +9,7 @@ import edu.csuci.tweeter.data.PhotoUploadException
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.UserProfile
 import java.io.IOException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -43,9 +44,11 @@ class EditProfileViewModelTest {
     @get:Rule
     val temporaryFolder = TemporaryFolder()
 
+    private val dispatcher = UnconfinedTestDispatcher()
+
     @Before
     fun setUp() {
-        Dispatchers.setMain(UnconfinedTestDispatcher())
+        Dispatchers.setMain(dispatcher)
     }
 
     @After
@@ -286,6 +289,68 @@ class EditProfileViewModelTest {
         assertFalse(viewModel.isDone)
     }
 
+    @Test
+    fun save_whileUploadingPhoto_isSavingButNotWritingProfile() {
+        photoRepository.uploadFinished = CompletableDeferred()
+        val viewModel = createViewModel()
+        viewModel.choosePhoto(CHOSEN_PHOTO_URI)
+
+        viewModel.save()
+
+        assertTrue(viewModel.isSaving)
+        assertFalse(viewModel.isWritingProfile)
+    }
+
+    @Test
+    fun save_whileWritingProfile_isWritingProfile() {
+        profileRepository.saveFinished = CompletableDeferred()
+        val viewModel = createViewModel()
+
+        viewModel.save()
+
+        assertTrue(viewModel.isWritingProfile)
+        assertFalse(viewModel.isDone)
+    }
+
+    @Test
+    fun save_writeFinishes_stopsWritingProfile() {
+        val saveFinished = CompletableDeferred<Unit>()
+        profileRepository.saveFinished = saveFinished
+        val viewModel = createViewModel()
+        viewModel.save()
+
+        saveFinished.complete(Unit)
+
+        assertFalse(viewModel.isWritingProfile)
+        assertFalse(viewModel.isSaving)
+        assertTrue(viewModel.isDone)
+    }
+
+    @Test
+    fun save_writeNotConfirmedInTime_isDoneWithoutFailure() {
+        profileRepository.saveFinished = CompletableDeferred()
+        val viewModel = createViewModel()
+        viewModel.save()
+
+        dispatcher.scheduler.advanceTimeBy(PROFILE_WRITE_TIMEOUT_MILLIS + 1)
+
+        assertTrue(viewModel.isDone)
+        assertFalse(viewModel.saveFailed)
+        assertFalse(viewModel.isWritingProfile)
+    }
+
+    @Test
+    fun save_writeNotYetTimedOut_staysOpen() {
+        profileRepository.saveFinished = CompletableDeferred()
+        val viewModel = createViewModel()
+        viewModel.save()
+
+        dispatcher.scheduler.advanceTimeBy(PROFILE_WRITE_TIMEOUT_MILLIS - 1)
+
+        assertFalse(viewModel.isDone)
+        assertTrue(viewModel.isWritingProfile)
+    }
+
     private fun createViewModel(
         loggedInUid: String? = profile.uid,
         savedStateHandle: SavedStateHandle = SavedStateHandle()
@@ -301,6 +366,9 @@ class EditProfileViewModelTest {
         var failsToSave = false
         var savedProfile: UserProfile? = null
 
+        // When set, saving waits for it, like a write the server hasn't confirmed yet.
+        var saveFinished: CompletableDeferred<Unit>? = null
+
         override fun getProfile(uid: String): Flow<UserProfile> = if (failsToRead) {
             flow { throw FirebaseException("Could not read the profile") }
         } else {
@@ -308,6 +376,7 @@ class EditProfileViewModelTest {
         }
 
         override suspend fun saveProfile(profile: UserProfile) {
+            saveFinished?.await()
             if (failsToSave) {
                 throw FirebaseException("Could not save the profile")
             }
@@ -319,9 +388,13 @@ class EditProfileViewModelTest {
         var failsToUpload = false
         var uploadedPhotoUri: String? = null
 
+        // When set, uploading waits for it, like a slow upload.
+        var uploadFinished: CompletableDeferred<Unit>? = null
+
         override suspend fun uploadPhoto(uri: Uri): String = error("Posts aren't edited here")
 
         override suspend fun uploadProfilePhoto(photoUri: String): String {
+            uploadFinished?.await()
             if (failsToUpload) {
                 throw PhotoUploadException(IOException("Could not upload the photo"))
             }
