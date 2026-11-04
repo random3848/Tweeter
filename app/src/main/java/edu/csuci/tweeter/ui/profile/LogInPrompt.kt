@@ -18,25 +18,14 @@ import androidx.compose.ui.unit.dp
 import edu.csuci.tweeter.R
 
 /**
- * What Profile shows while nobody is logged in: a prompt to log in or create an account.
+ * The choices shown in Profile while nobody is logged in.
  *
- * Until create-account/login is built, Profile passes the placeholder log-in to both buttons;
- * that work points them at its own screens.
- *
- * @param isLoggingIn Whether a log-in is running, which disables both buttons.
- * @param logInFailed Whether the latest log-in failed, which shows an error.
- * @param onLogIn Logs the user in.
- * @param onCreateAccount Creates an account for the user.
+ * @param onLogIn Opens the login form.
+ * @param onCreateAccount Opens the registration form.
  * @param modifier Applied to the whole prompt.
  */
 @Composable
-fun LogInPrompt(
-    isLoggingIn: Boolean,
-    logInFailed: Boolean,
-    onLogIn: () -> Unit,
-    onCreateAccount: () -> Unit,
-    modifier: Modifier = Modifier
-) {
+fun LogInPrompt(onLogIn: () -> Unit, onCreateAccount: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -57,25 +46,15 @@ fun LogInPrompt(
         )
         Button(
             onClick = onLogIn,
-            enabled = !isLoggingIn,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(stringResource(R.string.profile_log_in))
+            Text(text = stringResource(R.string.profile_log_in))
         }
         OutlinedButton(
             onClick = onCreateAccount,
-            enabled = !isLoggingIn,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(stringResource(R.string.profile_create_account))
-        }
-        if (logInFailed) {
-            Text(
-                text = stringResource(R.string.profile_log_in_failed),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
-                textAlign = TextAlign.Center
-            )
+            Text(text = stringResource(R.string.profile_create_account))
         }
     }
 }
