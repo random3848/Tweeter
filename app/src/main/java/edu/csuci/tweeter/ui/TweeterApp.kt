@@ -16,6 +16,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import edu.csuci.tweeter.R
+import edu.csuci.tweeter.ui.auth.CreateAccountRoute
+import edu.csuci.tweeter.ui.auth.LogInRoute
+import edu.csuci.tweeter.ui.auth.addCreateAccountScreen
+import edu.csuci.tweeter.ui.auth.addLogInScreen
 import edu.csuci.tweeter.ui.feed.FeedRoute
 import edu.csuci.tweeter.ui.feed.addFeedScreen
 import edu.csuci.tweeter.ui.map.MapRoute
@@ -80,10 +84,12 @@ fun TweeterApp(modifier: Modifier = Modifier) {
     val destination = backStackEntry?.destination
     val isOnFeed = destination?.hasRoute(FeedRoute::class) == true
     val isOnProfile = destination?.hasRoute(ProfileRoute::class) == true
+    val isOnAuth = destination?.hasRoute(LogInRoute::class) == true ||
+        destination?.hasRoute(CreateAccountRoute::class) == true
     Scaffold(
         modifier = modifier,
         topBar = {
-            if (!isOnProfile) {
+            if (!isOnProfile && !isOnAuth) {
                 TweeterTopBar(
                     actions = {
                         if (isOnFeed) {
@@ -107,10 +113,15 @@ fun TweeterApp(modifier: Modifier = Modifier) {
                     when {
                         route == null -> false
 
-                        // Profile is opened from Feed, so Home stays selected on it.
-                        route == FeedRoute && isOnProfile -> true
+                        // Profile and authentication screens open from Feed.
+                        // Keep Home selected while those screens are open.
+                        route == FeedRoute && (isOnProfile || isOnAuth) -> true
 
-                        else -> destination?.hierarchy.orEmpty().any { it.hasRoute(route::class) }
+                        else -> {
+                            destination?.hierarchy.orEmpty().any {
+                                it.hasRoute(route::class)
+                            }
+                        }
                     }
                 },
                 onSelect = { route ->
@@ -131,7 +142,28 @@ fun TweeterApp(modifier: Modifier = Modifier) {
             addFeedScreen()
             addPostScreen()
             addMapScreen()
-            addProfileScreen(onBack = { navController.navigateUp() })
+            addProfileScreen(
+                onBack = { navController.navigateUp() },
+                onLogIn = {
+                    navController.navigate(LogInRoute) {
+                        launchSingleTop = true
+                    }
+                },
+                onCreateAccount = {
+                    navController.navigate(CreateAccountRoute) {
+                        launchSingleTop = true
+                    }
+                }
+            )
+            addLogInScreen(
+                onBack = { navController.navigateUp() },
+                onAuthenticated = { navController.popBackStack() }
+            )
+
+            addCreateAccountScreen(
+                onBack = { navController.navigateUp() },
+                onAuthenticated = { navController.popBackStack() }
+            )
         }
     }
 }
