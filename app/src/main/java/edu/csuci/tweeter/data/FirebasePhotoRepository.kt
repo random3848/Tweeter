@@ -10,9 +10,9 @@ import java.util.UUID
 import kotlinx.coroutines.tasks.await
 
 /**
- * Uploads camera JPEGs to the signed-in user's Firebase Storage folder.
+ * Uploads camera JPEGs to the logged-in user's Firebase Storage folder.
  *
- * Creates an anonymous session when no user is signed in.
+ * Guests can only browse, so the Storage rules refuse uploads from anonymous sessions.
  */
 class FirebasePhotoRepository(
     private val auth: FirebaseAuth,
@@ -20,12 +20,9 @@ class FirebasePhotoRepository(
 ) : PhotoRepository {
     override suspend fun uploadPhoto(uri: Uri): String {
         try {
-            // Anonymous until create-account/login is built; that work changes or removes this.
-            val user = auth.currentUser ?: auth.signInAnonymously().await().user
-            if (user == null) {
-                throw PhotoUploadException(
-                    IllegalStateException("Firebase sign-in returned no user")
-                )
+            val user = auth.currentUser
+            if (user == null || user.isAnonymous) {
+                throw PhotoUploadException(IllegalStateException("Nobody is logged in"))
             }
 
             val fileName = "${UUID.randomUUID()}.jpg"

@@ -9,21 +9,21 @@ service cloud.firestore {
 
     // The fields match PostDocument in the app.
     match /posts/{postId} {
+      // Guests (anonymous sessions) can read posts but not share them.
       allow read: if request.auth != null;
 
       // Posts can't be edited or deleted yet.
       allow create: if request.auth != null
+                    && request.auth.token.firebase.sign_in_provider != 'anonymous'
                     && request.resource.data.keys().hasOnly([
                          'authorUid', 'username', 'avatarInitials', 'locationName', 'latitude',
                          'longitude', 'imageUri', 'caption', 'likeCount', 'commentCount',
                          'timestamp', 'animalType', 'confidence'
                        ])
                     && request.resource.data.keys().hasAll([
-                         'username', 'latitude', 'longitude', 'imageUri', 'timestamp'
+                         'authorUid', 'username', 'latitude', 'longitude', 'imageUri', 'timestamp'
                        ])
-                    // Left out when nobody is logged in; otherwise only the poster's own ID.
-                    && (!('authorUid' in request.resource.data)
-                        || request.resource.data.authorUid == request.auth.uid)
+                    && request.resource.data.authorUid == request.auth.uid
                     && request.resource.data.username is string
                     && request.resource.data.username.size() > 0
                     && request.resource.data.latitude is number

@@ -1,4 +1,4 @@
-package edu.csuci.tweeter.ui.profile
+package edu.csuci.tweeter.ui.auth
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,14 +18,20 @@ import androidx.compose.ui.unit.dp
 import edu.csuci.tweeter.R
 
 /**
- * The choices shown in Profile while nobody is logged in.
+ * The choices shown in place of a screen that only logged-in users can use.
  *
+ * @param title What logging in unlocks, such as "Log in to see your profile".
  * @param onLogIn Opens the login form.
  * @param onCreateAccount Opens the registration form.
  * @param modifier Applied to the whole prompt.
  */
 @Composable
-fun LogInPrompt(onLogIn: () -> Unit, onCreateAccount: () -> Unit, modifier: Modifier = Modifier) {
+fun LogInPrompt(
+    title: String,
+    onLogIn: () -> Unit,
+    onCreateAccount: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -34,12 +40,12 @@ fun LogInPrompt(onLogIn: () -> Unit, onCreateAccount: () -> Unit, modifier: Modi
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = stringResource(R.string.profile_log_in_title),
+            text = title,
             style = MaterialTheme.typography.titleMedium,
             textAlign = TextAlign.Center
         )
         Text(
-            text = stringResource(R.string.profile_log_in_message),
+            text = stringResource(R.string.auth_log_in_prompt_message),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
@@ -48,13 +54,13 @@ fun LogInPrompt(onLogIn: () -> Unit, onCreateAccount: () -> Unit, modifier: Modi
             onClick = onLogIn,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(text = stringResource(R.string.profile_log_in))
+            Text(text = stringResource(R.string.auth_log_in))
         }
         OutlinedButton(
             onClick = onCreateAccount,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(text = stringResource(R.string.profile_create_account))
+            Text(text = stringResource(R.string.auth_create_account))
         }
     }
 }

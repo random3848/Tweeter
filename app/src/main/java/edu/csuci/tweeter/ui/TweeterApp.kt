@@ -73,7 +73,8 @@ private val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
  * not edit this file beyond those two lines; keep everything else in the feature's package
  *
  * Profile is not a tab: Feed's profile button opens it, and Home stays selected while it is open.
- * It draws its own top bar with a back arrow, so the shared one is hidden there.
+ * It draws its own top bar with a back arrow, so the shared one is hidden there. Profile and Post
+ * open Log in and Create account for guests, and the tab they were opened from stays selected.
  *
  * @param modifier Applied to the whole app
  */
@@ -86,6 +87,23 @@ fun TweeterApp(modifier: Modifier = Modifier) {
     val isOnProfile = destination?.hasRoute(ProfileRoute::class) == true
     val isOnAuth = destination?.hasRoute(LogInRoute::class) == true ||
         destination?.hasRoute(CreateAccountRoute::class) == true
+    // Log in and Create account keep the tab of the screen that opened them selected.
+    val tabDestination = if (isOnAuth) {
+        navController.previousBackStackEntry?.destination
+    } else {
+        destination
+    }
+    val isOnProfileTab = tabDestination?.hasRoute(ProfileRoute::class) == true
+    val openLogIn = {
+        navController.navigate(LogInRoute) {
+            launchSingleTop = true
+        }
+    }
+    val openCreateAccount = {
+        navController.navigate(CreateAccountRoute) {
+            launchSingleTop = true
+        }
+    }
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -113,12 +131,11 @@ fun TweeterApp(modifier: Modifier = Modifier) {
                     when {
                         route == null -> false
 
-                        // Profile and authentication screens open from Feed.
-                        // Keep Home selected while those screens are open.
-                        route == FeedRoute && (isOnProfile || isOnAuth) -> true
+                        // Profile opens from Feed, so Home stays selected on it.
+                        route == FeedRoute && isOnProfileTab -> true
 
                         else -> {
-                            destination?.hierarchy.orEmpty().any {
+                            tabDestination?.hierarchy.orEmpty().any {
                                 it.hasRoute(route::class)
                             }
                         }
@@ -140,20 +157,12 @@ fun TweeterApp(modifier: Modifier = Modifier) {
                 .consumeWindowInsets(innerPadding)
         ) {
             addFeedScreen()
-            addPostScreen()
+            addPostScreen(onLogIn = openLogIn, onCreateAccount = openCreateAccount)
             addMapScreen()
             addProfileScreen(
                 onBack = { navController.navigateUp() },
-                onLogIn = {
-                    navController.navigate(LogInRoute) {
-                        launchSingleTop = true
-                    }
-                },
-                onCreateAccount = {
-                    navController.navigate(CreateAccountRoute) {
-                        launchSingleTop = true
-                    }
-                }
+                onLogIn = openLogIn,
+                onCreateAccount = openCreateAccount
             )
             addLogInScreen(
                 onBack = { navController.navigateUp() },

@@ -66,7 +66,7 @@ class FirestorePostRepository(
     }
 
     private suspend fun signIn() {
-        // Anonymous until create-account/login is built; that work changes or removes this.
+        // Guests browse with an anonymous session; the Firestore rules don't let it post.
         if (auth.currentUser == null) {
             auth.signInAnonymously().await()
         }

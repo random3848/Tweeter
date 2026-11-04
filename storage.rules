@@ -6,7 +6,9 @@ service firebase.storage {
       allow read: if request.auth != null
                   && request.auth.uid == userId;
 
+      // Guests (anonymous sessions) can't upload; only logged-in users post photos.
       allow create: if request.auth != null
+                    && request.auth.token.firebase.sign_in_provider != 'anonymous'
                     && request.auth.uid == userId
                     && request.resource.size > 0
                     && request.resource.size < 20 * 1024 * 1024

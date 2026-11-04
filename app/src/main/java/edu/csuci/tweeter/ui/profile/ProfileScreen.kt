@@ -26,6 +26,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.data.Post
 import edu.csuci.tweeter.data.UserProfile
+import edu.csuci.tweeter.ui.auth.LogInPrompt
 import edu.csuci.tweeter.ui.navigation.BackTopBar
 
 /**
@@ -71,6 +72,7 @@ fun ProfileScreen(
 
             ProfileUiState.LoggedOut -> {
                 LogInPrompt(
+                    title = stringResource(R.string.profile_log_in_title),
                     onLogIn = onLogIn,
                     onCreateAccount = onCreateAccount
                 )
