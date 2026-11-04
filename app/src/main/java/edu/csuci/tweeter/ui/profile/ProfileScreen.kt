@@ -28,6 +28,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.data.UserProfile
 import edu.csuci.tweeter.ui.auth.LogInPrompt
+import edu.csuci.tweeter.ui.feed.postDetailsText
 import edu.csuci.tweeter.ui.navigation.BackTopBar
 
 /**
@@ -117,9 +118,11 @@ private fun ProfileContent(state: ProfileUiState.LoggedIn, onEditProfile: () -> 
             }
         } else {
             items(count = rows.size, key = { i -> table.id(rows[i]) }) { i ->
+                val row = rows[i]
                 ProfilePostItem(
-                    table = table,
-                    row = rows[i],
+                    imageUri = table.imageUri(row),
+                    caption = table.caption(row),
+                    details = postDetailsText(table.locationName(row), table.timestampMillis(row)),
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }

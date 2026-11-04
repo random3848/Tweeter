@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -73,6 +74,11 @@ fun FeedScreen(
         feedViewModel.clearPostToShow()
     }
 
+    // Takes the post's ID, so that it stays the same lambda as new tables arrive.
+    val showPostOnMap = { postId: String ->
+        feedViewModel.showOnMap(postId)
+        onShowOnMap()
+    }
     Column(modifier = modifier.fillMaxSize()) {
         TweeterTopBar(actions = topBarActions)
         val bodyModifier = Modifier.weight(1f).fillMaxWidth()
@@ -94,89 +100,62 @@ fun FeedScreen(
             }
 
             else -> {
-                val posts = uiState.posts
-                val lastRow = posts.size - 1
-                LazyColumn(
-                    state = listState,
-                    modifier = bodyModifier,
-                    contentPadding = PaddingValues(bottom = 16.dp)
-                ) {
-                    items(count = posts.size, key = { row -> posts.id(row) }) { row ->
-                        FeedPostItem(
-                            posts = posts,
-                            row = row,
-                            onShowOnMap = {
-                                feedViewModel.showOnMap(posts.id(row))
-                                onShowOnMap()
-                            }
-                        )
-                        if (row < lastRow) {
-                            HorizontalDivider(
-                                modifier = Modifier.padding(vertical = 12.dp),
-                                thickness = 1.dp,
-                                color = MaterialTheme.colorScheme.outlineVariant
-                            )
-                        }
-                    }
-                }
+                FeedList(
+                    posts = uiState.posts,
+                    listState = listState,
+                    onShowOnMap = showPostOnMap,
+                    modifier = bodyModifier
+                )
             }
         }
     }
 }
 
 /**
- * A post item in the home feed displaying poster info, photo or placeholder, caption,
- * animal type, confidence, and location details. A label on the photo shows the post on Map.
+ * The posts of [posts] as a scrolling list, newest first, with a divider between posts.
  *
- * This is where a feed item reads its post's row; the parts it's made of get the values they show.
+ * This is where a feed item reads its post's row: the parts it's made of get the values they
+ * show, so a part whose values didn't change is skipped when a new table arrives.
  *
- * @param posts The table holding the post.
- * @param row The post's row in [posts].
- * @param onShowOnMap Shows the post on Map.
- * @param modifier Applied to the item container.
+ * @param posts The posts to list, in table order.
+ * @param listState The list's scroll position.
+ * @param onShowOnMap Shows the post with the given ID on Map. It takes the ID rather than
+ *     capturing the table, so it stays the same as new tables arrive.
+ * @param modifier Applied to the list.
  */
 @Composable
-private fun FeedPostItem(
+private fun FeedList(
     posts: PostTable,
-    row: Int,
-    onShowOnMap: () -> Unit,
+    listState: LazyListState,
+    onShowOnMap: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        PostHeader(
-            avatarInitials = posts.avatarInitials(row),
-            username = posts.username(row),
-            details = postDetailsText(posts.locationName(row), posts.timestampMillis(row))
-        )
-
-        Box {
-            PhotoCard(imageUri = posts.imageUri(row))
-            ShowOnMapLabel(
-                onClick = onShowOnMap,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(8.dp)
+    val lastRow = posts.size - 1
+    LazyColumn(
+        state = listState,
+        modifier = modifier,
+        contentPadding = PaddingValues(bottom = 16.dp)
+    ) {
+        items(count = posts.size, key = { row -> posts.id(row) }) { row ->
+            PostHeader(
+                avatarInitials = posts.avatarInitials(row),
+                username = posts.username(row),
+                details = postDetailsText(posts.locationName(row), posts.timestampMillis(row))
             )
-        }
-
-        val caption = posts.caption(row)
-        if (caption.isNotBlank()) {
-            Text(
-                text = caption,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 12.dp, top = 8.dp, end = 12.dp)
+            PostPhoto(
+                postId = posts.id(row),
+                imageUri = posts.imageUri(row),
+                onShowOnMap = onShowOnMap
             )
-        }
-
-        val animalDetails = animalDetailsOf(posts.animalType(row), posts.confidence(row))
-        if (animalDetails != null) {
-            Text(
-                text = animalDetails,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 12.dp, top = 4.dp, end = 12.dp, bottom = 8.dp)
-            )
+            PostCaption(caption = posts.caption(row))
+            AnimalDetails(text = animalDetailsOf(posts.animalType(row), posts.confidence(row)))
+            if (row < lastRow) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 12.dp),
+                    thickness = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+            }
         }
     }
 }
@@ -225,6 +204,60 @@ private fun PostHeader(avatarInitials: String, username: String, details: String
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+/**
+ * A feed post's photo, with a label over it that shows the post on Map.
+ *
+ * @param postId The post's ID, which [onShowOnMap] is called with.
+ * @param imageUri The post's photo, as [PhotoCard] takes it.
+ * @param onShowOnMap Shows the post with the given ID on Map.
+ */
+@Composable
+private fun PostPhoto(postId: String, imageUri: String, onShowOnMap: (String) -> Unit) {
+    Box {
+        PhotoCard(imageUri = imageUri)
+        ShowOnMapLabel(
+            onClick = { onShowOnMap(postId) },
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(8.dp)
+        )
+    }
+}
+
+/**
+ * A feed post's caption, or nothing if it is blank.
+ *
+ * @param caption The post's caption.
+ */
+@Composable
+private fun PostCaption(caption: String) {
+    if (caption.isNotBlank()) {
+        Text(
+            text = caption,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 12.dp, top = 8.dp, end = 12.dp)
+        )
+    }
+}
+
+/**
+ * A feed post's animal type and confidence rating, or nothing if it has neither.
+ *
+ * @param text The animal type and rating, as [animalDetailsOf] puts them, or null.
+ */
+@Composable
+private fun AnimalDetails(text: String?) {
+    if (text != null) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 12.dp, top = 4.dp, end = 12.dp, bottom = 8.dp)
+        )
     }
 }
 
