@@ -1,6 +1,7 @@
-package edu.csuci.tweeter.location
+package edu.csuci.tweeter.data
 
 import java.io.File
+import java.io.IOException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
@@ -51,4 +52,18 @@ internal suspend fun <ResultT> prepareNewFile(
  */
 internal suspend fun deleteFile(dispatcher: CoroutineDispatcher, file: File) {
     withContext(NonCancellable + dispatcher) { file.delete() }
+}
+
+/**
+ * Creates an empty file for a photo in [directory], and [directory] itself if it's missing. Each
+ * call creates a file with a new name. It blocks, so callers pass it as `create` to
+ * [prepareNewFile] or [writeNewFile].
+ *
+ * @throws IOException If [directory] or the file can't be created.
+ */
+internal fun createEmptyPhotoFile(directory: File): File {
+    if (!directory.isDirectory && !directory.mkdirs()) {
+        throw IOException("Could not create $directory")
+    }
+    return File.createTempFile("photo_", ".jpg", directory)
 }

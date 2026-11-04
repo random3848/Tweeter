@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalCoroutinesApi::class)
 
-package edu.csuci.tweeter.location
+package edu.csuci.tweeter.data
 
 import java.io.File
 import java.io.IOException
@@ -17,6 +17,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertSame
 import org.junit.Rule
 import org.junit.Test
@@ -38,6 +39,32 @@ class NewFileTest {
     @After
     fun stopIoThread() {
         singleThreadDispatcher.close()
+    }
+
+    @Test
+    fun createEmptyPhotoFile_missingDirectory_createsItWithEmptyFile() {
+        val directory = File(temporaryFolder.root, "photos")
+
+        val file = createEmptyPhotoFile(directory)
+
+        assertEquals(directory, file.parentFile)
+        assertEquals(0L, file.length())
+    }
+
+    @Test
+    fun createEmptyPhotoFile_twice_createsDifferentFiles() {
+        val directory = temporaryFolder.root
+
+        assertNotEquals(createEmptyPhotoFile(directory), createEmptyPhotoFile(directory))
+    }
+
+    @Test
+    fun createEmptyPhotoFile_directoryCantBeCreated_throwsIoException() {
+        val directory = temporaryFolder.newFile()
+
+        val error = runCatching { createEmptyPhotoFile(directory) }.exceptionOrNull()
+
+        assertEquals(IOException::class, error?.let { it::class })
     }
 
     @Test

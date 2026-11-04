@@ -2,7 +2,6 @@ package edu.csuci.tweeter.data
 
 import android.content.Context
 import androidx.core.content.FileProvider
-import edu.csuci.tweeter.location.prepareNewFile
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -44,9 +43,11 @@ class CameraFiles(
      *
      * @throws IOException If the file can't be created.
      */
-    suspend fun create(): CameraFile = prepareNewFile(ioDispatcher, ::createEmptyFile) { file ->
-        CameraFile(path = file.path, contentUri = contentUriOf(file))
-    }
+    suspend fun create(): CameraFile = prepareNewFile(
+        dispatcher = ioDispatcher,
+        create = { createEmptyPhotoFile(directory) },
+        prepare = { file -> CameraFile(path = file.path, contentUri = contentUriOf(file)) }
+    )
 
     /**
      * Deletes the camera file at [path], if it's still there, without waiting for it. Safe to
@@ -54,13 +55,6 @@ class CameraFiles(
      */
     fun discard(path: String) {
         scope.launch(ioDispatcher) { File(path).delete() }
-    }
-
-    private fun createEmptyFile(): File {
-        if (!directory.isDirectory && !directory.mkdirs()) {
-            throw IOException("Could not create $directory")
-        }
-        return File.createTempFile("photo_", ".jpg", directory)
     }
 
     /** Creates [CameraFiles]. */

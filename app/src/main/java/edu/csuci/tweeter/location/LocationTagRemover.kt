@@ -3,6 +3,9 @@ package edu.csuci.tweeter.location
 import android.content.Context
 import android.net.Uri
 import androidx.exifinterface.media.ExifInterface
+import edu.csuci.tweeter.data.createEmptyPhotoFile
+import edu.csuci.tweeter.data.deleteFile
+import edu.csuci.tweeter.data.writeNewFile
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -71,7 +74,7 @@ class LocationTagRemover(context: Context, private val ioDispatcher: CoroutineDi
      */
     suspend fun copyWithoutLocation(uri: Uri): File = writeNewFile(
         dispatcher = ioDispatcher,
-        create = ::createCopy,
+        create = { createEmptyPhotoFile(File(appContext.cacheDir, COPY_DIRECTORY)) },
         write = { copy -> writeWithoutLocation(uri, copy) }
     )
 
@@ -81,15 +84,6 @@ class LocationTagRemover(context: Context, private val ioDispatcher: CoroutineDi
      */
     suspend fun deleteCopy(copy: File) {
         deleteFile(ioDispatcher, copy)
-    }
-
-    // Creates an empty file for a copy, and the directory copies go in if it's missing.
-    private fun createCopy(): File {
-        val directory = File(appContext.cacheDir, COPY_DIRECTORY)
-        if (!directory.isDirectory && !directory.mkdirs()) {
-            throw IOException("Could not create $directory")
-        }
-        return File.createTempFile("photo_", ".jpg", directory)
     }
 
     private fun writeWithoutLocation(uri: Uri, copy: File) {
