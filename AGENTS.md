@@ -8,8 +8,8 @@ Firestore, Storage and Authentication.
 
 Layout:
 - `app/`: the app, package `edu.csuci.tweeter`, for Android 14 (API 34) and later.
-  `MainActivity` shows `ui/TweeterApp.kt`: one Scaffold with the top bar, the bottom bar and a
-  NavHost that opens to Feed, drawn over the map, which stays composed so that Map shows it at once.
+  `MainActivity` shows `ui/TweeterApp.kt`: one Scaffold with the bottom bar and a NavHost that
+  opens to Feed, drawn over the map, which stays composed so that Map shows it at once.
 - `app/src/main/java/edu/csuci/tweeter/data/`: the models (`Post`, `UserProfile`) and the
   repositories screens use through interfaces (`PostRepository`, `ProfileRepository`,
   `AccountRepository`, `PhotoRepository`). `AppContainer` (owned by `TweeterApplication`) creates
@@ -40,6 +40,9 @@ Adding a screen (`ui/feed/` is the example):
 - Give it its own package, `ui/<feature>/`, holding the screen, a `@Serializable` route object
   and a `NavGraphBuilder.add<Feature>Screen()` function that registers the screen under it with
   `opaqueComposable`, which draws the screen on the app's background over the map.
+- The screen draws its own top bar, `TweeterTopBar` for a tab or `BackTopBar` for a screen opened
+  from another, at the top of its layout. A bar in the Scaffold would change with the back stack,
+  a few frames before NavHost swaps the screens, and show over the wrong screen meanwhile.
 - Call that function in the NavHost in `TweeterApp.kt`. If the screen gets a bottom-bar tab, add
   its `BottomBarItem`, with `route` set to the screen's route object, to `BOTTOM_BAR_ITEMS` there
   in the same change.

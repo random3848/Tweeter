@@ -35,7 +35,6 @@ import edu.csuci.tweeter.ui.map.MapScreen
 import edu.csuci.tweeter.ui.map.addMapScreen
 import edu.csuci.tweeter.ui.navigation.BottomBarItem
 import edu.csuci.tweeter.ui.navigation.TweeterBottomBar
-import edu.csuci.tweeter.ui.navigation.TweeterTopBar
 import edu.csuci.tweeter.ui.post.PostRoute
 import edu.csuci.tweeter.ui.post.addPostScreen
 import edu.csuci.tweeter.ui.profile.EditProfileRoute
@@ -71,12 +70,13 @@ internal val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
 )
 
 /**
- * The whole app: the top bar, the bottom bar, and the screen the user is on between them.
+ * The whole app: the screen the user is on, which draws its own top bar, above the bottom bar.
  *
  * Feed is the screen the app opens to. To add a screen with its own tab:
- * 1. In its own package, `ui/<feature>/`, add the screen, a `@Serializable` route object, and a
- *    `NavGraphBuilder.add<Feature>Screen()` function that registers the screen under the route
- *    with `opaqueComposable`; `ui/feed/FeedRoute.kt` is the example
+ * 1. In its own package, `ui/<feature>/`, add the screen, which draws its own top bar, a
+ *    `@Serializable` route object, and a `NavGraphBuilder.add<Feature>Screen()` function that
+ *    registers the screen under the route with `opaqueComposable`; `ui/feed/FeedRoute.kt` is the
+ *    example
  * 2. Call that function in the NavHost below
  * 3. Set the matching item's route in [BOTTOM_BAR_ITEMS]
  *    to the feature's route object.
@@ -85,9 +85,11 @@ internal val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
  * not edit this file beyond those two lines; keep everything else in the feature's package
  *
  * Profile is not a tab: Feed's profile button opens it, and Home stays selected while it is open.
- * It draws its own top bar with a back arrow, so the shared one is hidden there. Profile and Post
- * open Log in and Create account for guests, and the tab they were opened from stays selected.
- * Profile's "Edit profile" button opens Edit profile, which hides both bars.
+ * Every screen draws its own top bar, [edu.csuci.tweeter.ui.navigation.TweeterTopBar] on the tabs'
+ * screens and [edu.csuci.tweeter.ui.navigation.BackTopBar] on screens opened from them, so a bar
+ * comes and goes with its screen. Profile and Post open Log in and Create account for guests, and
+ * the tab they were opened from stays selected. Profile's "Edit profile" button opens Edit
+ * profile, which hides the bottom bar too.
  *
  * A tab left open keeps its state, but only the open screen is composed, with one exception: the
  * map stays composed under the NavHost, so that it is drawn and ready the moment the user switches
@@ -102,14 +104,11 @@ fun TweeterApp(modifier: Modifier = Modifier) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val destination = backStackEntry?.destination
-    val isOnFeed = destination?.hasRoute(FeedRoute::class) == true
     val isOnMap = destination?.hasRoute(MapRoute::class) == true
     val hasDrawnFirstFrame = rememberFirstFrameDrawn()
-    val isOnProfile = destination?.hasRoute(ProfileRoute::class) == true
     val isOnAuth = destination?.hasRoute(LogInRoute::class) == true ||
         destination?.hasRoute(CreateAccountRoute::class) == true
     val isOnEditProfile = destination?.hasRoute(EditProfileRoute::class) == true
-    val hasOwnTopBar = isOnProfile || isOnAuth || isOnEditProfile
     // Log in and Create account keep the tab of the screen that opened them selected.
     val tabDestination = if (isOnAuth) {
         navController.previousBackStackEntry?.destination
@@ -129,23 +128,6 @@ fun TweeterApp(modifier: Modifier = Modifier) {
     }
     Scaffold(
         modifier = modifier,
-        topBar = {
-            if (!hasOwnTopBar) {
-                TweeterTopBar(
-                    actions = {
-                        if (isOnFeed) {
-                            ProfileButton(
-                                onClick = {
-                                    navController.navigate(ProfileRoute) {
-                                        launchSingleTop = true
-                                    }
-                                }
-                            )
-                        }
-                    }
-                )
-            }
-        },
         bottomBar = {
             if (!isOnEditProfile) {
                 TweeterBottomBar(
@@ -161,8 +143,8 @@ fun TweeterApp(modifier: Modifier = Modifier) {
             }
         }
     ) { innerPadding ->
-        // Without the shared top bar, innerPadding already includes the status bar; consuming it
-        // stops a screen's own top bar from padding below the status bar a second time.
+        // innerPadding includes the status bar; consuming it stops each screen's own top bar from
+        // padding below the status bar a second time.
         Box(
             modifier = Modifier
                 .padding(innerPadding)
@@ -179,7 +161,18 @@ fun TweeterApp(modifier: Modifier = Modifier) {
                 enterTransition = { EnterTransition.None },
                 exitTransition = { ExitTransition.None }
             ) {
-                addFeedScreen(onShowOnMap = { navController.navigateToTopLevel(MapRoute) })
+                addFeedScreen(
+                    onShowOnMap = { navController.navigateToTopLevel(MapRoute) },
+                    topBarActions = {
+                        ProfileButton(
+                            onClick = {
+                                navController.navigate(ProfileRoute) {
+                                    launchSingleTop = true
+                                }
+                            }
+                        )
+                    }
+                )
                 addPostScreen(onLogIn = openLogIn, onCreateAccount = openCreateAccount)
                 addMapScreen()
                 addProfileScreen(

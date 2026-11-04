@@ -35,12 +35,13 @@ import edu.csuci.tweeter.location.LocationSource
 import edu.csuci.tweeter.ui.auth.LogInPrompt
 import edu.csuci.tweeter.ui.camera.CameraOpener
 import edu.csuci.tweeter.ui.location.LocationPicker
+import edu.csuci.tweeter.ui.navigation.TweeterTopBar
 import kotlin.math.roundToInt
 
 /**
  * Takes a photo or picks one from the camera roll, finds where it was taken, and lets the user
- * move that location on a map and share the photo as a post. Guests can only browse, so while
- * nobody is logged in it asks the user to log in instead.
+ * move that location on a map and share the photo as a post, under the app's top bar. Guests can
+ * only browse, so while nobody is logged in it asks the user to log in instead.
  *
  * @param onLogIn Opens the login form.
  * @param onCreateAccount Opens the registration form.
@@ -56,15 +57,18 @@ fun PostScreen(
 ) {
     val loggedInUid by postViewModel.loggedInUid.collectAsStateWithLifecycle()
 
-    if (loggedInUid == null) {
-        LogInPrompt(
-            title = stringResource(R.string.post_log_in_title),
-            onLogIn = onLogIn,
-            onCreateAccount = onCreateAccount,
-            modifier = modifier
-        )
-    } else {
-        PostForm(postViewModel = postViewModel, modifier = modifier)
+    Column(modifier = modifier.fillMaxSize()) {
+        TweeterTopBar()
+        if (loggedInUid == null) {
+            LogInPrompt(
+                title = stringResource(R.string.post_log_in_title),
+                onLogIn = onLogIn,
+                onCreateAccount = onCreateAccount,
+                modifier = Modifier.weight(1f)
+            )
+        } else {
+            PostForm(postViewModel = postViewModel, modifier = Modifier.weight(1f))
+        }
     }
 }
 

@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -21,6 +22,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import edu.csuci.tweeter.ui.navigation.TweeterTopBar
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import org.maplibre.compose.camera.CameraUpdate
@@ -55,8 +57,8 @@ internal const val CAMPUS_ZOOM = 15.0
 private const val CLOSE_UP_ZOOM = 16.0
 
 /**
- * The map: every post as a pin where its photo was taken, and the user's location as a blue dot.
- * It opens over the campus.
+ * The map, under the app's top bar: every post as a pin where its photo was taken, and the user's
+ * location as a blue dot. It opens over the campus.
  *
  * Tapping a pin opens a popup above it with the post's photo, and the map moves to the pin. Back,
  * or a tap anywhere else on the map, closes the popup; pressing it shows the post on Home. Feed
@@ -93,31 +95,35 @@ fun MapScreen(
         BackHandler(enabled = uiState.selectedRow != null, onBack = viewModel::clearSelection)
     }
     MapMoveEffect(uiState, mapState, locationState, onMoveFinished = viewModel::finishMove)
-    MaplibreMap(
-        modifier = modifier
-            .fillMaxSize()
-            .then(if (isShown) Modifier else Modifier.consumingEveryTouch()),
-        state = mapState,
-        interactions = rememberMapInteractions(onMapClick = viewModel::clearSelection),
-        overlay = {
-            if (isShown) {
-                MapControls(mapState) {
-                    MyLocationButton(
-                        locationState = locationState,
-                        onClick = viewModel::moveToUser,
-                        modifier = Modifier.padding(MapOverlay.Spacing)
+    Column(modifier = modifier.fillMaxSize()) {
+        TweeterTopBar()
+        MaplibreMap(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .then(if (isShown) Modifier else Modifier.consumingEveryTouch()),
+            state = mapState,
+            interactions = rememberMapInteractions(onMapClick = viewModel::clearSelection),
+            overlay = {
+                if (isShown) {
+                    MapControls(mapState) {
+                        MyLocationButton(
+                            locationState = locationState,
+                            onClick = viewModel::moveToUser,
+                            modifier = Modifier.padding(MapOverlay.Spacing)
+                        )
+                    }
+                    PinnedPostPopup(
+                        uiState = uiState,
+                        onClick = { postId ->
+                            viewModel.showInFeed(postId)
+                            onShowInFeed()
+                        }
                     )
                 }
-                PinnedPostPopup(
-                    uiState = uiState,
-                    onClick = { postId ->
-                        viewModel.showInFeed(postId)
-                        onShowInFeed()
-                    }
-                )
             }
-        }
-    )
+        )
+    }
 }
 
 /**

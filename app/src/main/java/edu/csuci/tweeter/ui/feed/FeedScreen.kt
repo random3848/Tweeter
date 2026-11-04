@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -35,12 +36,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.data.PostTable
+import edu.csuci.tweeter.ui.navigation.TweeterTopBar
 
 // Between a post's animal type and its confidence rating.
 private const val ANIMAL_DETAILS_SEPARATOR = " · "
 
 /**
- * The home feed, the screen the app opens to.
+ * The home feed, the screen the app opens to, under the app's top bar.
  *
  * Displays posts from [FeedViewModel], newest first, in a clean scrolling layout. A label
  * on each post's photo shows the post on Map. When another screen asks the feed to show a post,
@@ -48,12 +50,14 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
  *
  * @param onShowOnMap Opens Map, once the post the user chose is requested there.
  * @param modifier Applied to the whole screen.
+ * @param topBarActions Buttons on the right of the top bar, such as the profile button.
  * @param feedViewModel Supplies posts and UI state for the feed.
  */
 @Composable
 fun FeedScreen(
     onShowOnMap: () -> Unit,
     modifier: Modifier = Modifier,
+    topBarActions: @Composable RowScope.() -> Unit = {},
     feedViewModel: FeedViewModel = viewModel(factory = FeedViewModel.factory)
 ) {
     val uiState by feedViewModel.uiState.collectAsStateWithLifecycle()
@@ -69,52 +73,50 @@ fun FeedScreen(
         feedViewModel.clearPostToShow()
     }
 
-    when {
-        uiState.isLoading -> {
-            Box(
-                modifier = modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
+    Column(modifier = modifier.fillMaxSize()) {
+        TweeterTopBar(actions = topBarActions)
+        val bodyModifier = Modifier.weight(1f).fillMaxWidth()
+        when {
+            uiState.isLoading -> {
+                Box(modifier = bodyModifier, contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
             }
-        }
 
-        uiState.posts.size == 0 -> {
-            Box(
-                modifier = modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = stringResource(R.string.feed_empty_message),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        else -> {
-            val posts = uiState.posts
-            val lastRow = posts.size - 1
-            LazyColumn(
-                state = listState,
-                modifier = modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 16.dp)
-            ) {
-                items(count = posts.size, key = { row -> posts.id(row) }) { row ->
-                    FeedPostItem(
-                        posts = posts,
-                        row = row,
-                        onShowOnMap = {
-                            feedViewModel.showOnMap(posts.id(row))
-                            onShowOnMap()
-                        }
+            uiState.posts.size == 0 -> {
+                Box(modifier = bodyModifier, contentAlignment = Alignment.Center) {
+                    Text(
+                        text = stringResource(R.string.feed_empty_message),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    if (row < lastRow) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 12.dp),
-                            thickness = 1.dp,
-                            color = MaterialTheme.colorScheme.outlineVariant
+                }
+            }
+
+            else -> {
+                val posts = uiState.posts
+                val lastRow = posts.size - 1
+                LazyColumn(
+                    state = listState,
+                    modifier = bodyModifier,
+                    contentPadding = PaddingValues(bottom = 16.dp)
+                ) {
+                    items(count = posts.size, key = { row -> posts.id(row) }) { row ->
+                        FeedPostItem(
+                            posts = posts,
+                            row = row,
+                            onShowOnMap = {
+                                feedViewModel.showOnMap(posts.id(row))
+                                onShowOnMap()
+                            }
                         )
+                        if (row < lastRow) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(vertical = 12.dp),
+                                thickness = 1.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant
+                            )
+                        }
                     }
                 }
             }
