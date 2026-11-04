@@ -7,21 +7,25 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import edu.csuci.tweeter.TweeterApplication
-import edu.csuci.tweeter.data.Post
 import edu.csuci.tweeter.data.PostRepository
+import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 /**
  * The UI state of the home feed screen.
  *
- * @property posts The list of posts to display in the feed.
- * @property isLoading Whether posts are currently being loaded from the repository.
+ * @property posts The posts to display, newest first; the feed shows the table's rows in order.
+ * @property isLoading Whether the first posts are still being loaded from the repository.
  */
-data class FeedUiState(val posts: List<Post> = emptyList(), val isLoading: Boolean = true)
+data class FeedUiState(val posts: PostTable = PostTable.EMPTY, val isLoading: Boolean = true)
 
 /**
  * Holds posts for [FeedScreen].
@@ -29,26 +33,28 @@ data class FeedUiState(val posts: List<Post> = emptyList(), val isLoading: Boole
  * @param postRepository Where post data is read from.
  * @param showInFeedRequest The post another screen asks the feed to show, which it scrolls to.
  * @param showOnMapRequest Where [showOnMap] asks Map to show a post.
+ * @param postsDispatcher Where each table is compared with the last and turned into state: off
+ *     the main thread, since comparing tables is a pass over every post.
+ * @param sharing When [uiState] follows the posts: while Feed collects it, in the app.
  */
 class FeedViewModel(
     postRepository: PostRepository,
     private val showInFeedRequest: ShowPostRequest,
-    private val showOnMapRequest: ShowPostRequest
+    private val showOnMapRequest: ShowPostRequest,
+    postsDispatcher: CoroutineDispatcher,
+    sharing: SharingStarted
 ) : ViewModel() {
     /**
      * The current state of the feed, updated whenever posts change.
      */
-    val uiState: StateFlow<FeedUiState> = postRepository.getPosts()
-        .map { posts ->
-            FeedUiState(
-                posts = posts.sortPosts(FeedSortOrder.MOST_RECENT_FIRST),
-                isLoading = false
-            )
-        }
+    val uiState: StateFlow<FeedUiState> = postRepository.getPostTable()
+        .distinctUntilChanged()
+        .map { posts -> FeedUiState(posts = posts, isLoading = false) }
+        .flowOn(postsDispatcher)
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = FeedUiState(isLoading = true)
+            started = sharing,
+            initialValue = FeedUiState()
         )
 
     /**
@@ -62,9 +68,9 @@ class FeedViewModel(
         showInFeedRequest.clear()
     }
 
-    /** Asks Map to show [post], which opens the post's popup when Map opens. */
-    fun showOnMap(post: Post) {
-        showOnMapRequest.send(post.id)
+    /** Asks Map to show the post with [postId], which opens its popup when Map opens. */
+    fun showOnMap(postId: String) {
+        showOnMapRequest.send(postId)
     }
 
     companion object {
@@ -75,7 +81,9 @@ class FeedViewModel(
                 FeedViewModel(
                     postRepository = application.container.postRepository,
                     showInFeedRequest = application.container.showInFeedRequest,
-                    showOnMapRequest = application.container.showOnMapRequest
+                    showOnMapRequest = application.container.showOnMapRequest,
+                    postsDispatcher = Dispatchers.Default,
+                    sharing = application.container.whileScreenCollects
                 )
             }
         }

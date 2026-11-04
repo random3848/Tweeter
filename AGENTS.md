@@ -8,18 +8,26 @@ Firestore, Storage and Authentication.
 
 Layout:
 - `app/`: the app, package `edu.csuci.tweeter`, for Android 14 (API 34) and later.
-  `MainActivity` shows `ui/TweeterApp.kt`: one Scaffold with the top bar, the bottom bar and a
-  NavHost that opens to Feed.
+  `MainActivity` shows `ui/TweeterApp.kt`: one Scaffold with the bottom bar and a NavHost that
+  opens to Feed, drawn over the map, which stays composed so that Map shows it at once.
 - `app/src/main/java/edu/csuci/tweeter/data/`: the models (`Post`, `UserProfile`) and the
   repositories screens use through interfaces (`PostRepository`, `ProfileRepository`,
   `AccountRepository`, `PhotoRepository`). `AppContainer` (owned by `TweeterApplication`) creates
-  one Firebase implementation of each; Profile uses `PlaceholderAccountRepository` directly until
-  log-in is built. `PostDocument` and `ProfileDocument` map the models to Firestore fields, and a
-  field added to `PostDocument` also goes into the `hasOnly` list in `firestore.rules`.
-  `FakePostRepository` is an in-memory `PostRepository` for tests and for working offline.
+  one Firebase implementation of each. Screens read posts as one `PostTable`, a structure of
+  arrays with one array per `Post` field that a screen shows, and keep rows of it (`Int` indices)
+  rather than `Post` objects; something that can outlive its table, such as a map pin, keeps the
+  post's ID instead. `PostDocument` and `ProfileDocument` map the models to Firestore fields, and a
+  field added to `PostDocument` also goes into the `hasOnly` list in `firestore.rules`, and into a
+  `PostTable` column once a screen shows it. `FakePostRepository` is an in-memory `PostRepository`
+  for tests and for working offline.
 - `app/src/main/java/edu/csuci/tweeter/location/`: finding where a photo was taken
   (`PhotoLocator`, from its EXIF tags or the device) and removing its location tags before upload
   (`LocationTagRemover`).
+- `app/src/main/java/edu/csuci/tweeter/ui/camera/`: taking a picture with the camera app, for the
+  post and profile screens: `CameraCapture`, held by the screen's ViewModel, which exposes it as
+  `CameraControls`, and `CameraOpener`, which the screen draws with that ViewModel to open the
+  camera app. The file the picture goes into comes from `CameraFiles` (in `data/`), which creates
+  and deletes such files off the main thread.
 - `app/src/main/java/edu/csuci/tweeter/ui/theme/`: colors, Manrope typography and the Material 3
   theme, taken from the designs. Screens use `MaterialTheme.colorScheme` and
   `MaterialTheme.typography` instead of hard-coded colors and text sizes.
@@ -31,7 +39,11 @@ Layout:
 
 Adding a screen (`ui/feed/` is the example):
 - Give it its own package, `ui/<feature>/`, holding the screen, a `@Serializable` route object
-  and a `NavGraphBuilder.add<Feature>Screen()` function that registers the screen under it.
+  and a `NavGraphBuilder.add<Feature>Screen()` function that registers the screen under it with
+  `opaqueComposable`, which draws the screen on the app's background over the map.
+- The screen draws its own top bar, `TweeterTopBar` for a tab or `BackTopBar` for a screen opened
+  from another, at the top of its layout. A bar in the Scaffold would change with the back stack,
+  a few frames before NavHost swaps the screens, and show over the wrong screen meanwhile.
 - Call that function in the NavHost in `TweeterApp.kt`. If the screen gets a bottom-bar tab, add
   its `BottomBarItem`, with `route` set to the screen's route object, to `BOTTOM_BAR_ITEMS` there
   in the same change.
@@ -341,7 +353,7 @@ Classes and objects:
 - Keep at most one `when` per kind of selection, ideally where the objects are created (for UI
   state, in its screen). Make it exhaustive over the `enum` or `sealed` type, with no `else`, so a
   new case doesn't compile until it's handled.
-- A fixed set of values is an `enum class` (like `FeedSortOrder`) or `sealed` type, not `Int` or
+- A fixed set of values is an `enum class` (like `LocationSource`) or `sealed` type, not `Int` or
   `String` constants; enums can have properties and functions.
 - No magic numbers or strings: a value whose meaning isn't obvious gets a named constant
   (`SECONDS_PER_DAY`), in tests too. A value that reads clearly where it is (`radius * 2`, or a
@@ -415,3 +427,51 @@ Concurrency:
   or slow fakes, many times over.
 - A test that fails once and then passes has found a real bug; suspect a race first. Find it
   instead of rerunning until it passes.
+
+## Performance
+
+The app stays smooth when the main thread only composes, lays out and draws. These rules come from
+tracing the app; the commit that added each one says what it measured.
+
+Threads:
+- Nothing that blocks or takes more than a few milliseconds runs on the main thread: file and
+  network I/O, decoding, parsing, or a pass over every post. It runs in a `suspend` function on an
+  injected dispatcher, `Dispatchers.IO` for blocking calls and `Dispatchers.Default` for
+  computation, started by a ViewModel or repository, never by a composable or a click handler.
+- Derived data is computed once per change of its input, where the change arrives: drop inputs
+  equal to the last with `distinctUntilChanged()` first, and never recompute on every
+  recomposition. Firestore snapshots are parsed one at a time, in order, on the post repository's
+  serial executor.
+- Spread work over more threads only when it is slow enough to gain from it. A pass over the posts
+  takes milliseconds; splitting it costs more than it saves, and can reorder results.
+
+Startup:
+- The first frame waits for everything its composition touches. A library whose first use is slow
+  (Firebase, MapLibre) is started from `AppContainer.prepareFirstScreens()` on background threads,
+  and something not on screen at launch, like the map, is composed from the frame after the first.
+
+Drawing:
+- Keep the GPU paths on: Compose draws with hardware acceleration, Coil decodes photos off the
+  main thread into hardware bitmaps, and MapLibre renders with Vulkan, the posts map in a
+  SurfaceView. Don't turn any of them off. Any other map, such as the location picker's, draws in
+  a TextureView: a second SurfaceView would sit behind the window with the posts map's and let it
+  show through.
+- A bitmap in `res/` is no bigger than it is drawn at xxxhdpi (4×) and goes in `drawable-xxxhdpi`.
+  `painterResource` decodes it on the main thread, and Android scales a bitmap in `drawable/` up
+  from mdpi, 2.6× on a 420 dpi screen.
+- Lists give their items stable keys (the post ID), and item composables take the values they show
+  rather than the table, so Compose skips the ones that didn't change.
+
+Data:
+- Posts are one `PostTable`; screens keep rows and pass on the values they show, never a `Post` or
+  a list of them. No objects or maps per post, and no copies of the table.
+- No caches beyond Coil's, Firestore's and MapLibre's tile cache. When something is slow, make it
+  cheaper, or compute it once when its input changes, instead of caching it.
+
+Builds and measuring:
+- Release builds run R8 with resource shrinking. The app reads nothing by reflection, so it needs
+  no keep rules; keep it that way.
+- Measure before and after a change meant to make the app faster, with a Perfetto trace of the same
+  steps (or `dumpsys gfxinfo` for frame times), and put the numbers in the commit message. Judge
+  speed on a release build: a debug build is debuggable and, on the emulator, takes about twice as
+  long to start.

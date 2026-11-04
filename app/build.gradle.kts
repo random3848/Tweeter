@@ -27,6 +27,16 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    buildTypes {
+        // R8 shrinks and optimizes release builds; Compose's release performance depends on it.
+        // The libraries ship their own keep rules, and the app reads nothing by reflection.
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+        }
+    }
+
     buildFeatures {
         // BuildConfig.VERSION_NAME names the app's version in the map's tile requests.
         buildConfig = true
@@ -68,7 +78,8 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.androidx.exifinterface)
     implementation(libs.kotlinx.serialization.core)
-    // The map's GeoJSON features hold their properties as JSON objects.
+    // The map's GeoJSON features hold their properties as JSON objects, and MapViewModel saves the
+    // map's camera as JSON.
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.maplibre.compose)
     // The map engine draws with Vulkan; the library needs exactly one renderer at runtime.

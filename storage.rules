@@ -13,10 +13,15 @@ service firebase.storage {
                     && request.resource.size > 0
                     && request.resource.size < 20 * 1024 * 1024
                     && request.resource.contentType == 'image/jpeg';
+
+      // The app deletes photos it uploaded that nothing uses, such as when a post can't be added.
+      allow delete: if request.auth != null
+                    && request.auth.token.firebase.sign_in_provider != 'anonymous'
+                    && request.auth.uid == userId;
     }
 
     // Profile photos show on profiles, so any session that can browse can read them. Only a
-    // logged-in user (not a guest) can upload, and only into their own folder.
+    // logged-in user (not a guest) can upload or delete them, and only in their own folder.
     match /profile_photos/{userId}/{fileName} {
       allow read: if request.auth != null;
 
@@ -26,6 +31,12 @@ service firebase.storage {
                     && request.resource.size > 0
                     && request.resource.size < 20 * 1024 * 1024
                     && request.resource.contentType == 'image/jpeg';
+
+      // The app deletes photos it uploaded that nothing uses, such as when a profile can't be
+      // saved.
+      allow delete: if request.auth != null
+                    && request.auth.token.firebase.sign_in_provider != 'anonymous'
+                    && request.auth.uid == userId;
     }
   }
 }

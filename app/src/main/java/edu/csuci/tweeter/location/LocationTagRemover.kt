@@ -3,10 +3,12 @@ package edu.csuci.tweeter.location
 import android.content.Context
 import android.net.Uri
 import androidx.exifinterface.media.ExifInterface
+import edu.csuci.tweeter.data.createEmptyPhotoFile
+import edu.csuci.tweeter.data.deleteFile
+import edu.csuci.tweeter.data.writeNewFile
 import java.io.File
 import java.io.IOException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CoroutineDispatcher
 
 // Where the copies are written, inside the app's cache directory.
 private const val COPY_DIRECTORY = "uploads"
@@ -57,39 +59,49 @@ private val LOCATION_TAGS = listOf(
  * moved the pin away from it.
  *
  * @param context Any context; only its application context is kept.
+ * @param ioDispatcher Where photos are read and copies written.
  */
-class LocationTagRemover(context: Context) {
+class LocationTagRemover(context: Context, private val ioDispatcher: CoroutineDispatcher) {
     private val appContext = context.applicationContext
 
     /**
      * Copies the photo at [uri] into the app's cache and removes the copy's location tags. The
-     * caller deletes the copy when it is done with it.
+     * caller deletes the copy with [deleteCopy] when it is done with it.
      *
      * @throws IOException If the photo can't be read, or its format can't have tags removed
-     *     (ExifInterface writes JPEG, PNG and WebP). No copy is left behind then.
+     *     (ExifInterface writes JPEG, PNG and WebP). No copy is left behind then, nor when the
+     *     coroutine is cancelled.
      */
-    suspend fun copyWithoutLocation(uri: Uri): File = withContext(Dispatchers.IO) {
-        val directory = File(appContext.cacheDir, COPY_DIRECTORY)
-        if (!directory.isDirectory && !directory.mkdirs()) {
-            throw IOException("Could not create $directory")
-        }
-        val copy = File.createTempFile("photo_", ".jpg", directory)
+    suspend fun copyWithoutLocation(uri: Uri): File = writeNewFile(
+        dispatcher = ioDispatcher,
+        create = { createEmptyPhotoFile(File(appContext.cacheDir, COPY_DIRECTORY)) },
+        write = { copy -> writeWithoutLocation(uri, copy) }
+    )
+
+    /**
+     * Deletes [copy], made by [copyWithoutLocation], off the calling thread. It is deleted even
+     * when the calling coroutine is cancelled, so it can be called from a `finally` block.
+     */
+    suspend fun deleteCopy(copy: File) {
+        deleteFile(ioDispatcher, copy)
+    }
+
+    private fun writeWithoutLocation(uri: Uri, copy: File) {
+        val input = appContext.contentResolver.openInputStream(uri) ?:
+            throw IOException("Could not open $uri")
+        input.use { source -> copy.outputStream().use { source.copyTo(it) } }
+        removeLocationTags(copy)
+    }
+
+    private fun removeLocationTags(photo: File) {
         try {
-            val input = appContext.contentResolver.openInputStream(uri) ?:
-                throw IOException("Could not open $uri")
-            input.use { source -> copy.outputStream().use { source.copyTo(it) } }
-            val exif = ExifInterface(copy)
+            val exif = ExifInterface(photo)
             for (tag in LOCATION_TAGS) {
                 exif.setAttribute(tag, null)
             }
             exif.saveAttributes()
-            copy
-        } catch (error: IOException) {
-            copy.delete()
-            throw error
         } catch (error: UnsupportedOperationException) {
-            copy.delete()
-            throw IOException("Can't remove the location tags from $uri", error)
+            throw IOException("Can't remove the location tags from $photo", error)
         }
     }
 }

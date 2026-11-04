@@ -2,12 +2,15 @@
 
 package edu.csuci.tweeter.ui.map
 
+import androidx.lifecycle.SavedStateHandle
 import edu.csuci.tweeter.data.FakePostRepository
 import edu.csuci.tweeter.data.PostRepository
+import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.SAMPLE_POSTS
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -20,12 +23,17 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
+import org.maplibre.compose.sources.GeoJsonData
+import org.maplibre.spatialk.geojson.Position
 
 private const val UNKNOWN_POST_ID = "no-such-post"
+
+private const val ONLY_ROW = 0
 
 class MapViewModelTest {
     private val showOnMapRequest = ShowPostRequest()
     private val showInFeedRequest = ShowPostRequest()
+    private val samplePosts = PinnedPosts(PostTable.of(SAMPLE_POSTS))
 
     @Before
     fun useTestMainDispatcher() {
@@ -46,8 +54,8 @@ class MapViewModelTest {
 
         assertEquals(
             MapUiState(
-                posts = SAMPLE_POSTS,
-                selectedPost = post,
+                pinnedPosts = samplePosts,
+                selectedRow = SAMPLE_POSTS.indexOf(post),
                 pendingMove = MapMove.ToPost(post.id)
             ),
             viewModel.uiState.value
@@ -60,7 +68,7 @@ class MapViewModelTest {
 
         viewModel.selectPost(UNKNOWN_POST_ID)
 
-        assertNull(viewModel.uiState.value.selectedPost)
+        assertNull(viewModel.uiState.value.selectedRow)
     }
 
     @Test
@@ -72,7 +80,7 @@ class MapViewModelTest {
 
         repository.addPost(post)
 
-        assertEquals(post, viewModel.uiState.value.selectedPost)
+        assertEquals(ONLY_ROW, viewModel.uiState.value.selectedRow)
     }
 
     @Test
@@ -82,7 +90,7 @@ class MapViewModelTest {
 
         viewModel.clearSelection()
 
-        assertEquals(MapUiState(posts = SAMPLE_POSTS), viewModel.uiState.value)
+        assertEquals(MapUiState(pinnedPosts = samplePosts), viewModel.uiState.value)
     }
 
     @Test
@@ -104,7 +112,11 @@ class MapViewModelTest {
         viewModel.finishMove(MapMove.ToPost(post.id))
 
         assertEquals(
-            MapUiState(posts = SAMPLE_POSTS, selectedPost = post, pendingMove = null),
+            MapUiState(
+                pinnedPosts = samplePosts,
+                selectedRow = SAMPLE_POSTS.indexOf(post),
+                pendingMove = null
+            ),
             viewModel.uiState.value
         )
     }
@@ -152,8 +164,8 @@ class MapViewModelTest {
 
         assertEquals(
             MapUiState(
-                posts = SAMPLE_POSTS,
-                selectedPost = post,
+                pinnedPosts = samplePosts,
+                selectedRow = SAMPLE_POSTS.indexOf(post),
                 pendingMove = MapMove.ToPost(post.id)
             ),
             viewModel.uiState.value
@@ -167,7 +179,7 @@ class MapViewModelTest {
 
         showOnMapRequest.send(post.id)
 
-        assertEquals(post, viewModel.uiState.value.selectedPost)
+        assertEquals(SAMPLE_POSTS.indexOf(post), viewModel.uiState.value.selectedRow)
     }
 
     @Test
@@ -177,7 +189,7 @@ class MapViewModelTest {
 
         val reopenedMap = mapViewModel()
 
-        assertEquals(MapUiState(posts = SAMPLE_POSTS), reopenedMap.uiState.value)
+        assertEquals(MapUiState(pinnedPosts = samplePosts), reopenedMap.uiState.value)
     }
 
     @Test
@@ -185,19 +197,85 @@ class MapViewModelTest {
         val viewModel = mapViewModel()
         val post = SAMPLE_POSTS[1]
 
-        viewModel.showInFeed(post)
+        viewModel.showInFeed(post.id)
 
         assertEquals(post.id, showInFeedRequest.postId.value)
     }
 
-    // The map follows its posts only while something collects its state, as MapScreen does.
+    @Test
+    fun uiState_postAdded_pinsIt() = runTest {
+        val repository = FakePostRepository(initialPosts = emptyList())
+        val viewModel = mapViewModel(repository)
+        val post = SAMPLE_POSTS.first()
+
+        repository.addPost(post)
+
+        assertEquals(
+            GeoJsonData.JsonString(pinsJsonOf(PostTable.of(listOf(post)))),
+            viewModel.uiState.value.pinnedPosts.pins
+        )
+    }
+
+    @Test
+    fun selectPost_pinsSelectedPostAlone() = runTest {
+        val viewModel = mapViewModel()
+        val post = SAMPLE_POSTS[1]
+
+        viewModel.selectPost(post.id)
+
+        val state = viewModel.uiState.value
+        assertEquals(
+            GeoJsonData.JsonString(pinJsonOf(state.posts, SAMPLE_POSTS.indexOf(post))),
+            state.selectedPin
+        )
+    }
+
+    @Test
+    fun selectPost_movesToWherePhotoWasTaken() = runTest {
+        val viewModel = mapViewModel()
+        val post = SAMPLE_POSTS[1]
+
+        viewModel.selectPost(post.id)
+
+        assertEquals(
+            Position(longitude = post.longitude, latitude = post.latitude),
+            viewModel.uiState.value.selectedPosition
+        )
+    }
+
+    @Test
+    fun selectPost_latitudeIsNan_hasNoPositionToMoveTo() = runTest {
+        val post = SAMPLE_POSTS.first().copy(latitude = Double.NaN)
+        val viewModel = mapViewModel(FakePostRepository(initialPosts = listOf(post)))
+
+        viewModel.selectPost(post.id)
+
+        assertNull(viewModel.uiState.value.selectedPosition)
+    }
+
+    @Test
+    fun selectPost_longitudeInfinite_hasNoPositionToMoveTo() = runTest {
+        val post = SAMPLE_POSTS.first().copy(longitude = Double.POSITIVE_INFINITY)
+        val viewModel = mapViewModel(FakePostRepository(initialPosts = listOf(post)))
+
+        viewModel.selectPost(post.id)
+
+        assertNull(viewModel.uiState.value.selectedPosition)
+    }
+
+    // The map follows its posts while the test collects its state, as it does in the app while Map
+    // collects it. No test shows the map, which needs MapLibre's native engine.
     private fun TestScope.mapViewModel(
         repository: PostRepository = FakePostRepository()
     ): MapViewModel {
         val viewModel = MapViewModel(
             postRepository = repository,
             showOnMapRequest = showOnMapRequest,
-            showInFeedRequest = showInFeedRequest
+            showInFeedRequest = showInFeedRequest,
+            savedStateHandle = SavedStateHandle(),
+            createMap = { error("Unit tests don't show the map") },
+            pinsDispatcher = UnconfinedTestDispatcher(testScheduler),
+            sharing = SharingStarted.WhileSubscribed()
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect()
