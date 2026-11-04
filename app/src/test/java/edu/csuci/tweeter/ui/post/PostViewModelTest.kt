@@ -1,0 +1,200 @@
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
+package edu.csuci.tweeter.ui.post
+
+import android.content.ContextWrapper
+import android.net.Uri
+import androidx.lifecycle.SavedStateHandle
+import edu.csuci.tweeter.data.CameraFiles
+import edu.csuci.tweeter.data.FakeAccountRepository
+import edu.csuci.tweeter.data.FakePostRepository
+import edu.csuci.tweeter.data.FakeProfileRepository
+import edu.csuci.tweeter.data.PhotoRepository
+import edu.csuci.tweeter.location.LocationTagRemover
+import edu.csuci.tweeter.location.PhotoLocator
+import edu.csuci.tweeter.ui.camera.CameraCapture
+import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+
+private const val CONTENT_URI_PREFIX = "content://camera/"
+private const val CAMERA_ROLL_URI = "content://media/1"
+
+class PostViewModelTest {
+    @get:Rule
+    val temporaryFolder = TemporaryFolder()
+
+    private val dispatcher = UnconfinedTestDispatcher()
+
+    private val directory: File
+        get() = File(temporaryFolder.root, "photos")
+
+    private val savedStateHandle = SavedStateHandle()
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(dispatcher)
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    @Test
+    fun takePicture_asksToOpenCameraWithNewFile() {
+        val viewModel = createViewModel()
+
+        viewModel.takePicture()
+
+        assertEquals(listOf(viewModel.cameraUriToOpen), contentUrisInDirectory())
+        assertTrue(viewModel.isTakingPicture)
+    }
+
+    @Test
+    fun pictureTaken_saved_makesItThePhoto() {
+        val viewModel = createViewModel()
+        val cameraUri = openCamera(viewModel)
+
+        viewModel.pictureTaken(isSaved = true)
+
+        assertEquals(cameraUri, viewModel.photoUri)
+        assertTrue(viewModel.isPhotoFromCamera)
+        assertFalse(viewModel.isTakingPicture)
+    }
+
+    @Test
+    fun pictureTaken_notSaved_deletesFileAndKeepsPhoto() {
+        val viewModel = createViewModel()
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+        openCamera(viewModel)
+
+        viewModel.pictureTaken(isSaved = false)
+
+        assertEquals(CAMERA_ROLL_URI, viewModel.photoUri)
+        assertEquals(emptyList<String>(), contentUrisInDirectory())
+    }
+
+    @Test
+    fun pictureTaken_replacingCameraPhoto_deletesItsFile() {
+        val viewModel = createViewModel()
+        openCamera(viewModel)
+        viewModel.pictureTaken(isSaved = true)
+        val secondUri = openCamera(viewModel)
+
+        viewModel.pictureTaken(isSaved = true)
+
+        assertEquals(listOf(secondUri), contentUrisInDirectory())
+    }
+
+    @Test
+    fun choosePhoto_replacingCameraPhoto_deletesItsFile() {
+        val viewModel = createViewModel()
+        openCamera(viewModel)
+        viewModel.pictureTaken(isSaved = true)
+
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+
+        assertEquals(CAMERA_ROLL_URI, viewModel.photoUri)
+        assertFalse(viewModel.isPhotoFromCamera)
+        assertEquals(emptyList<String>(), contentUrisInDirectory())
+    }
+
+    @Test
+    fun cameraUnavailable_failsAndDeletesFile() {
+        val viewModel = createViewModel()
+        viewModel.takePicture()
+
+        viewModel.cameraUnavailable()
+
+        assertTrue(viewModel.cameraFailed)
+        assertFalse(viewModel.isTakingPicture)
+        assertEquals(emptyList<String>(), contentUrisInDirectory())
+    }
+
+    @Test
+    fun dismissCameraFailure_clearsFailure() {
+        val viewModel = createViewModel()
+        viewModel.takePicture()
+        viewModel.cameraUnavailable()
+
+        viewModel.dismissCameraFailure()
+
+        assertFalse(viewModel.cameraFailed)
+    }
+
+    @Test
+    fun init_savedPhoto_restoresIt() {
+        val viewModel = createViewModel()
+        val cameraUri = openCamera(viewModel)
+        viewModel.pictureTaken(isSaved = true)
+
+        val restored = createViewModel()
+
+        assertEquals(cameraUri, restored.photoUri)
+        assertTrue(restored.isPhotoFromCamera)
+    }
+
+    @Test
+    fun init_noPhoto_hasNone() {
+        assertNull(createViewModel().photoUri)
+    }
+
+    // Takes a picture up to the camera app opening, and returns the URI it saves into.
+    private fun openCamera(viewModel: PostViewModel): String {
+        viewModel.takePicture()
+        val cameraUri = checkNotNull(viewModel.cameraUriToOpen) { "The camera wasn't asked for" }
+        viewModel.cameraOpened()
+        return cameraUri
+    }
+
+    private fun createViewModel(): PostViewModel {
+        val cameraFiles = CameraFiles(
+            directory = directory,
+            ioDispatcher = dispatcher,
+            contentUriOf = ::contentUriOf
+        )
+        return PostViewModel(
+            photoRepository = UnusedPhotoRepository(),
+            postRepository = FakePostRepository(initialPosts = emptyList()),
+            profileRepository = FakeProfileRepository(),
+            accountRepository = FakeAccountRepository(initialUid = "uid"),
+            photoLocator = PhotoLocator(
+                readExif = { null },
+                currentDeviceFix = { null },
+                ioDispatcher = dispatcher
+            ),
+            locationTagRemover = LocationTagRemover(ContextWrapper(null), dispatcher),
+            cameraFiles = cameraFiles,
+            cameraCapture = CameraCapture(cameraFiles, savedStateHandle),
+            savedStateHandle = savedStateHandle
+        )
+    }
+
+    private fun contentUriOf(file: File): String = CONTENT_URI_PREFIX + file.name
+
+    private fun contentUrisInDirectory(): List<String> =
+        directory.listFiles().orEmpty().map(::contentUriOf)
+
+    // These tests don't upload, so nothing reaches Storage.
+    private class UnusedPhotoRepository : PhotoRepository {
+        override suspend fun uploadPhoto(uri: Uri): String = error("Not uploaded in these tests")
+
+        override suspend fun uploadProfilePhoto(photoUri: String): String =
+            error("Not uploaded in these tests")
+
+        override suspend fun deletePhoto(photoUrl: String) = error("Not deleted in these tests")
+    }
+}

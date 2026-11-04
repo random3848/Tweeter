@@ -15,6 +15,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.firebase.FirebaseException
 import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
+import edu.csuci.tweeter.data.CameraFiles
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PhotoUploadException
 import edu.csuci.tweeter.data.Post
@@ -30,6 +31,7 @@ import edu.csuci.tweeter.location.LocationFix
 import edu.csuci.tweeter.location.LocationSource
 import edu.csuci.tweeter.location.LocationTagRemover
 import edu.csuci.tweeter.location.PhotoLocator
+import edu.csuci.tweeter.ui.camera.CameraCapture
 import java.io.IOException
 import java.time.Instant
 import java.util.UUID
@@ -39,9 +41,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
+private const val PHOTO_URI_KEY = "photoUri"
+private const val PHOTO_PATH_KEY = "photoPath"
+
 /**
- * Finds where the post's photo was taken, uploads the photo, shares it as a post, and holds the
- * state the post screen displays.
+ * Holds the post's photo, taken with the camera or chosen from the camera roll, finds where it
+ * was taken, uploads it, shares it as a post, and holds the state the post screen displays.
+ *
+ * @param cameraFiles Deletes the files of camera photos once nothing needs them.
+ * @param cameraCapture Takes pictures with the camera app.
  */
 class PostViewModel(
     private val photoRepository: PhotoRepository,
@@ -50,6 +58,8 @@ class PostViewModel(
     private val accountRepository: AccountRepository,
     private val photoLocator: PhotoLocator<Uri>,
     private val locationTagRemover: LocationTagRemover,
+    private val cameraFiles: CameraFiles,
+    private val cameraCapture: CameraCapture,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     private var locateJob: Job? = null
@@ -84,6 +94,89 @@ class PostViewModel(
         private set
 
     /**
+     * The URI of the photo to share: a `content://` URI on the phone, or null until the user
+     * takes or chooses one, and again once it is shared.
+     */
+    var photoUri by mutableStateOf(savedStateHandle.get<String>(PHOTO_URI_KEY))
+        private set
+
+    // The app's own file holding a camera photo in [photoUri], deleted once nothing needs it.
+    private var photoPath by mutableStateOf(savedStateHandle.get<String>(PHOTO_PATH_KEY))
+
+    /** Whether the photo was just taken with the camera, not chosen from the camera roll. */
+    val isPhotoFromCamera: Boolean
+        get() = photoPath != null
+
+    /** The URI the screen opens the camera app with, as [CameraCapture.uriToOpen] says. */
+    val cameraUriToOpen: String?
+        get() = cameraCapture.uriToOpen
+
+    /** Whether a picture is being taken, from [takePicture] until the camera app answers. */
+    val isTakingPicture: Boolean
+        get() = cameraCapture.isTakingPicture
+
+    /** Whether the latest picture couldn't be taken. */
+    val cameraFailed: Boolean
+        get() = cameraCapture.failed
+
+    /** Starts taking a picture: the screen then opens the camera app with [cameraUriToOpen]. */
+    fun takePicture() {
+        viewModelScope.launch { cameraCapture.start() }
+    }
+
+    /** Stops asking to open the camera app, which the screen has opened. */
+    fun cameraOpened() {
+        cameraCapture.cameraOpened()
+    }
+
+    /**
+     * Makes the picture the camera app took the post's photo when [isSaved], and otherwise
+     * deletes its file.
+     */
+    fun pictureTaken(isSaved: Boolean) {
+        if (isSaved) {
+            cameraCapture.keep()?.let { picture -> replacePhoto(picture.contentUri, picture.path) }
+        } else {
+            viewModelScope.launch { cameraCapture.discard() }
+        }
+    }
+
+    /** Gives up on the picture, since no camera app could open, and reports [cameraFailed]. */
+    fun cameraUnavailable() {
+        viewModelScope.launch { cameraCapture.cameraUnavailable() }
+    }
+
+    /** Stops reporting [cameraFailed], once the user moves on to another way to get a photo. */
+    fun dismissCameraFailure() {
+        cameraCapture.dismissFailure()
+    }
+
+    /** Makes the photo at [uri], chosen from the camera roll, the post's photo. */
+    fun choosePhoto(uri: String) {
+        replacePhoto(uri, cameraFilePath = null)
+    }
+
+    // Replaces the photo, deleting the previous camera photo's file, and clears the result of
+    // sharing the previous one.
+    private fun replacePhoto(uri: String, cameraFilePath: String?) {
+        clearUploadResult()
+        val replacedPath = photoPath
+        updatePhoto(uri, cameraFilePath)
+        replacedPath?.let(::deleteCameraFile)
+    }
+
+    private fun updatePhoto(uri: String?, cameraFilePath: String?) {
+        photoUri = uri
+        photoPath = cameraFilePath
+        savedStateHandle[PHOTO_URI_KEY] = uri
+        savedStateHandle[PHOTO_PATH_KEY] = cameraFilePath
+    }
+
+    private fun deleteCameraFile(path: String) {
+        viewModelScope.launch { cameraFiles.delete(path) }
+    }
+
+    /**
      * Uploads [uri] without its location tags and shares it as a post at [location] by the
      * logged-in user. Ignored while one runs, after the post is shared, or while [location] is
      * null. Fails if nobody is logged in.
@@ -113,6 +206,7 @@ class PostViewModel(
                 )
                 uploadedPhotoUrl = photoUrl
                 savedStateHandle["uploadedPhotoUrl"] = uploadedPhotoUrl
+                forgetSharedPhoto()
             } catch (error: NobodyLoggedInException) {
                 Log.e("PostViewModel", "Nobody is logged in, so the post can't be shared", error)
                 uploadFailed = true
@@ -148,8 +242,8 @@ class PostViewModel(
         }
     }
 
-    /** Clears the previous upload result when a new photo is selected. */
-    fun clearUploadResult() {
+    // Clears the previous upload result when a new photo is selected.
+    private fun clearUploadResult() {
         if (isUploading) {
             return
         }
@@ -157,6 +251,13 @@ class PostViewModel(
         uploadedPhotoUrl = null
         savedStateHandle["uploadedPhotoUrl"] = null
         uploadFailed = false
+    }
+
+    // Forgets the photo once it's shared, deleting its file if it was a camera photo.
+    private fun forgetSharedPhoto() {
+        val sharedPath = photoPath
+        updatePhoto(uri = null, cameraFilePath = null)
+        sharedPath?.let(::deleteCameraFile)
     }
 
     /**
@@ -215,6 +316,8 @@ class PostViewModel(
         val factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as TweeterApplication
+                val cameraFiles = CameraFiles.inCacheOf(application, Dispatchers.IO)
+                val savedStateHandle = createSavedStateHandle()
                 PostViewModel(
                     photoRepository = application.container.photoRepository,
                     postRepository = application.container.postRepository,
@@ -229,7 +332,9 @@ class PostViewModel(
                         context = application,
                         ioDispatcher = Dispatchers.IO
                     ),
-                    savedStateHandle = createSavedStateHandle()
+                    cameraFiles = cameraFiles,
+                    cameraCapture = CameraCapture(cameraFiles, savedStateHandle),
+                    savedStateHandle = savedStateHandle
                 )
             }
         }

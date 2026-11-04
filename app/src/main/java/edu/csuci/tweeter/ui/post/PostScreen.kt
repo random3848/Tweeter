@@ -19,39 +19,23 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.location.LocationFix
 import edu.csuci.tweeter.location.LocationSource
 import edu.csuci.tweeter.ui.auth.LogInPrompt
+import edu.csuci.tweeter.ui.camera.CameraOpener
 import edu.csuci.tweeter.ui.location.LocationPicker
-import java.io.File
-import java.io.IOException
 import kotlin.math.roundToInt
-
-/** Deletes a temporary camera file and logs unsuccessful cleanup. */
-private fun deleteCachedPhoto(path: String?) {
-    if (path == null) {
-        return
-    }
-
-    val file = File(path)
-    if (file.exists() && !file.delete()) {
-        Log.w("PostScreen", "Could not delete cached photo")
-    }
-}
 
 /**
  * Takes a photo or picks one from the camera roll, finds where it was taken, and lets the user
@@ -86,23 +70,16 @@ fun PostScreen(
 
 @Composable
 private fun PostForm(postViewModel: PostViewModel, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-
-    var photoUri by rememberSaveable { mutableStateOf<String?>(null) }
-    var photoPath by rememberSaveable { mutableStateOf<String?>(null) }
-    var pendingUri by rememberSaveable { mutableStateOf<String?>(null) }
-    var pendingPath by rememberSaveable { mutableStateOf<String?>(null) }
-    var cameraFailed by rememberSaveable { mutableStateOf(false) }
     var pickerFailed by rememberSaveable { mutableStateOf(false) }
-    var isFromCamera by rememberSaveable { mutableStateOf(false) }
     var showPostDialog by rememberSaveable { mutableStateOf(false) }
+    val photoUri = postViewModel.photoUri
 
     // Whatever the user answers, the photo is then located with what the app may read.
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) {
-        photoUri?.let { uri ->
-            postViewModel.locatePhoto(Uri.parse(uri), capturedInApp = isFromCamera)
+        postViewModel.photoUri?.let { uri ->
+            postViewModel.locatePhoto(Uri.parse(uri), postViewModel.isPhotoFromCamera)
         }
     }
 
@@ -110,7 +87,7 @@ private fun PostForm(postViewModel: PostViewModel, modifier: Modifier = Modifier
     // for one from the camera roll, which Android hides without ACCESS_MEDIA_LOCATION.
     fun locateNewPhoto() {
         locationPermissionLauncher.launch(
-            if (isFromCamera) {
+            if (postViewModel.isPhotoFromCamera) {
                 arrayOf(
                     Manifest.permission.ACCESS_FINE_LOCATION,
                     Manifest.permission.ACCESS_COARSE_LOCATION
@@ -121,23 +98,17 @@ private fun PostForm(postViewModel: PostViewModel, modifier: Modifier = Modifier
         )
     }
 
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture()
-    ) { success ->
-        if (success && pendingUri != null) {
-            deleteCachedPhoto(photoPath)
-            postViewModel.clearUploadResult()
-            photoUri = pendingUri
-            photoPath = pendingPath
-            isFromCamera = true
-            locateNewPhoto()
-        } else {
-            deleteCachedPhoto(pendingPath)
+    CameraOpener(
+        uriToOpen = postViewModel.cameraUriToOpen,
+        onOpened = postViewModel::cameraOpened,
+        onUnavailable = postViewModel::cameraUnavailable,
+        onResult = { isSaved ->
+            postViewModel.pictureTaken(isSaved)
+            if (isSaved) {
+                locateNewPhoto()
+            }
         }
-
-        pendingUri = null
-        pendingPath = null
-    }
+    )
 
     // The Files picker, not the Photo Picker: the Photo Picker strips a photo's GPS tags, which
     // the post's location is read from.
@@ -145,20 +116,8 @@ private fun PostForm(postViewModel: PostViewModel, modifier: Modifier = Modifier
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            deleteCachedPhoto(photoPath)
-            postViewModel.clearUploadResult()
-            photoUri = uri.toString()
-            photoPath = null
-            isFromCamera = false
+            postViewModel.choosePhoto(uri.toString())
             locateNewPhoto()
-        }
-    }
-
-    LaunchedEffect(postViewModel.uploadedPhotoUrl) {
-        if (postViewModel.uploadedPhotoUrl != null) {
-            deleteCachedPhoto(photoPath)
-            photoPath = null
-            photoUri = null
         }
     }
 
@@ -173,50 +132,19 @@ private fun PostForm(postViewModel: PostViewModel, modifier: Modifier = Modifier
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Button(
-            enabled = !postViewModel.isUploading && pendingPath == null,
+            enabled = !postViewModel.isUploading && !postViewModel.isTakingPicture,
             onClick = {
-                cameraFailed = false
                 pickerFailed = false
-
-                try {
-                    val directory = File(context.cacheDir, "photos")
-                    if (!directory.isDirectory && !directory.mkdirs()) {
-                        throw IOException("Could not create photo directory")
-                    }
-
-                    val file = File.createTempFile("photo_", ".jpg", directory)
-                    pendingPath = file.absolutePath
-
-                    val uri = FileProvider.getUriForFile(
-                        context,
-                        "${context.packageName}.fileprovider",
-                        file
-                    )
-
-                    pendingUri = uri.toString()
-                    cameraLauncher.launch(uri)
-                } catch (error: IOException) {
-                    Log.e("PostScreen", "Could not create camera photo", error)
-                    cameraFailed = true
-                } catch (error: ActivityNotFoundException) {
-                    Log.e("PostScreen", "No camera application available", error)
-                    cameraFailed = true
-                }
-
-                if (cameraFailed) {
-                    deleteCachedPhoto(pendingPath)
-                    pendingPath = null
-                    pendingUri = null
-                }
+                postViewModel.takePicture()
             }
         ) {
             Text(stringResource(R.string.take_picture))
         }
 
         Button(
-            enabled = !postViewModel.isUploading && pendingPath == null,
+            enabled = !postViewModel.isUploading && !postViewModel.isTakingPicture,
             onClick = {
-                cameraFailed = false
+                postViewModel.dismissCameraFailure()
                 pickerFailed = false
 
                 try {
@@ -233,7 +161,7 @@ private fun PostForm(postViewModel: PostViewModel, modifier: Modifier = Modifier
         Button(
             enabled = photoUri != null &&
                 !postViewModel.isUploading &&
-                pendingPath == null &&
+                !postViewModel.isTakingPicture &&
                 postViewModel.location != null &&
                 postViewModel.uploadedPhotoUrl == null,
             onClick = { showPostDialog = true }
@@ -261,7 +189,7 @@ private fun PostForm(postViewModel: PostViewModel, modifier: Modifier = Modifier
                 R.string.photo_uploading
             }
 
-            cameraFailed -> {
+            postViewModel.cameraFailed -> {
                 R.string.photo_camera_failed
             }
 
