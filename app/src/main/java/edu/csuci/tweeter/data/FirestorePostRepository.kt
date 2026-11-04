@@ -86,7 +86,7 @@ class FirestorePostRepository(
     private inline fun readPosts(snapshot: QuerySnapshot, consume: (Post) -> Unit) {
         val fields = arrayOfNulls<Any>(fieldPaths.size)
         for (document in snapshot.documents) {
-            document.readInto(fields)
+            fields.fillFrom(document)
             val post = PostDocument.toPost(document.id, fields)
             if (post == null) {
                 Log.w(TAG, "Skipping malformed post ${document.id}")
@@ -110,11 +110,12 @@ class FirestorePostRepository(
             FieldPath.of(PostDocument.Field.entries[it].key)
         }
 
-        // A post this phone just added has no server time yet; until Firestore sets it, use
-        // Firestore's estimate so the post shows up right away.
-        fun DocumentSnapshot.readInto(fields: Array<Any?>) {
+        // Overwrites this array with [document]'s fields, in PostDocument.Field order. A post this
+        // phone just added has no server time yet; until Firestore sets it, use Firestore's
+        // estimate so the post shows up right away.
+        fun Array<Any?>.fillFrom(document: DocumentSnapshot) {
             for (index in fieldPaths.indices) {
-                fields[index] = get(fieldPaths[index], ServerTimestampBehavior.ESTIMATE)
+                this[index] = document.get(fieldPaths[index], ServerTimestampBehavior.ESTIMATE)
             }
         }
     }
