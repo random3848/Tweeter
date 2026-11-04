@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -67,8 +68,9 @@ private const val CLOSE_UP_ZOOM = 16.0
  * have it.
  *
  * The app keeps this screen composed under every other screen, so the map is drawn and ready the
- * moment the user switches to it. While hidden, it takes no touches, shows no controls and stops
- * following the user's location.
+ * moment the user switches to it. While hidden, it takes no touches, shows no controls, stops
+ * following the user's location, and is left out of the accessibility tree, so that a screen
+ * reader doesn't find the map and its top bar under the screen drawn over them.
  *
  * @param isShown Whether the user is on Map, rather than on a screen drawn over the map.
  * @param onShowInFeed Opens Home, once the post whose popup the user pressed is requested there.
@@ -95,7 +97,8 @@ fun MapScreen(
         BackHandler(enabled = uiState.selectedRow != null, onBack = viewModel::clearSelection)
     }
     MapMoveEffect(uiState, mapState, locationState, onMoveFinished = viewModel::finishMove)
-    Column(modifier = modifier.fillMaxSize()) {
+    val accessibility = if (isShown) Modifier else Modifier.hiddenFromAccessibility()
+    Column(modifier = modifier.fillMaxSize().then(accessibility)) {
         TweeterTopBar()
         MaplibreMap(
             modifier = Modifier
@@ -156,6 +159,10 @@ private fun PostMapLayers(
         onDispose { viewModel.clearLayers() }
     }
 }
+
+// Keeps the hidden map and its top bar, and everything in them, out of the accessibility tree,
+// while they stay composed.
+private fun Modifier.hiddenFromAccessibility(): Modifier = clearAndSetSemantics {}
 
 // Hidden under another screen, the map must not move or open popups for the touches that screen
 // lets through: this takes them first, and the map ignores a touch taken before it.
