@@ -1,20 +1,26 @@
 package edu.csuci.tweeter.data
 
-import java.util.BitSet
+import java.util.Arrays
 
 // How a post without a confidence ([Post.confidence] null) is stored.
 private const val NO_CONFIDENCE: Byte = 0
 
+// The multiplier List.hashCode uses: an odd prime, so that each row's hash spreads over the rest.
+private const val HASH_MULTIPLIER = 31
+
 /**
  * Posts in one fixed order, newest first, stored as a structure of arrays: one array per field of
- * [Post], each indexed by the post's row.
+ * [Post] that a screen shows, each indexed by the post's row.
  *
  * Screens keep rows, not `Post` objects. A pass over one field, such as Map reading every post's
- * coordinates, reads only that field's array, and the two Boolean fields are bitsets, one bit per
- * post. A table never changes once built: changed posts come in a new table, where [rowOf] finds a
- * post again by its ID.
+ * coordinates, reads only that field's array. A table never changes once built: changed posts come
+ * in a new table, where [rowOf] finds a post again by its ID.
+ *
+ * @property size How many posts the table holds; their rows are 0 until [size]. The arrays can be
+ *     longer, by the rows its [Builder] had room for, which the table never reads.
  */
 class PostTable private constructor(
+    val size: Int,
     private val ids: Array<String>,
     private val authorUids: Array<String>,
     private val usernames: Array<String>,
@@ -24,18 +30,10 @@ class PostTable private constructor(
     private val longitudes: DoubleArray,
     private val imageUris: Array<String>,
     private val captions: Array<String>,
-    private val likeCounts: IntArray,
-    private val commentCounts: IntArray,
-    private val liked: BitSet,
-    private val bookmarked: BitSet,
     private val timestampsMillis: LongArray,
     private val animalTypes: Array<String>,
     private val confidences: ByteArray
 ) {
-    /** How many posts the table holds; their rows are 0 until [size]. */
-    val size: Int
-        get() = ids.size
-
     /** The [Post.id] of the post in [row]. */
     fun id(row: Int): String = ids[row]
 
@@ -63,18 +61,6 @@ class PostTable private constructor(
     /** The [Post.caption] of the post in [row]. */
     fun caption(row: Int): String = captions[row]
 
-    /** The [Post.likeCount] of the post in [row]. */
-    fun likeCount(row: Int): Int = likeCounts[row]
-
-    /** The [Post.commentCount] of the post in [row]. */
-    fun commentCount(row: Int): Int = commentCounts[row]
-
-    /** The [Post.isLiked] of the post in [row]. */
-    fun isLiked(row: Int): Boolean = liked[row]
-
-    /** The [Post.isBookmarked] of the post in [row]. */
-    fun isBookmarked(row: Int): Boolean = bookmarked[row]
-
     /** The [Post.timestamp] of the post in [row], in milliseconds since the epoch. */
     fun timestampMillis(row: Int): Long = timestampsMillis[row]
 
@@ -85,13 +71,20 @@ class PostTable private constructor(
     fun confidence(row: Int): Int? = confidences[row].takeIf { it != NO_CONFIDENCE }?.toInt()
 
     /** The row of the post with [postId], or null if the table doesn't hold it. */
-    fun rowOf(postId: String): Int? = ids.indexOf(postId).takeIf { it >= 0 }
+    fun rowOf(postId: String): Int? {
+        for (row in 0 until size) {
+            if (ids[row] == postId) {
+                return row
+            }
+        }
+        return null
+    }
 
     /** The rows of the posts shared by user [authorUid] ([Post.authorUid]), in table order. */
     fun rowsBy(authorUid: String): IntArray {
-        val rows = IntArray(authorUids.count { it == authorUid })
+        val rows = IntArray(countRowsBy(authorUid))
         var found = 0
-        for (row in authorUids.indices) {
+        for (row in 0 until size) {
             if (authorUids[row] == authorUid) {
                 rows[found] = row
                 found++
@@ -101,18 +94,57 @@ class PostTable private constructor(
     }
 
     override fun equals(other: Any?): Boolean =
-        other is PostTable && columns().contentDeepEquals(other.columns())
+        this === other || (other is PostTable && holdsSamePosts(other))
 
-    override fun hashCode(): Int = columns().contentDeepHashCode()
+    // Over the IDs alone: equal tables hold the same IDs.
+    override fun hashCode(): Int {
+        var hash = size
+        for (row in 0 until size) {
+            hash = HASH_MULTIPLIER * hash + ids[row].hashCode()
+        }
+        return hash
+    }
 
-    override fun toString(): String = "PostTable(ids=${ids.contentToString()})"
+    override fun toString(): String = "PostTable(ids=${ids.asList().subList(0, size)})"
 
-    // Every column, so that tables holding the same posts are equal.
-    private fun columns(): Array<Any> = arrayOf(
-        ids, authorUids, usernames, avatarInitials, locationNames, latitudes, longitudes, imageUris,
-        captions, likeCounts, commentCounts, liked, bookmarked, timestampsMillis, animalTypes,
-        confidences
-    )
+    private fun countRowsBy(authorUid: String): Int {
+        var count = 0
+        for (row in 0 until size) {
+            if (authorUids[row] == authorUid) {
+                count++
+            }
+        }
+        return count
+    }
+
+    private fun holdsSamePosts(other: PostTable): Boolean =
+        size == other.size && hasSameTexts(other) && hasSameNumbers(other)
+
+    private fun hasSameTexts(other: PostTable): Boolean =
+        haveSameRows(ids, other.ids) && haveSameRows(authorUids, other.authorUids) &&
+            haveSameRows(usernames, other.usernames) &&
+            haveSameRows(avatarInitials, other.avatarInitials) &&
+            haveSameRows(locationNames, other.locationNames) &&
+            haveSameRows(imageUris, other.imageUris) && haveSameRows(captions, other.captions) &&
+            haveSameRows(animalTypes, other.animalTypes)
+
+    private fun hasSameNumbers(other: PostTable): Boolean =
+        haveSameRows(latitudes, other.latitudes) && haveSameRows(longitudes, other.longitudes) &&
+            haveSameRows(timestampsMillis, other.timestampsMillis) &&
+            haveSameRows(confidences, other.confidences)
+
+    // Each compares the rows 0 until size alone, past which a column can hold anything.
+    private fun haveSameRows(column: Array<String>, otherColumn: Array<String>): Boolean =
+        Arrays.equals(column, 0, size, otherColumn, 0, size)
+
+    private fun haveSameRows(column: DoubleArray, otherColumn: DoubleArray): Boolean =
+        Arrays.equals(column, 0, size, otherColumn, 0, size)
+
+    private fun haveSameRows(column: LongArray, otherColumn: LongArray): Boolean =
+        Arrays.equals(column, 0, size, otherColumn, 0, size)
+
+    private fun haveSameRows(column: ByteArray, otherColumn: ByteArray): Boolean =
+        Arrays.equals(column, 0, size, otherColumn, 0, size)
 
     /**
      * Puts posts, in the order they are added, into a [PostTable].
@@ -130,10 +162,6 @@ class PostTable private constructor(
         private val longitudes = DoubleArray(capacity)
         private val imageUris = Array(capacity) { "" }
         private val captions = Array(capacity) { "" }
-        private val likeCounts = IntArray(capacity)
-        private val commentCounts = IntArray(capacity)
-        private val liked = BitSet(capacity)
-        private val bookmarked = BitSet(capacity)
         private val timestampsMillis = LongArray(capacity)
         private val animalTypes = Array(capacity) { "" }
         private val confidences = ByteArray(capacity)
@@ -147,28 +175,27 @@ class PostTable private constructor(
             check(size < capacity) { "Can't add a post past the capacity of $capacity" }
             addTexts(size, post)
             addNumbers(size, post)
-            addFlags(size, post)
             size++
         }
 
-        /** Returns the table of the posts added so far, sharing the arrays when they are full. */
+        /**
+         * Returns the table of the posts added so far. It shares the builder's arrays without
+         * copying them: a post added later goes into a row past the table's size.
+         */
         fun build(): PostTable = PostTable(
-            ids = ids.trimmedTo(size),
-            authorUids = authorUids.trimmedTo(size),
-            usernames = usernames.trimmedTo(size),
-            avatarInitials = avatarInitials.trimmedTo(size),
-            locationNames = locationNames.trimmedTo(size),
-            latitudes = latitudes.trimmedTo(size),
-            longitudes = longitudes.trimmedTo(size),
-            imageUris = imageUris.trimmedTo(size),
-            captions = captions.trimmedTo(size),
-            likeCounts = likeCounts.trimmedTo(size),
-            commentCounts = commentCounts.trimmedTo(size),
-            liked = liked.trimmedTo(size),
-            bookmarked = bookmarked.trimmedTo(size),
-            timestampsMillis = timestampsMillis.trimmedTo(size),
-            animalTypes = animalTypes.trimmedTo(size),
-            confidences = confidences.trimmedTo(size)
+            size = size,
+            ids = ids,
+            authorUids = authorUids,
+            usernames = usernames,
+            avatarInitials = avatarInitials,
+            locationNames = locationNames,
+            latitudes = latitudes,
+            longitudes = longitudes,
+            imageUris = imageUris,
+            captions = captions,
+            timestampsMillis = timestampsMillis,
+            animalTypes = animalTypes,
+            confidences = confidences
         )
 
         private fun addTexts(row: Int, post: Post) {
@@ -185,24 +212,8 @@ class PostTable private constructor(
         private fun addNumbers(row: Int, post: Post) {
             latitudes[row] = post.latitude
             longitudes[row] = post.longitude
-            likeCounts[row] = post.likeCount
-            commentCounts[row] = post.commentCount
             timestampsMillis[row] = post.timestamp.toEpochMilli()
             confidences[row] = post.confidence?.toConfidenceByte() ?: NO_CONFIDENCE
-        }
-
-        private fun addFlags(row: Int, post: Post) {
-            liked[row] = post.isLiked
-            bookmarked[row] = post.isBookmarked
-        }
-
-        // A bitset shared with the table while rows can still be added would change the table.
-        private fun BitSet.trimmedTo(size: Int): BitSet = if (size ==
-            capacity
-        ) {
-            this
-        } else {
-            get(0, size)
         }
     }
 
@@ -224,28 +235,4 @@ class PostTable private constructor(
 private fun Int.toConfidenceByte(): Byte {
     require(this in 1..Byte.MAX_VALUE) { "Confidence $this can't be stored" }
     return toByte()
-}
-
-private fun Array<String>.trimmedTo(size: Int): Array<String> =
-    if (size == this.size) this else copyOfRange(0, size)
-
-private fun DoubleArray.trimmedTo(size: Int): DoubleArray =
-    if (size == this.size) this else copyOf(size)
-
-private fun IntArray.trimmedTo(size: Int): IntArray = if (size == this.size) this else copyOf(size)
-
-private fun LongArray.trimmedTo(size: Int): LongArray = if (size ==
-    this.size
-) {
-    this
-} else {
-    copyOf(size)
-}
-
-private fun ByteArray.trimmedTo(size: Int): ByteArray = if (size ==
-    this.size
-) {
-    this
-} else {
-    copyOf(size)
 }

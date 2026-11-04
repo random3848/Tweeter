@@ -4,20 +4,13 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit.MILLIS
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 private const val UNKNOWN_ID = "no-such-post"
 private const val MAYA = "maya"
 private const val JORDAN = "jordan"
-
-// A bitset keeps 64 rows in each word, so rows 63 and 64 sit on either side of a word boundary.
-private const val ROWS_ACROSS_TWO_WORDS = 66
-private const val LAST_ROW_OF_FIRST_WORD = 63
-private const val FIRST_ROW_OF_SECOND_WORD = 64
 
 private const val MOST_CONFIDENT = 5
 
@@ -26,10 +19,13 @@ class PostTableTest {
     private val posts = SAMPLE_POSTS.map { it.copy(timestamp = it.timestamp.truncatedTo(MILLIS)) }
 
     @Test
-    fun of_posts_eachRowHoldsItsPostsFields() {
+    fun of_posts_eachRowHoldsItsPostsShownFields() {
         val table = PostTable.of(posts)
 
-        assertEquals(posts, posts.indices.map { table.postAt(it) })
+        assertEquals(
+            posts.map { it.withUnshownFieldsCleared() },
+            posts.indices.map { table.postAt(it) }
+        )
     }
 
     @Test
@@ -56,25 +52,6 @@ class PostTableTest {
         val table = PostTable.of(listOf(SAMPLE_POSTS.first().copy(confidence = MOST_CONFIDENT)))
 
         assertEquals(MOST_CONFIDENT, table.confidence(0))
-    }
-
-    @Test
-    fun isLiked_rowsOnEitherSideOfBitsetWordBoundary_keepTheirOwnFlags() {
-        val posts = List(ROWS_ACROSS_TWO_WORDS) { row ->
-            SAMPLE_POSTS.first().copy(id = "$row", isLiked = row == FIRST_ROW_OF_SECOND_WORD)
-        }
-
-        val table = PostTable.of(posts)
-
-        assertFalse(table.isLiked(LAST_ROW_OF_FIRST_WORD))
-        assertTrue(table.isLiked(FIRST_ROW_OF_SECOND_WORD))
-    }
-
-    @Test
-    fun isBookmarked_isKeptApartFromIsLiked() {
-        val post = SAMPLE_POSTS.first().copy(isLiked = true, isBookmarked = false)
-
-        assertFalse(PostTable.of(listOf(post)).isBookmarked(0))
     }
 
     @Test
@@ -108,6 +85,26 @@ class PostTableTest {
     }
 
     @Test
+    fun rowOf_postAddedAfterBuild_returnsNull() {
+        val builder = builderWithRoomAfter(SAMPLE_POSTS[0])
+        val table = builder.build()
+
+        builder.add(SAMPLE_POSTS[1])
+
+        assertNull(table.rowOf(SAMPLE_POSTS[1].id))
+    }
+
+    @Test
+    fun rowsBy_postAddedAfterBuild_leavesItOut() {
+        val builder = builderWithRoomAfter(SAMPLE_POSTS[0].copy(authorUid = MAYA))
+        val table = builder.build()
+
+        builder.add(SAMPLE_POSTS[1].copy(authorUid = MAYA))
+
+        assertArrayEquals(intArrayOf(0), table.rowsBy(MAYA))
+    }
+
+    @Test
     fun equals_tablesOfSamePosts_areEqual() {
         assertEquals(PostTable.of(SAMPLE_POSTS), PostTable.of(SAMPLE_POSTS))
     }
@@ -125,11 +122,17 @@ class PostTableTest {
     }
 
     @Test
-    fun build_fewerPostsThanCapacity_holdsOnlyAddedPosts() {
-        val builder = PostTable.Builder(capacity = SAMPLE_POSTS.size)
-        builder.add(SAMPLE_POSTS.first())
+    fun hashCode_tableBuiltWithRoomLeft_equalsHashCodeOfFullTable() {
+        val full = PostTable.of(listOf(SAMPLE_POSTS[0]))
 
-        assertEquals(PostTable.of(listOf(SAMPLE_POSTS.first())), builder.build())
+        assertEquals(full.hashCode(), builderWithRoomAfter(SAMPLE_POSTS[0]).build().hashCode())
+    }
+
+    @Test
+    fun build_fewerPostsThanCapacity_holdsOnlyAddedPosts() {
+        val builder = builderWithRoomAfter(SAMPLE_POSTS[0])
+
+        assertEquals(PostTable.of(listOf(SAMPLE_POSTS[0])), builder.build())
     }
 
     @Test(expected = IllegalStateException::class)
@@ -142,16 +145,23 @@ class PostTableTest {
 
     @Test
     fun build_beforeBuilderIsFull_tableIgnoresPostsAddedLater() {
-        val builder = PostTable.Builder(capacity = 2)
-        builder.add(SAMPLE_POSTS[0])
+        val builder = builderWithRoomAfter(SAMPLE_POSTS[0])
         val table = builder.build()
 
-        builder.add(SAMPLE_POSTS[1].copy(isLiked = true, isBookmarked = true))
+        builder.add(SAMPLE_POSTS[1])
 
         assertEquals(PostTable.of(listOf(SAMPLE_POSTS[0])), table)
     }
 
-    // The post a row holds, read back field by field.
+    // A builder holding [post], with room for one more.
+    private fun builderWithRoomAfter(post: Post): PostTable.Builder {
+        val builder = PostTable.Builder(capacity = 2)
+        builder.add(post)
+        return builder
+    }
+
+    // The post a row holds, read back field by field, with the fields the table doesn't keep
+    // cleared.
     private fun PostTable.postAt(row: Int): Post = Post(
         id = id(row),
         authorUid = authorUid(row),
@@ -162,12 +172,16 @@ class PostTableTest {
         longitude = longitude(row),
         imageUri = imageUri(row),
         caption = caption(row),
-        likeCount = likeCount(row),
-        commentCount = commentCount(row),
-        isLiked = isLiked(row),
-        isBookmarked = isBookmarked(row),
+        likeCount = 0,
+        commentCount = 0,
+        isLiked = false,
+        isBookmarked = false,
         timestamp = Instant.ofEpochMilli(timestampMillis(row)),
         animalType = animalType(row),
         confidence = confidence(row)
     )
+
+    // No screen shows these fields yet, so the table doesn't keep them.
+    private fun Post.withUnshownFieldsCleared(): Post =
+        copy(likeCount = 0, commentCount = 0, isLiked = false, isBookmarked = false)
 }

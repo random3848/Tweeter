@@ -14,11 +14,12 @@ Layout:
   repositories screens use through interfaces (`PostRepository`, `ProfileRepository`,
   `AccountRepository`, `PhotoRepository`). `AppContainer` (owned by `TweeterApplication`) creates
   one Firebase implementation of each. Screens read posts as one `PostTable`, a structure of
-  arrays with one array per `Post` field, and keep rows of it (`Int` indices) rather than `Post`
-  objects; something that can outlive its table, such as a map pin, keeps the post's ID instead.
-  `PostDocument` and `ProfileDocument` map the models to Firestore fields, and a field added to
-  `PostDocument` also goes into the `hasOnly` list in `firestore.rules` and gets a `PostTable`
-  column. `FakePostRepository` is an in-memory `PostRepository` for tests and for working offline.
+  arrays with one array per `Post` field that a screen shows, and keep rows of it (`Int` indices)
+  rather than `Post` objects; something that can outlive its table, such as a map pin, keeps the
+  post's ID instead. `PostDocument` and `ProfileDocument` map the models to Firestore fields, and a
+  field added to `PostDocument` also goes into the `hasOnly` list in `firestore.rules`, and into a
+  `PostTable` column once a screen shows it. `FakePostRepository` is an in-memory `PostRepository`
+  for tests and for working offline.
 - `app/src/main/java/edu/csuci/tweeter/location/`: finding where a photo was taken
   (`PhotoLocator`, from its EXIF tags or the device) and removing its location tags before upload
   (`LocationTagRemover`).
