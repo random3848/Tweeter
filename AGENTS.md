@@ -426,3 +426,49 @@ Concurrency:
   or slow fakes, many times over.
 - A test that fails once and then passes has found a real bug; suspect a race first. Find it
   instead of rerunning until it passes.
+
+## Performance
+
+The app stays smooth when the main thread only composes, lays out and draws. These rules come from
+tracing the app; the commit that added each one says what it measured.
+
+Threads:
+- Nothing that blocks or takes more than a few milliseconds runs on the main thread: file and
+  network I/O, decoding, parsing, or a pass over every post. It runs in a `suspend` function on an
+  injected dispatcher, `Dispatchers.IO` for blocking calls and `Dispatchers.Default` for
+  computation, started by a ViewModel or repository, never by a composable or a click handler.
+- Derived data is computed once per change of its input, where the change arrives: drop inputs
+  equal to the last with `distinctUntilChanged()` first, and never recompute on every
+  recomposition. Firestore snapshots are parsed one at a time, in order, on the post repository's
+  serial executor.
+- Spread work over more threads only when it is slow enough to gain from it. A pass over the posts
+  takes milliseconds; splitting it costs more than it saves, and can reorder results.
+
+Startup:
+- The first frame waits for everything its composition touches. A library whose first use is slow
+  (Firebase, MapLibre) is started from `AppContainer.prepareFirstScreens()` on background threads,
+  and something not on screen at launch, like the map, is composed from the frame after the first.
+
+Drawing:
+- Keep the GPU paths on: Compose draws with hardware acceleration, Coil decodes photos off the
+  main thread into hardware bitmaps, and MapLibre renders with Vulkan in a SurfaceView. Don't turn
+  any of them off.
+- A bitmap in `res/` is no bigger than it is drawn at xxxhdpi (4×) and goes in `drawable-xxxhdpi`.
+  `painterResource` decodes it on the main thread, and Android scales a bitmap in `drawable/` up
+  from mdpi, 2.6× on a 420 dpi screen.
+- Lists give their items stable keys (the post ID), and item composables take the values they show
+  rather than the table, so Compose skips the ones that didn't change.
+
+Data:
+- Posts are one `PostTable`; screens keep rows and pass on the values they show, never a `Post` or
+  a list of them. No objects or maps per post, and no copies of the table.
+- No caches beyond Coil's, Firestore's and MapLibre's tile cache. When something is slow, make it
+  cheaper, or compute it once when its input changes, instead of caching it.
+
+Builds and measuring:
+- Release builds run R8 with resource shrinking. The app reads nothing by reflection, so it needs
+  no keep rules; keep it that way.
+- Measure before and after a change meant to make the app faster, with a Perfetto trace of the same
+  steps (or `dumpsys gfxinfo` for frame times), and put the numbers in the commit message. Judge
+  speed on a release build: a debug build is debuggable and, on the emulator, takes about twice as
+  long to start.
