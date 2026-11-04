@@ -53,7 +53,7 @@ class FeedViewModel(
 
     /**
      * The ID of the post another screen asked the feed to show, such as Map's popup, or null. The
-     * feed scrolls to it, then calls [clearPostToShow].
+     * feed scrolls to it once its posts include it, then calls [clearPostToShow].
      */
     val postToShow: StateFlow<String?> = feedSelection.postId
 

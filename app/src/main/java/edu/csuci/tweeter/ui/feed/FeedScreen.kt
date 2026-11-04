@@ -60,16 +60,13 @@ fun FeedScreen(
 
     LaunchedEffect(postToShow, uiState.posts) {
         val postId = postToShow ?: return@LaunchedEffect
-        val posts = uiState.posts
-        // The post came from another screen, so an empty feed hasn't loaded yet.
-        if (posts.isEmpty()) {
-            return@LaunchedEffect
-        }
-        val index = posts.indexOfFirst { it.id == postId }
+        val index = uiState.posts.indexOfFirst { it.id == postId }
+        // The feed can still show the posts it had before this one was shared, so the request
+        // stays until a list with the post arrives.
         if (index >= 0) {
             listState.scrollToItem(index)
+            feedViewModel.clearPostToShow()
         }
-        feedViewModel.clearPostToShow()
     }
 
     when {
