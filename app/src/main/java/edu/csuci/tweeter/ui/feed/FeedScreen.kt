@@ -23,17 +23,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.data.Post
 import edu.csuci.tweeter.ui.profile.timeAgoText
-
-/** Font size for post captions in the home feed. */
-private val CAPTION_FONT_SIZE = 16.sp
 
 /**
  * The home feed, the screen the app opens to.
@@ -131,7 +126,6 @@ fun FeedPostItem(post: Post, modifier: Modifier = Modifier) {
                 Text(
                     text = post.username,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 val timeAgo = timeAgoText(post.timestamp)
@@ -150,35 +144,25 @@ fun FeedPostItem(post: Post, modifier: Modifier = Modifier) {
 
         PhotoCard(imageUri = post.imageUri)
 
-        val hasCaption = post.caption.isNotBlank() &&
-            !post.caption.equals("undefined", ignoreCase = true) &&
-            !post.caption.equals("null", ignoreCase = true)
+        val hasCaption = post.caption.isNotBlank()
 
         if (hasCaption) {
             Text(
                 text = post.caption,
-                style = MaterialTheme.typography.bodyLarge.copy(fontSize = CAPTION_FONT_SIZE),
-                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 12.dp, top = 8.dp, end = 12.dp)
             )
         }
-
-        val hasAnimalType = post.animalType.isNotBlank() &&
-            !post.animalType.equals("null", ignoreCase = true) &&
-            !post.animalType.equals("undefined", ignoreCase = true)
+        val hasAnimalType = post.animalType.isNotBlank()
         val hasConfidence = post.confidence != null
 
         if (hasAnimalType || hasConfidence) {
             val animalStr = if (hasAnimalType) post.animalType else null
-            val confidencePercent = when {
-                post.confidence == null -> null
-                post.confidence in 1..5 -> post.confidence * 20
-                else -> post.confidence
+            val confidenceStr = post.confidence?.let {
+                stringResource(R.string.feed_confidence_rating, it)
             }
-            val confidenceStr = confidencePercent?.let {
-                stringResource(R.string.feed_confidence_percentage, it)
-            }
-            val infoText = listOfNotNull(animalStr, confidenceStr).joinToString(" • ")
+            val infoText = listOfNotNull(animalStr, confidenceStr).joinToString(" · ")
 
             Text(
                 text = infoText,
