@@ -13,6 +13,13 @@ object ProfileDocument {
     private const val BIO = "bio"
     private const val PHOTO_URL = "photoUrl"
 
+    /** Returns the fields to store for [profile]; its [UserProfile.uid] is the document ID. */
+    fun fieldsOf(profile: UserProfile): Map<String, Any> = mapOf(
+        DISPLAY_NAME to profile.displayName,
+        BIO to profile.bio,
+        PHOTO_URL to profile.photoUrl
+    )
+
     /**
      * Returns the profile of user [uid] stored with [fields], which are null when the user has no
      * document yet.

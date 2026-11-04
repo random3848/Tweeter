@@ -15,7 +15,6 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.firebase.FirebaseException
 import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
-import edu.csuci.tweeter.data.Avatar
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PhotoUploadException
 import edu.csuci.tweeter.data.Post
@@ -33,11 +32,9 @@ import java.io.IOException
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-
-// Who a post is by when nobody is logged in.
-private const val GUEST_USERNAME = "guest"
 
 /**
  * Finds where the post's photo was taken, uploads the photo, shares it as a post, and holds the
@@ -53,6 +50,9 @@ class PostViewModel(
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     private var locateJob: Job? = null
+
+    /** The logged-in user's ID, or null while nobody is logged in and posting isn't allowed. */
+    val loggedInUid: StateFlow<String?> = accountRepository.loggedInUid
 
     /** Whether the photo is being uploaded and shared. */
     var isUploading by mutableStateOf(false)
@@ -81,9 +81,9 @@ class PostViewModel(
         private set
 
     /**
-     * Uploads [uri] without its location tags and shares it as a post at [location], by the
-     * logged-in user or as a guest. Ignored while one runs, after the post is shared, or while
-     * [location] is null.
+     * Uploads [uri] without its location tags and shares it as a post at [location] by the
+     * logged-in user. Ignored while one runs, after the post is shared, or while [location] is
+     * null. Fails if nobody is logged in.
      */
     fun uploadPhoto(uri: Uri, caption: String, animalType: String, confidence: Int?) {
         val point = location?.point
@@ -100,6 +100,12 @@ class PostViewModel(
             try {
                 copy = locationTagRemover.copyWithoutLocation(uri)
                 val author = profileRepository.getLoggedInProfile(accountRepository).first()
+                if (author == null) {
+                    Log.e("PostViewModel", "Nobody is logged in, so the post can't be shared")
+                    uploadFailed = true
+                    return@launch
+                }
+
                 val photoUrl = photoRepository.uploadPhoto(Uri.fromFile(copy))
                 postRepository.addPost(
                     newPost(photoUrl, point, author, caption, animalType, confidence)
@@ -156,19 +162,18 @@ class PostViewModel(
         location = LocationFix(point, LocationSource.MANUAL)
     }
 
-    // [author] is null when nobody is logged in.
     private fun newPost(
         photoUrl: String,
         point: GeoPoint,
-        author: UserProfile?,
+        author: UserProfile,
         caption: String,
         animalType: String,
         confidence: Int?
     ): Post = Post(
         id = UUID.randomUUID().toString(),
-        authorUid = author?.uid ?: "",
-        username = author?.displayName ?: GUEST_USERNAME,
-        avatar = author?.avatar ?: Avatar(initials = GUEST_USERNAME.take(1).uppercase()),
+        authorUid = author.uid,
+        username = author.displayName,
+        avatar = author.avatar,
         locationName = "",
         latitude = point.latitude,
         longitude = point.longitude,

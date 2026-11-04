@@ -1,5 +1,6 @@
 package edu.csuci.tweeter
 
+import android.content.Context
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
@@ -11,6 +12,7 @@ import edu.csuci.tweeter.data.FirestoreProfileRepository
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.ProfileRepository
+import edu.csuci.tweeter.location.LocationTagRemover
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 
 /**
@@ -35,8 +37,10 @@ import edu.csuci.tweeter.ui.navigation.ShowPostRequest
  * ```
  * and its screen creates it with `viewModel(factory = MapViewModel.factory)`, from
  * `androidx.lifecycle:lifecycle-viewmodel-compose`. `ui/map/MapViewModel.kt` is this example.
+ *
+ * @param context Any context; objects that need one keep only its application context.
  */
-class AppContainer {
+class AppContainer(private val context: Context) {
     /** Every post in the app, stored in Firestore. */
     val postRepository: PostRepository by lazy {
         FirestorePostRepository(
@@ -57,11 +61,12 @@ class AppContainer {
         FirebaseAccountRepository(auth = FirebaseAuth.getInstance())
     }
 
-    /** Uploads camera photos to Firebase Storage. */
+    /** Uploads post and profile photos to Firebase Storage. */
     val photoRepository: PhotoRepository by lazy {
         FirebasePhotoRepository(
             auth = FirebaseAuth.getInstance(),
-            storage = FirebaseStorage.getInstance()
+            storage = FirebaseStorage.getInstance(),
+            locationTagRemover = LocationTagRemover(context)
         )
     }
 

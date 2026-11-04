@@ -32,6 +32,12 @@ android {
         buildConfig = true
         compose = true
     }
+
+    // Android calls such as Log.e do nothing in JVM unit tests instead of throwing, so tests can
+    // reach the code paths that log failures.
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 // ktlint parses Kotlin as the version it ships with, which can be older than the compiler. The

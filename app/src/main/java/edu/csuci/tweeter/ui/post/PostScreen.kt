@@ -30,10 +30,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.location.LocationFix
 import edu.csuci.tweeter.location.LocationSource
+import edu.csuci.tweeter.ui.auth.LogInPrompt
 import edu.csuci.tweeter.ui.location.LocationPicker
 import java.io.File
 import java.io.IOException
@@ -53,13 +55,37 @@ private fun deleteCachedPhoto(path: String?) {
 
 /**
  * Takes a photo or picks one from the camera roll, finds where it was taken, and lets the user
- * move that location on a map and share the photo as a post.
+ * move that location on a map and share the photo as a post. Guests can only browse, so while
+ * nobody is logged in it asks the user to log in instead.
+ *
+ * @param onLogIn Opens the login form.
+ * @param onCreateAccount Opens the registration form.
+ * @param modifier Applied to the whole screen.
+ * @param postViewModel Shares the post and says whether anyone is logged in.
  */
 @Composable
 fun PostScreen(
+    onLogIn: () -> Unit,
+    onCreateAccount: () -> Unit,
     modifier: Modifier = Modifier,
     postViewModel: PostViewModel = viewModel(factory = PostViewModel.factory)
 ) {
+    val loggedInUid by postViewModel.loggedInUid.collectAsStateWithLifecycle()
+
+    if (loggedInUid == null) {
+        LogInPrompt(
+            title = stringResource(R.string.post_log_in_title),
+            onLogIn = onLogIn,
+            onCreateAccount = onCreateAccount,
+            modifier = modifier
+        )
+    } else {
+        PostForm(postViewModel = postViewModel, modifier = modifier)
+    }
+}
+
+@Composable
+private fun PostForm(postViewModel: PostViewModel, modifier: Modifier = Modifier) {
     val context = LocalContext.current
 
     var photoUri by rememberSaveable { mutableStateOf<String?>(null) }

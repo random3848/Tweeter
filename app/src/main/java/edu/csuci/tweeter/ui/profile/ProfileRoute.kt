@@ -14,17 +14,20 @@ object ProfileRoute
  * @param onBack Returns to the previous screen.
  * @param onLogIn Opens the login form.
  * @param onCreateAccount Opens the registration form.
+ * @param onEditProfile Opens Edit profile.
  */
 fun NavGraphBuilder.addProfileScreen(
     onBack: () -> Unit,
     onLogIn: () -> Unit,
-    onCreateAccount: () -> Unit
+    onCreateAccount: () -> Unit,
+    onEditProfile: () -> Unit
 ) {
     composable<ProfileRoute> {
         ProfileScreen(
             onBack = onBack,
             onLogIn = onLogIn,
-            onCreateAccount = onCreateAccount
+            onCreateAccount = onCreateAccount,
+            onEditProfile = onEditProfile
         )
     }
 }
