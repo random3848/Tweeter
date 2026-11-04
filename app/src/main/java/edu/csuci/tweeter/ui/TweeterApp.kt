@@ -113,7 +113,9 @@ fun TweeterApp(modifier: Modifier = Modifier) {
                     when {
                         route == null -> false
 
-                        route == FeedRoute && isOnProfile -> true
+                        // Profile and authentication screens open from Feed.
+                        // Keep Home selected while those screens are open.
+                        route == FeedRoute && (isOnProfile || isOnAuth) -> true
 
                         else -> {
                             destination?.hierarchy.orEmpty().any {

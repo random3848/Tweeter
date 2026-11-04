@@ -11,8 +11,8 @@ object ProfileRoute
 /**
  * Registers Profile and its authentication navigation callbacks.
  *
- * @param onBack Returns to previous screen
- * @param onLogIn Opens the login form
+ * @param onBack Returns to the previous screen.
+ * @param onLogIn Opens the login form.
  * @param onCreateAccount Opens the registration form.
  */
 fun NavGraphBuilder.addProfileScreen(

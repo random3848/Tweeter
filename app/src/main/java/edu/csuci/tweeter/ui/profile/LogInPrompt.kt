@@ -24,7 +24,6 @@ import edu.csuci.tweeter.R
  * @param onCreateAccount Opens the registration form.
  * @param modifier Applied to the whole prompt.
  */
-
 @Composable
 fun LogInPrompt(onLogIn: () -> Unit, onCreateAccount: () -> Unit, modifier: Modifier = Modifier) {
     Column(

@@ -15,6 +15,7 @@ import com.google.firebase.FirebaseException
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.FirebaseTooManyRequestsException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import edu.csuci.tweeter.R
@@ -111,6 +112,7 @@ class AuthViewModel(private val accountRepository: AccountRepository) : ViewMode
                     is FirebaseAuthWeakPasswordException -> R.string.auth_weak_password
                     is FirebaseAuthUserCollisionException -> R.string.auth_email_in_use
                     is FirebaseAuthInvalidCredentialsException -> R.string.auth_invalid_credentials
+                    is FirebaseAuthInvalidUserException -> R.string.auth_invalid_credentials
                     is FirebaseNetworkException -> R.string.auth_network_error
                     is FirebaseTooManyRequestsException -> R.string.auth_too_many_requests
                     else -> R.string.auth_failed
@@ -148,6 +150,7 @@ class AuthViewModel(private val accountRepository: AccountRepository) : ViewMode
                 accountRepository.resetPassword(email)
                 passwordResetSent = true
             } catch (error: FirebaseException) {
+                Log.e("AuthViewModel", "Password reset failed", error)
                 errorMessageId = when (error) {
                     is FirebaseNetworkException -> R.string.auth_network_error
                     is FirebaseTooManyRequestsException -> R.string.auth_too_many_requests

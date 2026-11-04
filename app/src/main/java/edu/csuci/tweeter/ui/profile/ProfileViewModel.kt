@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.google.firebase.FirebaseException
 import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
 import edu.csuci.tweeter.data.Post
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 /** What [ProfileScreen] shows. */
 sealed interface ProfileUiState {
@@ -48,7 +50,6 @@ sealed interface ProfileUiState {
  * @param profileRepository Where the profile is read from.
  * @param postRepository Where the user's posts are read from.
  */
-
 class ProfileViewModel(
     private val accountRepository: AccountRepository,
     profileRepository: ProfileRepository,
@@ -78,9 +79,19 @@ class ProfileViewModel(
             initialValue = ProfileUiState.Loading
         )
 
-    /** Logs out so Profile returns to its authentication prompt. */
+    /** Signs out and restores the Firebase session used for guest browsing. */
     fun logOut() {
-        accountRepository.logOut()
+        viewModelScope.launch {
+            try {
+                accountRepository.logOut()
+            } catch (error: FirebaseException) {
+                Log.e(
+                    "ProfileViewModel",
+                    "Signed out, but could not restore guest access",
+                    error
+                )
+            }
+        }
     }
 
     companion object {

@@ -18,11 +18,10 @@
     <string name="profile_empty_title">No posts yet</string>
     <string name="profile_empty_message">Photos you share show up here.</string>
     <string name="profile_post_details">%1$s · %2$s</string>
-    <string name="profile_log_in_title">Log in to see your profile</string>
-    <string name="profile_log_in_message">Or join the community by creating an account</string>
+    <string name="profile_log_in_title">Log in to see your profile.</string>
+    <string name="profile_log_in_message">New Here? Create an account to share your photos.</string>
     <string name="profile_log_in">Log in</string>
     <string name="profile_create_account">Create account</string>
-    <string name="profile_log_in_failed">Could not log in. Please try again.</string>
 
     <string name="time_ago_just_now">Just now</string>
     <plurals name="time_ago_minutes">

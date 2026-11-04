@@ -62,8 +62,13 @@ class FirebaseAccountRepository(private val auth: FirebaseAuth) : AccountReposit
         updateLoggedInUser()
     }
 
-    override fun logOut() {
+    override suspend fun logOut() {
         auth.signOut()
+        updateLoggedInUser()
+
+        // Feed and Map need a Firebase session even while browsing as a guest.
+        auth.signInAnonymously().await()
+
         updateLoggedInUser()
     }
 

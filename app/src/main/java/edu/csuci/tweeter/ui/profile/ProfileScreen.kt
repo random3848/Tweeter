@@ -51,18 +51,17 @@ fun ProfileScreen(
     val uiState by profileViewModel.uiState.collectAsStateWithLifecycle()
 
     Column(modifier = modifier.fillMaxSize()) {
-        BackTopBar(title = stringResource(R.string.navigation_profile), onBack = onBack)
-
-        if (uiState is ProfileUiState.LoggedIn) {
-            TextButton(
-                onClick = profileViewModel::logOut,
-                modifier = Modifier
-                    .align(Alignment.End)
-                    .padding(horizontal = 16.dp)
-            ) {
-                Text(text = stringResource(R.string.profile_log_out))
+        BackTopBar(
+            title = stringResource(R.string.navigation_profile),
+            onBack = onBack,
+            actions = {
+                if (uiState is ProfileUiState.LoggedIn) {
+                    TextButton(onClick = profileViewModel::logOut) {
+                        Text(text = stringResource(R.string.profile_log_out))
+                    }
+                }
             }
-        }
+        )
 
         when (val state = uiState) {
             ProfileUiState.Loading -> {

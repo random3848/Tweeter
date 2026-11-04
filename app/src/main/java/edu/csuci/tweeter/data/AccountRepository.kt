@@ -5,19 +5,17 @@ import kotlinx.coroutines.flow.StateFlow
 /**
  * Who is logged in.
  *
- * Anonymous guests have no logged-in UID here. Firebase handles credentials
- * through the implementation supplied by AppContainer
+ * Anonymous Firebase users count as logged out, so [loggedInUid] is null for them.
  */
-
 interface AccountRepository {
     /** The logged-in user's Firebase Authentication ID, or null while nobody is logged in. */
     val loggedInUid: StateFlow<String?>
 
     /**
-     * Sings in to an existing email/password account.
+     * Signs in to an existing email/password account.
      *
-     * @param email The account's email address
-     * @param password The account's password
+     * @param email The account's email address.
+     * @param password The account's password.
      */
     suspend fun logIn(email: String, password: String)
 
@@ -29,8 +27,8 @@ interface AccountRepository {
      */
     suspend fun createAccount(email: String, password: String)
 
-    /** Ends the current authenticated session. */
-    fun logOut()
+    /** Signs out of the registered account and restores anonymous guest access. */
+    suspend fun logOut()
 
     /**
      * Requests a password reset email.
