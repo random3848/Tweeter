@@ -22,6 +22,7 @@ class TweeterApplication :
     override fun onCreate() {
         super.onCreate()
         configureMapTiles()
+        container.prepareFirstScreens()
     }
 
     // Firebase Storage sends photos with `Cache-Control: private, max-age=0`, so by default Coil

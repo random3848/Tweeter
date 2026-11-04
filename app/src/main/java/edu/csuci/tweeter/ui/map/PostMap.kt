@@ -45,3 +45,11 @@ internal class PostMap(camera: CameraPosition) : AutoCloseable {
         state.close()
     }
 }
+
+/**
+ * Starts the map engine that every [PostMap] shares, unless it has started: loads its native
+ * libraries and opens its tile cache. Any thread may call it, once [configureMapTiles] has run.
+ */
+internal fun startMapEngine() {
+    DefaultMapRuntime.instance
+}

@@ -16,12 +16,14 @@ import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.location.LocationTagRemover
 import edu.csuci.tweeter.ui.WhileAppVisible
+import edu.csuci.tweeter.ui.map.startMapEngine
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 /**
  * The objects the whole app shares, created once by [TweeterApplication].
@@ -50,7 +52,8 @@ import kotlinx.coroutines.flow.map
  * @param context Any context; objects that need one keep only its application context.
  */
 class AppContainer(private val context: Context) {
-    // Lives as long as the app; runs the listeners repositories share between screens.
+    // Lives as long as the app; runs the listeners repositories share between screens, and the
+    // creation of the repositories ahead of the first screen.
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /**
@@ -101,4 +104,19 @@ class AppContainer(private val context: Context) {
         isAppVisible = ProcessLifecycleOwner.get().lifecycle.currentStateFlow
             .map { state -> state.isAtLeast(Lifecycle.State.STARTED) }
     )
+
+    /**
+     * Gets ready, on background threads, what the first screens use: the repositories they read,
+     * and the map engine. Their first use loads classes, settings and native libraries. Started
+     * from `Application.onCreate`, that work runs on other cores while the activity starts,
+     * instead of on the main thread while the first frames wait.
+     */
+    fun prepareFirstScreens() {
+        applicationScope.launch {
+            postRepository
+            profileRepository
+            accountRepository
+        }
+        applicationScope.launch { startMapEngine() }
+    }
 }
