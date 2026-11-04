@@ -105,6 +105,7 @@ class ProfileViewModelTest {
             accountRepository = accountRepository,
             profileRepository = FakeProfileRepository(profiles = listOf(profile)),
             postRepository = postRepository,
+            rowsDispatcher = UnconfinedTestDispatcher(testScheduler),
             sharing = SharingStarted.WhileSubscribed()
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {

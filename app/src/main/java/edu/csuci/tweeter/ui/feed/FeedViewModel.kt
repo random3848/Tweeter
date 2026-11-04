@@ -12,6 +12,7 @@ import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
@@ -41,6 +42,7 @@ class FeedViewModel(
      * The current state of the feed, updated whenever posts change.
      */
     val uiState: StateFlow<FeedUiState> = postRepository.getPostTable()
+        .distinctUntilChanged()
         .map { posts -> FeedUiState(posts = posts, isLoading = false) }
         .stateIn(
             scope = viewModelScope,
