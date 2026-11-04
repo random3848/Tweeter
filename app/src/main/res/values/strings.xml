@@ -7,10 +7,18 @@
     <string name="navigation_profile">Profile</string>
     <string name="navigation_back">Back</string>
 
+    <!-- Two details of a post on one line, such as its place and when it was shared. -->
+    <string name="post_details">%1$s · %2$s</string>
+
     <string name="feed_photo_description">Feed photo</string>
     <string name="feed_empty_message">No photos shared yet.</string>
     <string name="feed_no_photo">No photo</string>
     <string name="feed_confidence_rating">Confidence: %1$d of 5</string>
+    <string name="feed_show_on_map">Show on map</string>
+
+    <string name="map_my_location">Show my location</string>
+    <string name="map_post_photo_description">Photo taken here</string>
+    <string name="map_popup_open">See the post on Home</string>
 
     <plurals name="profile_post_count">
         <item quantity="one">%d post</item>
@@ -19,7 +27,6 @@
     <string name="profile_photo_description">Profile photo</string>
     <string name="profile_empty_title">No posts yet</string>
     <string name="profile_empty_message">Photos you share show up here.</string>
-    <string name="profile_post_details">%1$s · %2$s</string>
     <string name="profile_log_in_title">Log in to see your profile.</string>
     <string name="profile_log_in_message">New Here? Create an account to share your photos.</string>
     <string name="profile_log_in">Log in</string>

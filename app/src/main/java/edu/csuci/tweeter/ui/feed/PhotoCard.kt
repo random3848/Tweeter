@@ -15,13 +15,18 @@ import coil.compose.AsyncImage
 import edu.csuci.tweeter.R
 
 /**
- * A card that displays a photo in the home feed, or a placeholder when no photo is attached.
+ * A post's photo, square, or a placeholder when the post has no photo.
  *
  * @param imageUri The photo's URI string (local file, content URI, or HTTPS URL).
  * @param modifier Applied to the layout container.
+ * @param contentDescription What screen readers say for the photo.
  */
 @Composable
-fun PhotoCard(imageUri: String, modifier: Modifier = Modifier) {
+fun PhotoCard(
+    imageUri: String,
+    modifier: Modifier = Modifier,
+    contentDescription: String = stringResource(R.string.feed_photo_description)
+) {
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -31,7 +36,7 @@ fun PhotoCard(imageUri: String, modifier: Modifier = Modifier) {
         if (imageUri.isNotBlank()) {
             AsyncImage(
                 model = imageUri,
-                contentDescription = stringResource(R.string.feed_photo_description),
+                contentDescription = contentDescription,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxWidth()

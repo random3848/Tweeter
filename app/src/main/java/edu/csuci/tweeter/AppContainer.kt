@@ -11,6 +11,7 @@ import edu.csuci.tweeter.data.FirestoreProfileRepository
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.ProfileRepository
+import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 
 /**
  * The objects the whole app shares, created once by [TweeterApplication].
@@ -24,7 +25,11 @@ import edu.csuci.tweeter.data.ProfileRepository
  * val factory = viewModelFactory {
  *     initializer {
  *         val application = this[APPLICATION_KEY] as TweeterApplication
- *         MapViewModel(application.container.postRepository)
+ *         MapViewModel(
+ *             postRepository = application.container.postRepository,
+ *             showOnMapRequest = application.container.showOnMapRequest,
+ *             showInFeedRequest = application.container.showInFeedRequest
+ *         )
  *     }
  * }
  * ```
@@ -59,4 +64,10 @@ class AppContainer {
             storage = FirebaseStorage.getInstance()
         )
     }
+
+    /** The post Feed asks Map to show. Map opens the post's popup, then clears the request. */
+    val showOnMapRequest: ShowPostRequest = ShowPostRequest()
+
+    /** The post Map's popup asks Feed to show. Feed scrolls to it, then clears the request. */
+    val showInFeedRequest: ShowPostRequest = ShowPostRequest()
 }
