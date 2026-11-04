@@ -9,22 +9,12 @@ import kotlinx.serialization.Serializable
 object ProfileRoute
 
 /**
- * Registers Profile and its authentication navigation callbacks.
+ * Registers [ProfileScreen] under [ProfileRoute] in the app's NavHost.
  *
- * @param onBack Returns to the previous screen.
- * @param onLogIn Opens the login form.
- * @param onCreateAccount Opens the registration form.
+ * @param onBack Leaves Profile for the screen it was opened from.
  */
-fun NavGraphBuilder.addProfileScreen(
-    onBack: () -> Unit,
-    onLogIn: () -> Unit,
-    onCreateAccount: () -> Unit
-) {
+fun NavGraphBuilder.addProfileScreen(onBack: () -> Unit) {
     composable<ProfileRoute> {
-        ProfileScreen(
-            onBack = onBack,
-            onLogIn = onLogIn,
-            onCreateAccount = onCreateAccount
-        )
+        ProfileScreen(onBack = onBack)
     }
 }
