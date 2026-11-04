@@ -1,5 +1,6 @@
 package edu.csuci.tweeter.data
 
+import edu.csuci.tweeter.data.ProfileDocument.Field
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -27,7 +28,10 @@ class ProfileDocumentTest {
     fun toProfile_fieldsOfProfile_returnsSameProfile() {
         val fields = ProfileDocument.fieldsOf(profile)
 
-        assertEquals(profile, ProfileDocument.toProfile(profile.uid, fieldArrayOf(fields)))
+        assertEquals(
+            profile,
+            ProfileDocument.toProfile(profile.uid, Field.entries.readFrom(fields))
+        )
     }
 
     @Test
@@ -50,7 +54,7 @@ class ProfileDocumentTest {
                 bio = "Spiders, mostly.",
                 photoUrl = "https://example.com/maya.jpg"
             ),
-            ProfileDocument.toProfile("uid", fieldArrayOf(fields))
+            ProfileDocument.toProfile("uid", Field.entries.readFrom(fields))
         )
     }
 
@@ -58,7 +62,7 @@ class ProfileDocumentTest {
     fun toProfile_missingFields_defaults() {
         val result = ProfileDocument.toProfile(
             "uid",
-            fieldArrayOf(mapOf("displayName" to "Maya Kim"))
+            Field.entries.readFrom(mapOf("displayName" to "Maya Kim"))
         )
 
         assertEquals(
@@ -69,7 +73,9 @@ class ProfileDocumentTest {
 
     @Test
     fun toProfile_blankName_defaultName() {
-        val result = ProfileDocument.toProfile("uid", fieldArrayOf(mapOf("displayName" to "  ")))
+        val fields = mapOf("displayName" to "  ")
+
+        val result = ProfileDocument.toProfile("uid", Field.entries.readFrom(fields))
 
         assertEquals(UserProfile.DEFAULT_DISPLAY_NAME, result.displayName)
     }
@@ -80,11 +86,7 @@ class ProfileDocumentTest {
 
         assertEquals(
             UserProfile.createDefault("uid"),
-            ProfileDocument.toProfile("uid", fieldArrayOf(fields))
+            ProfileDocument.toProfile("uid", Field.entries.readFrom(fields))
         )
     }
-
-    // The fields as Firestore reads them into the array, in ProfileDocument.Field order.
-    private fun fieldArrayOf(fields: Map<String, Any?>): Array<Any?> =
-        Array(ProfileDocument.Field.entries.size) { fields[ProfileDocument.Field.entries[it].key] }
 }

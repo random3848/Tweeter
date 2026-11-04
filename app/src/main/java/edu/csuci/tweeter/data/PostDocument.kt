@@ -21,10 +21,7 @@ object PostDocument {
     private const val MAX_CONFIDENCE = 5
 
     /** A stored field, whose ordinal is its index in the array [toPost] reads. */
-    enum class Field(
-        /** The field's name in the document. */
-        val key: String
-    ) {
+    enum class Field(override val key: String) : DocumentField {
         /** The poster's ID. */
         AUTHOR_UID("authorUid"),
 

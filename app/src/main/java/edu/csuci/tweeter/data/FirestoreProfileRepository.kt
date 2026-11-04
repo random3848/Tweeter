@@ -1,7 +1,6 @@
 package edu.csuci.tweeter.data
 
 import com.google.firebase.firestore.DocumentSnapshot
-import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -47,8 +46,6 @@ class FirestoreProfileRepository(firestore: FirebaseFirestore) : ProfileReposito
     }
 
     private companion object {
-        val fieldPaths = Array(ProfileDocument.Field.entries.size) {
-            FieldPath.of(ProfileDocument.Field.entries[it].key)
-        }
+        val fieldPaths = fieldPathsOf(ProfileDocument.Field.entries)
     }
 }

@@ -11,10 +11,7 @@ object ProfileDocument {
     const val COLLECTION = "users"
 
     /** A stored field, whose ordinal is its index in the array [toProfile] reads. */
-    enum class Field(
-        /** The field's name in the document. */
-        val key: String
-    ) {
+    enum class Field(override val key: String) : DocumentField {
         /** The name the user shows. */
         DISPLAY_NAME("displayName"),
 

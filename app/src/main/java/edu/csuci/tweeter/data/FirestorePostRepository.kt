@@ -4,7 +4,6 @@ import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.DocumentSnapshot.ServerTimestampBehavior
-import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
@@ -90,9 +89,7 @@ class FirestorePostRepository(
     private companion object {
         const val TAG = "FirestorePostRepo"
 
-        val fieldPaths = Array(PostDocument.Field.entries.size) {
-            FieldPath.of(PostDocument.Field.entries[it].key)
-        }
+        val fieldPaths = fieldPathsOf(PostDocument.Field.entries)
 
         // Overwrites this array with [document]'s fields, in PostDocument.Field order. A post this
         // phone just added has no server time yet; until Firestore sets it, use Firestore's
