@@ -29,7 +29,6 @@ import edu.csuci.tweeter.location.LocationFix
 import edu.csuci.tweeter.location.LocationSource
 import edu.csuci.tweeter.location.LocationTagRemover
 import edu.csuci.tweeter.location.PhotoLocator
-import java.io.File
 import java.io.IOException
 import java.time.Instant
 import java.util.UUID
@@ -99,22 +98,23 @@ class PostViewModel(
         uploadedPhotoUrl = null
 
         viewModelScope.launch {
-            var copy: File? = null
             try {
-                copy = locationTagRemover.copyWithoutLocation(uri)
-                val author = profileRepository.getLoggedInProfile(accountRepository).first()
-                if (author == null) {
-                    Log.e("PostViewModel", "Nobody is logged in, so the post can't be shared")
-                    uploadFailed = true
-                    return@launch
-                }
-
-                val photoUrl = photoRepository.uploadPhoto(Uri.fromFile(copy))
-                postRepository.addPost(
-                    newPost(photoUrl, point, author, caption, animalType, confidence)
+                val photoUrl = sharePost(
+                    uploadPhoto = { uploadWithoutLocation(uri) },
+                    findAuthor = {
+                        profileRepository.getLoggedInProfile(accountRepository).first()
+                    },
+                    addPost = { uploadedUrl, author ->
+                        postRepository.addPost(
+                            newPost(uploadedUrl, point, author, caption, animalType, confidence)
+                        )
+                    }
                 )
                 uploadedPhotoUrl = photoUrl
                 savedStateHandle["uploadedPhotoUrl"] = uploadedPhotoUrl
+            } catch (error: NobodyLoggedInException) {
+                Log.e("PostViewModel", "Nobody is logged in, so the post can't be shared", error)
+                uploadFailed = true
             } catch (error: PhotoUploadException) {
                 Log.e("PostViewModel", "Photo upload failed", error)
                 uploadFailed = true
@@ -125,9 +125,19 @@ class PostViewModel(
                 Log.e("PostViewModel", "Could not read photo for upload", error)
                 uploadFailed = true
             } finally {
-                copy?.delete()
                 isUploading = false
             }
+        }
+    }
+
+    // Uploads a copy of the photo at [uri] without its location tags, and deletes the copy once
+    // the upload is over.
+    private suspend fun uploadWithoutLocation(uri: Uri): String {
+        val copy = locationTagRemover.copyWithoutLocation(uri)
+        try {
+            return photoRepository.uploadPhoto(Uri.fromFile(copy))
+        } finally {
+            copy.delete()
         }
     }
 
