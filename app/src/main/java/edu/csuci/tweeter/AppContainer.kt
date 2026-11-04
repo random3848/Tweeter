@@ -1,6 +1,8 @@
 package edu.csuci.tweeter
 
 import android.content.Context
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
@@ -13,10 +15,13 @@ import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.location.LocationTagRemover
+import edu.csuci.tweeter.ui.WhileAppVisible
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
 
 /**
  * The objects the whole app shares, created once by [TweeterApplication].
@@ -30,18 +35,17 @@ import kotlinx.coroutines.SupervisorJob
  * val factory = viewModelFactory {
  *     initializer {
  *         val application = this[APPLICATION_KEY] as TweeterApplication
- *         MapViewModel(
+ *         FeedViewModel(
  *             postRepository = application.container.postRepository,
- *             showOnMapRequest = application.container.showOnMapRequest,
  *             showInFeedRequest = application.container.showInFeedRequest,
- *             savedStateHandle = createSavedStateHandle(),
- *             createMap = ::PostMap
+ *             showOnMapRequest = application.container.showOnMapRequest,
+ *             sharing = application.container.whileAppVisible
  *         )
  *     }
  * }
  * ```
- * and its screen creates it with `viewModel(factory = MapViewModel.factory)`, from
- * `androidx.lifecycle:lifecycle-viewmodel-compose`. `ui/map/MapViewModel.kt` is this example.
+ * and its screen creates it with `viewModel(factory = FeedViewModel.factory)`, from
+ * `androidx.lifecycle:lifecycle-viewmodel-compose`. `ui/feed/FeedViewModel.kt` is this example.
  *
  * @param context Any context; objects that need one keep only its application context.
  */
@@ -88,4 +92,13 @@ class AppContainer(private val context: Context) {
 
     /** The post Map's popup asks Feed to show. Feed scrolls to it, then clears the request. */
     val showInFeedRequest: ShowPostRequest = ShowPostRequest()
+
+    /**
+     * When ViewModels share the state their screens show: while the app is on screen. A rotation,
+     * which recreates every screen, doesn't stop their listeners and start them again.
+     */
+    val whileAppVisible: SharingStarted = WhileAppVisible(
+        isAppVisible = ProcessLifecycleOwner.get().lifecycle.currentStateFlow
+            .map { state -> state.isAtLeast(Lifecycle.State.STARTED) }
+    )
 }

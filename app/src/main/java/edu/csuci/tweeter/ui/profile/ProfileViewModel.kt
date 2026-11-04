@@ -65,11 +65,14 @@ sealed interface ProfileUiState {
  * @param accountRepository Supplies the registered user's identity.
  * @param profileRepository Where the profile is read from.
  * @param postRepository Where every post is read from; Profile shows the user's rows of it.
+ * @param sharing When [uiState] follows the account, profile and posts: while the app is on
+ *     screen, in the app.
  */
 class ProfileViewModel(
     private val accountRepository: AccountRepository,
     profileRepository: ProfileRepository,
-    postRepository: PostRepository
+    postRepository: PostRepository,
+    sharing: SharingStarted
 ) : ViewModel() {
     /** The current state of the screen, updated as the user logs in and the profile changes. */
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -91,7 +94,7 @@ class ProfileViewModel(
         }
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(),
+            started = sharing,
             initialValue = ProfileUiState.Loading
         )
 
@@ -118,7 +121,8 @@ class ProfileViewModel(
                 ProfileViewModel(
                     accountRepository = application.container.accountRepository,
                     profileRepository = application.container.profileRepository,
-                    postRepository = application.container.postRepository
+                    postRepository = application.container.postRepository,
+                    sharing = application.container.whileAppVisible
                 )
             }
         }

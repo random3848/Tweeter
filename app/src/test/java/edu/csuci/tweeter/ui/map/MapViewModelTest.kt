@@ -10,6 +10,7 @@ import edu.csuci.tweeter.data.SAMPLE_POSTS
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -228,8 +229,8 @@ class MapViewModelTest {
         )
     }
 
-    // The map follows its posts only while something collects its state, as MapScreen does. No
-    // test shows the map, which needs MapLibre's native engine.
+    // The map follows its posts while the test collects its state, as it does in the app while the
+    // app is on screen. No test shows the map, which needs MapLibre's native engine.
     private fun TestScope.mapViewModel(
         repository: PostRepository = FakePostRepository()
     ): MapViewModel {
@@ -239,7 +240,8 @@ class MapViewModelTest {
             showInFeedRequest = showInFeedRequest,
             savedStateHandle = SavedStateHandle(),
             createMap = { error("Unit tests don't show the map") },
-            pinsDispatcher = UnconfinedTestDispatcher(testScheduler)
+            pinsDispatcher = UnconfinedTestDispatcher(testScheduler),
+            sharing = SharingStarted.WhileSubscribed()
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect()

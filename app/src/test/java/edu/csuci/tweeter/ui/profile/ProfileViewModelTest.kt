@@ -11,6 +11,7 @@ import edu.csuci.tweeter.data.UserProfile
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -95,15 +96,16 @@ class ProfileViewModelTest {
         assertEquals(ProfileUiState.LoggedOut, viewModel.uiState.value)
     }
 
-    // Profile follows its sources only while something collects its state, as ProfileScreen
-    // does.
+    // Profile follows its sources while the test collects its state, as it does in the app while
+    // the app is on screen.
     private fun TestScope.profileViewModel(
         accountRepository: FakeAccountRepository
     ): ProfileViewModel {
         val viewModel = ProfileViewModel(
             accountRepository = accountRepository,
             profileRepository = FakeProfileRepository(profiles = listOf(profile)),
-            postRepository = postRepository
+            postRepository = postRepository,
+            sharing = SharingStarted.WhileSubscribed()
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect()

@@ -12,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
@@ -113,10 +114,12 @@ class FeedViewModelTest {
     private fun feedViewModel(repository: PostRepository = FakePostRepository()) = FeedViewModel(
         postRepository = repository,
         showInFeedRequest = showInFeedRequest,
-        showOnMapRequest = showOnMapRequest
+        showOnMapRequest = showOnMapRequest,
+        sharing = SharingStarted.WhileSubscribed()
     )
 
-    // The feed's state follows the repository only while someone collects it, as the screen does.
+    // The feed's state follows the repository while the test collects it, as it does in the app
+    // while the app is on screen.
     private fun TestScope.collectedFeedViewModel(
         repository: PostRepository = FakePostRepository()
     ): FeedViewModel {
