@@ -5,6 +5,7 @@ package edu.csuci.tweeter.ui.map
 import androidx.lifecycle.SavedStateHandle
 import edu.csuci.tweeter.data.FakePostRepository
 import edu.csuci.tweeter.data.PostRepository
+import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.SAMPLE_POSTS
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 import kotlinx.coroutines.Dispatchers
@@ -21,12 +22,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
+import org.maplibre.compose.sources.GeoJsonData
 
 private const val UNKNOWN_POST_ID = "no-such-post"
+
+private const val ONLY_ROW = 0
 
 class MapViewModelTest {
     private val showOnMapRequest = ShowPostRequest()
     private val showInFeedRequest = ShowPostRequest()
+    private val samplePosts = PostTable.of(SAMPLE_POSTS)
 
     @Before
     fun useTestMainDispatcher() {
@@ -47,8 +52,8 @@ class MapViewModelTest {
 
         assertEquals(
             MapUiState(
-                posts = SAMPLE_POSTS,
-                selectedPost = post,
+                posts = samplePosts,
+                selectedRow = SAMPLE_POSTS.indexOf(post),
                 pendingMove = MapMove.ToPost(post.id)
             ),
             viewModel.uiState.value
@@ -61,7 +66,7 @@ class MapViewModelTest {
 
         viewModel.selectPost(UNKNOWN_POST_ID)
 
-        assertNull(viewModel.uiState.value.selectedPost)
+        assertNull(viewModel.uiState.value.selectedRow)
     }
 
     @Test
@@ -73,7 +78,7 @@ class MapViewModelTest {
 
         repository.addPost(post)
 
-        assertEquals(post, viewModel.uiState.value.selectedPost)
+        assertEquals(ONLY_ROW, viewModel.uiState.value.selectedRow)
     }
 
     @Test
@@ -83,7 +88,7 @@ class MapViewModelTest {
 
         viewModel.clearSelection()
 
-        assertEquals(MapUiState(posts = SAMPLE_POSTS), viewModel.uiState.value)
+        assertEquals(MapUiState(posts = samplePosts), viewModel.uiState.value)
     }
 
     @Test
@@ -105,7 +110,11 @@ class MapViewModelTest {
         viewModel.finishMove(MapMove.ToPost(post.id))
 
         assertEquals(
-            MapUiState(posts = SAMPLE_POSTS, selectedPost = post, pendingMove = null),
+            MapUiState(
+                posts = samplePosts,
+                selectedRow = SAMPLE_POSTS.indexOf(post),
+                pendingMove = null
+            ),
             viewModel.uiState.value
         )
     }
@@ -153,8 +162,8 @@ class MapViewModelTest {
 
         assertEquals(
             MapUiState(
-                posts = SAMPLE_POSTS,
-                selectedPost = post,
+                posts = samplePosts,
+                selectedRow = SAMPLE_POSTS.indexOf(post),
                 pendingMove = MapMove.ToPost(post.id)
             ),
             viewModel.uiState.value
@@ -168,7 +177,7 @@ class MapViewModelTest {
 
         showOnMapRequest.send(post.id)
 
-        assertEquals(post, viewModel.uiState.value.selectedPost)
+        assertEquals(SAMPLE_POSTS.indexOf(post), viewModel.uiState.value.selectedRow)
     }
 
     @Test
@@ -178,7 +187,7 @@ class MapViewModelTest {
 
         val reopenedMap = mapViewModel()
 
-        assertEquals(MapUiState(posts = SAMPLE_POSTS), reopenedMap.uiState.value)
+        assertEquals(MapUiState(posts = samplePosts), reopenedMap.uiState.value)
     }
 
     @Test
@@ -186,9 +195,32 @@ class MapViewModelTest {
         val viewModel = mapViewModel()
         val post = SAMPLE_POSTS[1]
 
-        viewModel.showInFeed(post)
+        viewModel.showInFeed(post.id)
 
         assertEquals(post.id, showInFeedRequest.postId.value)
+    }
+
+    @Test
+    fun uiState_pinsEveryPostOfItsTable() = runTest {
+        val viewModel = mapViewModel()
+
+        val state = viewModel.uiState.value
+
+        assertEquals(GeoJsonData.JsonString(pinsJsonOf(state.posts)), state.pins.geoJson)
+    }
+
+    @Test
+    fun selectPost_pinsSelectedPostAlone() = runTest {
+        val viewModel = mapViewModel()
+        val post = SAMPLE_POSTS[1]
+
+        viewModel.selectPost(post.id)
+
+        val state = viewModel.uiState.value
+        assertEquals(
+            GeoJsonData.JsonString(pinJsonOf(state.posts, SAMPLE_POSTS.indexOf(post))),
+            state.selectedPin
+        )
     }
 
     // The map follows its posts only while something collects its state, as MapScreen does. No

@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import edu.csuci.tweeter.data.Post
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import org.maplibre.compose.camera.CameraUpdate
@@ -77,7 +76,7 @@ fun MapScreen(
     PostMapLayers(viewModel.map, uiState, locationState, onPinClick = viewModel::selectPost)
     val mapState = viewModel.map.state
 
-    BackHandler(enabled = uiState.selectedPost != null, onBack = viewModel::clearSelection)
+    BackHandler(enabled = uiState.selectedRow != null, onBack = viewModel::clearSelection)
     MapMoveEffect(uiState, mapState, locationState, onMoveFinished = viewModel::finishMove)
     MaplibreMap(
         modifier = modifier.fillMaxSize(),
@@ -91,15 +90,13 @@ fun MapScreen(
                     modifier = Modifier.padding(MapOverlay.Spacing)
                 )
             }
-            uiState.selectedPost?.let { post ->
-                PinnedPostPopup(
-                    post = post,
-                    onClick = {
-                        viewModel.showInFeed(post)
-                        onShowInFeed()
-                    }
-                )
-            }
+            PinnedPostPopup(
+                uiState = uiState,
+                onClick = { postId ->
+                    viewModel.showInFeed(postId)
+                    onShowInFeed()
+                }
+            )
         }
     )
 }
@@ -125,11 +122,7 @@ private fun PostMapLayers(
     // MapLibre composes the layers of a map it presents before SideEffects run, and layers it
     // found missing then would disappear from the map for a frame.
     map.layers = {
-        PostPins(
-            posts = uiState.posts,
-            selectedPost = uiState.selectedPost,
-            onPinClick = { currentOnPinClick(it) }
-        )
+        PostPins(uiState, onPinClick = { currentOnPinClick(it) })
         LocationIndicatorLayer(id = "user-location", locationState = locationState)
     }
     // The map outlives this screen; it mustn't keep the screen's location updates.
@@ -156,11 +149,12 @@ private fun MapMoveEffect(
 ) {
     val currentOnMoveFinished by rememberUpdatedState(onMoveFinished)
     val move = uiState.pendingMove
-    val selectedPost = uiState.selectedPost
-    LaunchedEffect(move, selectedPost) {
+    val selectedPostId = uiState.selectedRow?.let(uiState.posts::id)
+    val selectedPosition = uiState.selectedPosition
+    LaunchedEffect(move, selectedPosition) {
         val pendingMove = move ?: return@LaunchedEffect
         val target = when (pendingMove) {
-            is MapMove.ToPost -> selectedPost?.takeIf { it.id == pendingMove.postId }?.position()
+            is MapMove.ToPost -> selectedPosition?.takeIf { selectedPostId == pendingMove.postId }
             MapMove.ToUser -> locationState.awaitLocation()
         } ?: return@LaunchedEffect
         mapState.moveCloseTo(target)
@@ -234,14 +228,24 @@ internal fun MapOverlayScope.MapControls(mapState: MapState, actions: @Composabl
     }
 }
 
-/** [PostPopup] for [post], placed so that its tail points down at the post's pin. */
+/**
+ * [PostPopup] for the selected post of [uiState], placed so that its tail points down at the
+ * post's pin, or nothing if no post is selected.
+ *
+ * @param uiState The posts and the selected one.
+ * @param onClick Called with the selected post's ID when the user presses the popup.
+ */
 @Composable
-private fun MapOverlayScope.PinnedPostPopup(post: Post, onClick: () -> Unit) {
+private fun MapOverlayScope.PinnedPostPopup(uiState: MapUiState, onClick: (String) -> Unit) {
+    val row = uiState.selectedRow ?: return
+    val position = uiState.selectedPosition ?: return
+    val posts = uiState.posts
     PostPopup(
-        post = post,
-        onClick = onClick,
+        posts = posts,
+        row = row,
+        onClick = { onClick(posts.id(row)) },
         modifier = Modifier
-            .placedAt(post.position(), Alignment.BottomCenter)
+            .placedAt(position, Alignment.BottomCenter)
             // The tail's tip touches the top of the selected pin.
             .padding(bottom = SELECTED_PIN_RADIUS + SELECTED_PIN_OUTLINE_WIDTH)
     )

@@ -19,7 +19,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import edu.csuci.tweeter.R
-import edu.csuci.tweeter.data.Post
+import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.ui.feed.PhotoCard
 import edu.csuci.tweeter.ui.profile.timeAgoText
 
@@ -31,12 +31,18 @@ private val TAIL_HEIGHT = 8.dp
  * The popup a post's pin opens on the map: the post's photo, then who shared it and when, above a
  * tail that points down at the pin. Pressing it shows the post on Home.
  *
- * @param post The post whose pin the user tapped.
+ * @param posts The posts on the map.
+ * @param row The row in [posts] of the post whose pin the user tapped.
  * @param onClick Shows the post on Home.
  * @param modifier Applied to the popup, tail included.
  */
 @Composable
-internal fun PostPopup(post: Post, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun PostPopup(
+    posts: PostTable,
+    row: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val color = MaterialTheme.colorScheme.surface
     Column(
         modifier = modifier.width(POPUP_WIDTH),
@@ -51,14 +57,14 @@ internal fun PostPopup(post: Post, onClick: () -> Unit, modifier: Modifier = Mod
                 )
             ) {
                 PhotoCard(
-                    imageUri = post.imageUri,
+                    imageUri = posts.imageUri(row),
                     contentDescription = stringResource(R.string.map_post_photo_description)
                 )
                 Text(
                     text = stringResource(
                         R.string.post_details,
-                        post.username,
-                        timeAgoText(post.timestamp)
+                        posts.username(row),
+                        timeAgoText(posts.timestampMillis(row))
                     ),
                     style = MaterialTheme.typography.labelMedium,
                     maxLines = 1,

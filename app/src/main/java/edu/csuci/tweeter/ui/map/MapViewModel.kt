@@ -10,19 +10,21 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import edu.csuci.tweeter.TweeterApplication
-import edu.csuci.tweeter.data.Post
 import edu.csuci.tweeter.data.PostRepository
+import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import org.maplibre.compose.camera.CameraPosition
+import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.spatialk.geojson.Position
 
 // The key of the map's camera in the SavedStateHandle.
@@ -52,14 +54,35 @@ sealed interface MapMove {
  * What [MapScreen] shows.
  *
  * @property posts Every post, each shown as a pin; empty until the posts load.
- * @property selectedPost The post whose popup is open, or null if none is or it hasn't loaded.
+ * @property selectedRow The row in [posts] of the post whose popup is open, or null if none is or
+ *     it hasn't loaded.
  * @property pendingMove Where the camera moves next, or null if it stays where the user left it.
+ * @property pins The pins of [posts], written once per table.
  */
 data class MapUiState(
-    val posts: List<Post> = emptyList(),
-    val selectedPost: Post? = null,
-    val pendingMove: MapMove? = null
-)
+    val posts: PostTable = PostTable.EMPTY,
+    val selectedRow: Int? = null,
+    val pendingMove: MapMove? = null,
+    val pins: MapPins = MapPins(posts)
+) {
+    /** The selected post's pin alone, drawn over [pins], or no pin if none is selected. */
+    val selectedPin: GeoJsonData = GeoJsonData.JsonString(pinJsonOf(posts, selectedRow))
+
+    /** Where the selected post's photo was taken, or null if no post is selected. */
+    val selectedPosition: Position? = selectedRow?.let(posts::positionOf)
+}
+
+/**
+ * The pins of [posts], as the GeoJSON the map draws, written when the table arrives rather than
+ * each time the selection changes.
+ *
+ * The pins of equal tables are equal, as the tables are, though each pin's ID points into its own
+ * table.
+ */
+data class MapPins(private val posts: PostTable) {
+    /** A pin for each post, identified by the [edu.csuci.tweeter.data.PostRef] of its row. */
+    val geoJson: GeoJsonData = GeoJsonData.JsonString(pinsJsonOf(posts))
+}
 
 /**
  * Holds what [MapScreen] shows: the map, the posts as pins, which post's popup is open, and where
@@ -95,15 +118,19 @@ class MapViewModel internal constructor(
      */
     internal val map: PostMap by lazyMap
 
-    /** What the map shows, updated as the posts change and the user taps. */
-    val uiState: StateFlow<MapUiState> =
-        combine(postRepository.getPosts(), selection) { posts, selection ->
-            MapUiState(
-                posts = posts,
-                selectedPost = posts.find { it.id == selection.postId },
-                pendingMove = selection.pendingMove
-            )
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MapUiState())
+    /**
+     * What the map shows, updated as the posts change and the user taps. Every pin is written once
+     * per table; a new selection only finds its post's row and writes that one pin.
+     */
+    val uiState: StateFlow<MapUiState> = combine(
+        postRepository.getPostTable().map(::MapUiState),
+        selection
+    ) { postsState, selection ->
+        postsState.copy(
+            selectedRow = selection.postId?.let(postsState.posts::rowOf),
+            pendingMove = selection.pendingMove
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(), MapUiState())
 
     init {
         savedStateHandle.setSavedStateProvider(CAMERA_KEY) {
@@ -140,9 +167,9 @@ class MapViewModel internal constructor(
         selection.update { if (it.pendingMove == move) it.copy(pendingMove = null) else it }
     }
 
-    /** Asks Feed to show [post], which it scrolls to when it opens. */
-    fun showInFeed(post: Post) {
-        showInFeedRequest.send(post.id)
+    /** Asks Feed to show the post with [postId], which it scrolls to when it opens. */
+    fun showInFeed(postId: String) {
+        showInFeedRequest.send(postId)
     }
 
     override fun onCleared() {
