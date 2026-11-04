@@ -27,6 +27,16 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    buildTypes {
+        // R8 shrinks and optimizes release builds; Compose's release performance depends on it.
+        // The libraries ship their own keep rules, and the app reads nothing by reflection.
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+        }
+    }
+
     buildFeatures {
         // BuildConfig.VERSION_NAME names the app's version in the map's tile requests.
         buildConfig = true
