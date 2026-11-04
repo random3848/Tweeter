@@ -44,7 +44,15 @@ class FirebasePhotoRepository(
     }
 
     override suspend fun deletePhoto(photoUrl: String) {
-        storage.getReferenceFromUrl(photoUrl).deleteStored()
+        storedPhotoAt(photoUrl).deleteStored()
+    }
+
+    // The reference to the stored photo whose download URL is [photoUrl].
+    private fun storedPhotoAt(photoUrl: String): StorageReference = try {
+        storage.getReferenceFromUrl(photoUrl)
+    } catch (error: IllegalArgumentException) {
+        // Thrown for a URL that isn't one of this project's Storage URLs.
+        throw PhotoDeletionException(error)
     }
 
     private suspend fun copyWithoutLocation(photoUri: String): File = try {

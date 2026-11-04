@@ -24,7 +24,8 @@ interface PhotoRepository {
     /**
      * Deletes the uploaded photo at [photoUrl], a URL returned by one of the uploads.
      *
-     * @throws PhotoDeletionException If it can't be deleted, such as when nobody is logged in.
+     * @throws PhotoDeletionException If it can't be deleted, such as when nobody is logged in, or
+     *     [photoUrl] isn't the URL of an uploaded photo.
      */
     suspend fun deletePhoto(photoUrl: String)
 }
