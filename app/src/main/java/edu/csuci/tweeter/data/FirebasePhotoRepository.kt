@@ -39,7 +39,7 @@ class FirebasePhotoRepository(
         try {
             return upload(Uri.fromFile(copy), PROFILE_PHOTOS)
         } finally {
-            copy.delete()
+            locationTagRemover.deleteCopy(copy)
         }
     }
 

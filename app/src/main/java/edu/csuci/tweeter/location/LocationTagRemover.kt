@@ -63,7 +63,7 @@ class LocationTagRemover(context: Context, private val ioDispatcher: CoroutineDi
 
     /**
      * Copies the photo at [uri] into the app's cache and removes the copy's location tags. The
-     * caller deletes the copy when it is done with it.
+     * caller deletes the copy with [deleteCopy] when it is done with it.
      *
      * @throws IOException If the photo can't be read, or its format can't have tags removed
      *     (ExifInterface writes JPEG, PNG and WebP). No copy is left behind then, nor when the
@@ -74,6 +74,14 @@ class LocationTagRemover(context: Context, private val ioDispatcher: CoroutineDi
         create = ::createCopy,
         write = { copy -> writeWithoutLocation(uri, copy) }
     )
+
+    /**
+     * Deletes [copy], made by [copyWithoutLocation], off the calling thread. It is deleted even
+     * when the calling coroutine is cancelled, so it can be called from a `finally` block.
+     */
+    suspend fun deleteCopy(copy: File) {
+        deleteFile(ioDispatcher, copy)
+    }
 
     // Creates an empty file for a copy, and the directory copies go in if it's missing.
     private fun createCopy(): File {

@@ -139,7 +139,7 @@ class PostViewModel(
             try {
                 return photoRepository.uploadPhoto(Uri.fromFile(copy))
             } finally {
-                copy.delete()
+                locationTagRemover.deleteCopy(copy)
             }
         }
 
