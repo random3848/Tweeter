@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -35,18 +36,32 @@ import edu.csuci.tweeter.ui.navigation.BackTopBar
  *
  * @param onBack Leaves Profile for the screen it was opened from.
  * @param modifier Applied to the whole screen.
- * @param profileViewModel Supplies the profile and posts, and logs the user in.
+ * @param profileViewModel Supplies the registered user's profile and posts.
+ * @param onLogIn Opens the login form.
+ * @param onCreateAccount Opens the registration form.
  */
 @Composable
 fun ProfileScreen(
     onBack: () -> Unit,
+    onLogIn: () -> Unit,
+    onCreateAccount: () -> Unit,
     modifier: Modifier = Modifier,
     profileViewModel: ProfileViewModel = viewModel(factory = ProfileViewModel.factory)
 ) {
     val uiState by profileViewModel.uiState.collectAsStateWithLifecycle()
 
     Column(modifier = modifier.fillMaxSize()) {
-        BackTopBar(title = stringResource(R.string.navigation_profile), onBack = onBack)
+        BackTopBar(
+            title = stringResource(R.string.navigation_profile),
+            onBack = onBack,
+            actions = {
+                if (uiState is ProfileUiState.LoggedIn) {
+                    TextButton(onClick = profileViewModel::logOut) {
+                        Text(text = stringResource(R.string.profile_log_out))
+                    }
+                }
+            }
+        )
 
         when (val state = uiState) {
             ProfileUiState.Loading -> {
@@ -56,10 +71,8 @@ fun ProfileScreen(
 
             ProfileUiState.LoggedOut -> {
                 LogInPrompt(
-                    isLoggingIn = profileViewModel.isLoggingIn,
-                    logInFailed = profileViewModel.logInFailed,
-                    onLogIn = profileViewModel::logIn,
-                    onCreateAccount = profileViewModel::logIn
+                    onLogIn = onLogIn,
+                    onCreateAccount = onCreateAccount
                 )
             }
 

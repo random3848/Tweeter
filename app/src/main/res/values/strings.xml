@@ -26,11 +26,10 @@
     <string name="profile_empty_title">No posts yet</string>
     <string name="profile_empty_message">Photos you share show up here.</string>
     <string name="profile_post_details">%1$s · %2$s</string>
-    <string name="profile_log_in_title">Log in to see your profile</string>
-    <string name="profile_log_in_message">Your profile shows your name, your bio and the photos you share.</string>
+    <string name="profile_log_in_title">Log in to see your profile.</string>
+    <string name="profile_log_in_message">New Here? Create an account to share your photos.</string>
     <string name="profile_log_in">Log in</string>
     <string name="profile_create_account">Create account</string>
-    <string name="profile_log_in_failed">Could not log in. Please try again.</string>
 
     <string name="time_ago_just_now">Just now</string>
     <plurals name="time_ago_minutes">
@@ -69,4 +68,26 @@
 
     <string name="location_picker_use_my_location">Use my location</string>
     <string name="location_picker_no_fix">Couldn\'t get your location. Tap the map instead.</string>
+
+    <string name="auth_password_mismatch">Passwords do not match.</string>
+    <string name="auth_missing_credentials">Enter your email and password.</string>
+    <string name="auth_weak_password">Your password does not meet the account requirements.</string>
+    <string name="auth_email_in_use">An account already uses this email. Try logging in.</string>
+    <string name="auth_invalid_credentials">Check your email and password and try again.</string>
+    <string name="auth_network_error">Could not connect. Check your internet connection.</string>
+    <string name="auth_too_many_requests">Too many attempts. Please try again later.</string>
+    <string name="auth_failed">Could not complete the request. Please try again.</string>
+
+    <string name="auth_log_in">Log in</string>
+    <string name="auth_create_account">Create account</string>
+    <string name="auth_email">Email</string>
+    <string name="auth_password">Password</string>
+    <string name="auth_confirm_password">Confirm password</string>
+    <string name="auth_submitting">Please wait…</string>
+    <string name="auth_forgot_password">Forgot password?</string>
+    <string name="auth_missing_email">Enter your email first.</string>
+    <string name="auth_reset_email_sent">If an account exists for this email, you will receive a password reset link. Check your inbox and spam folder.</string>
+    <string name="auth_reset_failed">Could not request a password reset. Check your email address and try again.</string>
+
+    <string name="profile_log_out">Log out</string>
 </resources>
