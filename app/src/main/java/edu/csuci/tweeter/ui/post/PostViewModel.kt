@@ -29,10 +29,8 @@ import edu.csuci.tweeter.location.ExifLocationReader
 import edu.csuci.tweeter.location.GeoPoint
 import edu.csuci.tweeter.location.LocationFix
 import edu.csuci.tweeter.location.LocationSource
-import edu.csuci.tweeter.location.LocationTagRemover
 import edu.csuci.tweeter.location.PhotoLocator
 import edu.csuci.tweeter.ui.camera.CameraCapture
-import java.io.IOException
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
@@ -57,7 +55,6 @@ class PostViewModel(
     private val profileRepository: ProfileRepository,
     private val accountRepository: AccountRepository,
     private val photoLocator: PhotoLocator<Uri>,
-    private val locationTagRemover: LocationTagRemover,
     private val cameraFiles: CameraFiles,
     private val cameraCapture: CameraCapture,
     private val savedStateHandle: SavedStateHandle
@@ -173,13 +170,14 @@ class PostViewModel(
     }
 
     /**
-     * Uploads [uri] without its location tags and shares it as a post at [location] by the
-     * logged-in user. Ignored while one runs, after the post is shared, or while [location] is
-     * null. Fails if nobody is logged in.
+     * Uploads the photo at [photoUri] without its location tags and shares it as a post at
+     * [location] by the logged-in user. Ignored while one runs, after the post is shared, or while
+     * [photoUri] or [location] is null. Fails if nobody is logged in.
      */
-    fun uploadPhoto(uri: Uri, caption: String, animalType: String, confidence: Int?) {
+    fun uploadPhoto(caption: String, animalType: String, confidence: Int?) {
+        val uri = photoUri
         val point = location?.point
-        if (isUploading || uploadedPhotoUrl != null || point == null) {
+        if (isUploading || uploadedPhotoUrl != null || uri == null || point == null) {
             return
         }
 
@@ -212,26 +210,15 @@ class PostViewModel(
             } catch (error: FirebaseException) {
                 Log.e("PostViewModel", "Could not save the post", error)
                 uploadFailed = true
-            } catch (error: IOException) {
-                Log.e("PostViewModel", "Could not read photo for upload", error)
-                uploadFailed = true
             } finally {
                 isUploading = false
             }
         }
     }
 
-    // The photo at [uri], uploaded as a copy without its location tags.
-    private inner class LocationFreePhoto(private val uri: Uri) : PostPhoto {
-        // Deletes the copy once the upload is over.
-        override suspend fun upload(): String {
-            val copy = locationTagRemover.copyWithoutLocation(uri)
-            try {
-                return photoRepository.uploadPhoto(Uri.fromFile(copy))
-            } finally {
-                locationTagRemover.deleteCopy(copy)
-            }
-        }
+    // The photo at [photoUri], which the repository uploads without its location tags.
+    private inner class LocationFreePhoto(private val photoUri: String) : PostPhoto {
+        override suspend fun upload(): String = photoRepository.uploadPhoto(photoUri)
 
         override suspend fun delete(photoUrl: String) {
             photoRepository.deleteUnusedPhoto(photoUrl)
@@ -322,10 +309,6 @@ class PostViewModel(
                     photoLocator = PhotoLocator(
                         readExif = ExifLocationReader(application)::read,
                         currentDeviceFix = DeviceLocationProvider(application)::currentFix,
-                        ioDispatcher = Dispatchers.IO
-                    ),
-                    locationTagRemover = LocationTagRemover(
-                        context = application,
                         ioDispatcher = Dispatchers.IO
                     ),
                     cameraFiles = cameraFiles,

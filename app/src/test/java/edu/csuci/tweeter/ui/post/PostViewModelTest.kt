@@ -2,20 +2,22 @@
 
 package edu.csuci.tweeter.ui.post
 
-import android.content.ContextWrapper
-import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import edu.csuci.tweeter.data.CameraFiles
 import edu.csuci.tweeter.data.FakeAccountRepository
 import edu.csuci.tweeter.data.FakePostRepository
 import edu.csuci.tweeter.data.FakeProfileRepository
 import edu.csuci.tweeter.data.PhotoRepository
-import edu.csuci.tweeter.location.LocationTagRemover
+import edu.csuci.tweeter.data.PhotoUploadException
+import edu.csuci.tweeter.location.GeoPoint
 import edu.csuci.tweeter.location.PhotoLocator
 import edu.csuci.tweeter.ui.camera.CameraCapture
 import java.io.File
+import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -32,6 +34,7 @@ import org.junit.rules.TemporaryFolder
 
 private const val CONTENT_URI_PREFIX = "content://camera/"
 private const val CAMERA_ROLL_URI = "content://media/1"
+private val PICKED_POINT = GeoPoint(latitude = 34.16, longitude = -119.04)
 
 class PostViewModelTest {
     @get:Rule
@@ -46,6 +49,8 @@ class PostViewModelTest {
         get() = File(temporaryFolder.root, "photos")
 
     private val savedStateHandle = SavedStateHandle()
+
+    private val postRepository = FakePostRepository(initialPosts = emptyList())
 
     @Before
     fun setUp() {
@@ -156,6 +161,19 @@ class PostViewModelTest {
         assertNull(createViewModel().photoUri)
     }
 
+    @Test
+    fun uploadPhoto_uploadFails_failsWithoutPost() {
+        val viewModel = createViewModel(photoRepository = FailingPhotoRepository())
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+        viewModel.pickLocation(PICKED_POINT)
+
+        viewModel.uploadPhoto(caption = "", animalType = "", confidence = null)
+
+        assertTrue(viewModel.uploadFailed)
+        assertFalse(viewModel.isUploading)
+        assertEquals(0, postCount())
+    }
+
     // Takes a picture up to the camera app opening, and returns the URI it saves into.
     private fun openCamera(viewModel: PostViewModel): String {
         viewModel.takePicture()
@@ -164,7 +182,9 @@ class PostViewModelTest {
         return cameraUri
     }
 
-    private fun createViewModel(): PostViewModel {
+    private fun createViewModel(
+        photoRepository: PhotoRepository = UnusedPhotoRepository()
+    ): PostViewModel {
         val cameraFiles = CameraFiles(
             directory = directory,
             scope = appScope,
@@ -172,8 +192,8 @@ class PostViewModelTest {
             contentUriOf = ::contentUriOf
         )
         return PostViewModel(
-            photoRepository = UnusedPhotoRepository(),
-            postRepository = FakePostRepository(initialPosts = emptyList()),
+            photoRepository = photoRepository,
+            postRepository = postRepository,
             profileRepository = FakeProfileRepository(),
             accountRepository = FakeAccountRepository(initialUid = "uid"),
             photoLocator = PhotoLocator(
@@ -181,25 +201,32 @@ class PostViewModelTest {
                 currentDeviceFix = { null },
                 ioDispatcher = dispatcher
             ),
-            locationTagRemover = LocationTagRemover(ContextWrapper(null), dispatcher),
             cameraFiles = cameraFiles,
             cameraCapture = CameraCapture(cameraFiles, savedStateHandle),
             savedStateHandle = savedStateHandle
         )
     }
 
+    private fun postCount(): Int = runBlocking { postRepository.getPostTable().first().size }
+
     private fun contentUriOf(file: File): String = CONTENT_URI_PREFIX + file.name
 
     private fun contentUrisInDirectory(): List<String> =
         directory.listFiles().orEmpty().map(::contentUriOf)
 
-    // These tests don't upload, so nothing reaches Storage.
-    private class UnusedPhotoRepository : PhotoRepository {
-        override suspend fun uploadPhoto(uri: Uri): String = error("Not uploaded in these tests")
+    // For tests that don't upload, so nothing reaches Storage.
+    private open class UnusedPhotoRepository : PhotoRepository {
+        override suspend fun uploadPhoto(photoUri: String): String =
+            error("Not uploaded in these tests")
 
         override suspend fun uploadProfilePhoto(photoUri: String): String =
             error("Not uploaded in these tests")
 
         override suspend fun deletePhoto(photoUrl: String) = error("Not deleted in these tests")
+    }
+
+    private class FailingPhotoRepository : UnusedPhotoRepository() {
+        override suspend fun uploadPhoto(photoUri: String): String =
+            throw PhotoUploadException(IOException("Could not read the photo"))
     }
 }

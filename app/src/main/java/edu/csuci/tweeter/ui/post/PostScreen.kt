@@ -177,9 +177,7 @@ private fun PostForm(postViewModel: PostViewModel, modifier: Modifier = Modifier
                 onDismiss = { showPostDialog = false },
                 onPost = { caption, animalType, confidence ->
                     showPostDialog = false
-                    photoUri?.let { uri ->
-                        postViewModel.uploadPhoto(Uri.parse(uri), caption, animalType, confidence)
-                    }
+                    postViewModel.uploadPhoto(caption, animalType, confidence)
                 }
             )
         }

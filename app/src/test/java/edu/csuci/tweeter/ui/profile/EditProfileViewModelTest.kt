@@ -1,6 +1,5 @@
 package edu.csuci.tweeter.ui.profile
 
-import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
@@ -515,7 +514,8 @@ class EditProfileViewModelTest {
         // When set, uploading waits for it, like a slow upload.
         var uploadFinished: CompletableDeferred<Unit>? = null
 
-        override suspend fun uploadPhoto(uri: Uri): String = error("Posts aren't edited here")
+        override suspend fun uploadPhoto(photoUri: String): String =
+            error("Posts aren't edited here")
 
         override suspend fun uploadProfilePhoto(photoUri: String): String {
             uploadFinished?.await()

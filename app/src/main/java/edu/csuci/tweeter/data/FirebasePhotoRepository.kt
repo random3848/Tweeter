@@ -25,34 +25,32 @@ private const val PROFILE_PHOTOS = "profile_photos"
  * Guests can only browse, so the Storage rules refuse uploads and deletes from anonymous
  * sessions.
  *
- * @param locationTagRemover Removes location tags from profile photos before they're uploaded.
+ * @param locationTagRemover Removes location tags from photos before they're uploaded.
  */
 class FirebasePhotoRepository(
     private val auth: FirebaseAuth,
     private val storage: FirebaseStorage,
     private val locationTagRemover: LocationTagRemover
 ) : PhotoRepository {
-    override suspend fun uploadPhoto(uri: Uri): String = upload(uri, POST_PHOTOS)
+    override suspend fun uploadPhoto(photoUri: String): String =
+        uploadWithoutLocation(photoUri, POST_PHOTOS)
 
-    override suspend fun uploadProfilePhoto(photoUri: String): String {
-        val copy = copyWithoutLocation(photoUri)
-        try {
-            return upload(Uri.fromFile(copy), PROFILE_PHOTOS)
-        } finally {
-            locationTagRemover.deleteCopy(copy)
-        }
-    }
+    override suspend fun uploadProfilePhoto(photoUri: String): String =
+        uploadWithoutLocation(photoUri, PROFILE_PHOTOS)
 
     override suspend fun deletePhoto(photoUrl: String) {
         storedPhotoAt(photoUrl).deleteStored()
     }
 
-    // The reference to the stored photo whose download URL is [photoUrl].
-    private fun storedPhotoAt(photoUrl: String): StorageReference = try {
-        storage.getReferenceFromUrl(photoUrl)
-    } catch (error: IllegalArgumentException) {
-        // Thrown for a URL that isn't one of this project's Storage URLs.
-        throw PhotoDeletionException(error)
+    // Uploads a copy of the photo at [photoUri] without its location tags into [folder], and
+    // deletes the copy once the upload is over.
+    private suspend fun uploadWithoutLocation(photoUri: String, folder: String): String {
+        val copy = copyWithoutLocation(photoUri)
+        try {
+            return upload(Uri.fromFile(copy), folder)
+        } finally {
+            locationTagRemover.deleteCopy(copy)
+        }
     }
 
     private suspend fun copyWithoutLocation(photoUri: String): File = try {
@@ -124,6 +122,14 @@ class FirebasePhotoRepository(
         if (upload.isSuccessful) {
             cleanUpUnusedPhoto { deleteStored() }
         }
+    }
+
+    // The reference to the stored photo whose download URL is [photoUrl].
+    private fun storedPhotoAt(photoUrl: String): StorageReference = try {
+        storage.getReferenceFromUrl(photoUrl)
+    } catch (error: IllegalArgumentException) {
+        // Thrown for a URL that isn't one of this project's Storage URLs.
+        throw PhotoDeletionException(error)
     }
 
     private suspend fun StorageReference.deleteStored() {
