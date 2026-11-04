@@ -14,5 +14,18 @@ service firebase.storage {
                     && request.resource.size < 20 * 1024 * 1024
                     && request.resource.contentType == 'image/jpeg';
     }
+
+    // Profile photos show on profiles, so any session that can browse can read them. Only a
+    // logged-in user (not a guest) can upload, and only into their own folder.
+    match /profile_photos/{userId}/{fileName} {
+      allow read: if request.auth != null;
+
+      allow create: if request.auth != null
+                    && request.auth.token.firebase.sign_in_provider != 'anonymous'
+                    && request.auth.uid == userId
+                    && request.resource.size > 0
+                    && request.resource.size < 20 * 1024 * 1024
+                    && request.resource.contentType == 'image/jpeg';
+    }
   }
 }

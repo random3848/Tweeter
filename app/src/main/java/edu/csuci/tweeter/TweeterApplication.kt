@@ -12,7 +12,7 @@ import edu.csuci.tweeter.ui.map.configureMapTiles
  */
 class TweeterApplication : Application() {
     /** The shared objects, for ViewModel factories to read. */
-    val container: AppContainer by lazy { AppContainer() }
+    val container: AppContainer by lazy { AppContainer(this) }
 
     override fun onCreate() {
         super.onCreate()
