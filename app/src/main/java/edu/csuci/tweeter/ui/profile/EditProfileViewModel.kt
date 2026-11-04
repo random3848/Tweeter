@@ -245,14 +245,22 @@ class EditProfileViewModel(
         }
     }
 
-    // Writes [editedProfile] with the photo [change] leaves it, uploading a new photo first. A new
-    // photo is deleted again if the profile can't be written, since nothing would use it.
+    // Writes [editedProfile] with the photo [change] leaves it, uploading a new photo first.
     private suspend fun saveWithPhoto(editedProfile: UserProfile, change: PhotoChange) {
         val photoUrl = photoUrlToSave(editedProfile.photoUrl, change)
+        writeOrDeleteUploadedPhoto(editedProfile.copy(photoUrl = photoUrl), change)
+    }
+
+    // Writes [profileToWrite]. A photo [change] uploaded for it is deleted again if it can't be
+    // written, since nothing would use the photo.
+    private suspend fun writeOrDeleteUploadedPhoto(
+        profileToWrite: UserProfile,
+        change: PhotoChange
+    ) {
         try {
-            writeProfile(editedProfile.copy(photoUrl = photoUrl))
+            writeProfile(profileToWrite)
         } catch (error: FirebaseException) {
-            deleteIfUploaded(photoUrl, change)
+            deleteIfUploaded(profileToWrite.photoUrl, change)
             throw error
         }
     }

@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -27,16 +28,17 @@ fun CameraOpener(camera: CameraControls, onResult: (isSaved: Boolean) -> Unit) {
     val uriToOpen = camera.cameraUriToOpen
 
     LaunchedEffect(uriToOpen) {
-        if (uriToOpen == null) {
-            return@LaunchedEffect
-        }
+        uriToOpen?.let { uri -> cameraLauncher.openCamera(uri, currentCamera) }
+    }
+}
 
-        try {
-            cameraLauncher.launch(Uri.parse(uriToOpen))
-            currentCamera.cameraOpened()
-        } catch (error: ActivityNotFoundException) {
-            Log.e("CameraOpener", "No camera app", error)
-            currentCamera.cameraUnavailable()
-        }
+// Opens the camera app to save a picture into [uri], and tells [camera] whether it opened.
+private fun ActivityResultLauncher<Uri>.openCamera(uri: String, camera: CameraControls) {
+    try {
+        launch(Uri.parse(uri))
+        camera.cameraOpened()
+    } catch (error: ActivityNotFoundException) {
+        Log.e("CameraOpener", "No camera app", error)
+        camera.cameraUnavailable()
     }
 }
