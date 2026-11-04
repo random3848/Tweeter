@@ -1,7 +1,6 @@
 package edu.csuci.tweeter.data
 
 import java.util.BitSet
-import java.util.concurrent.atomic.AtomicInteger
 
 // How a post without a confidence ([Post.confidence] null) is stored.
 private const val NO_CONFIDENCE: Byte = 0
@@ -12,11 +11,10 @@ private const val NO_CONFIDENCE: Byte = 0
  *
  * Screens keep rows, not `Post` objects. A pass over one field, such as Map reading every post's
  * coordinates, reads only that field's array, and the two Boolean fields are bitsets, one bit per
- * post. A table never changes once built: changed posts come in a new table. Use [refTo] for a row
- * kept where it can outlive this table.
+ * post. A table never changes once built: changed posts come in a new table, where [rowOf] finds a
+ * post again by its ID.
  */
 class PostTable private constructor(
-    private val generation: Int,
     private val ids: Array<String>,
     private val authorUids: Array<String>,
     private val usernames: Array<String>,
@@ -102,15 +100,6 @@ class PostTable private constructor(
         return rows
     }
 
-    /** A reference to [row] that no other table resolves. */
-    fun refTo(row: Int): PostRef {
-        require(row in 0 until size) { "Row $row is outside the table's $size rows" }
-        return PostRef.of(generation, row)
-    }
-
-    /** The row that [ref] points to, or null if it points into another table. */
-    fun rowOf(ref: PostRef): Int? = ref.row.takeIf { ref.generation == generation && it < size }
-
     override fun equals(other: Any?): Boolean =
         other is PostTable && columns().contentDeepEquals(other.columns())
 
@@ -118,7 +107,7 @@ class PostTable private constructor(
 
     override fun toString(): String = "PostTable(ids=${ids.contentToString()})"
 
-    // Every column, so that tables holding the same posts are equal whatever their generation.
+    // Every column, so that tables holding the same posts are equal.
     private fun columns(): Array<Any> = arrayOf(
         ids, authorUids, usernames, avatarInitials, locationNames, latitudes, longitudes, imageUris,
         captions, likeCounts, commentCounts, liked, bookmarked, timestampsMillis, animalTypes,
@@ -164,7 +153,6 @@ class PostTable private constructor(
 
         /** Returns the table of the posts added so far, sharing the arrays when they are full. */
         fun build(): PostTable = PostTable(
-            generation = nextGeneration(),
             ids = ids.trimmedTo(size),
             authorUids = authorUids.trimmedTo(size),
             usernames = usernames.trimmedTo(size),
@@ -219,8 +207,6 @@ class PostTable private constructor(
     }
 
     companion object {
-        private val lastGeneration = AtomicInteger()
-
         /** A table of no posts. */
         val EMPTY: PostTable = Builder(capacity = 0).build()
 
@@ -232,11 +218,6 @@ class PostTable private constructor(
             }
             return builder.build()
         }
-
-        // Each table gets the next generation, starting again from 0 after the largest a PostRef
-        // holds. A reference outlives millions of tables only in theory.
-        private fun nextGeneration(): Int =
-            lastGeneration.incrementAndGet() and PostRef.MAX_GENERATION
     }
 }
 

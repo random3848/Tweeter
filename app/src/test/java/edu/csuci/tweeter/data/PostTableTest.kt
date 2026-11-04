@@ -108,29 +108,6 @@ class PostTableTest {
     }
 
     @Test
-    fun rowOf_refToRowOfSameTable_returnsRow() {
-        val table = PostTable.of(SAMPLE_POSTS)
-
-        assertEquals(1, table.rowOf(table.refTo(1)))
-    }
-
-    @Test
-    fun rowOf_refFromEarlierTable_returnsNull() {
-        val earlier = PostTable.of(SAMPLE_POSTS)
-        val later = PostTable.of(SAMPLE_POSTS)
-
-        assertNull(later.rowOf(earlier.refTo(1)))
-    }
-
-    @Test
-    fun rowOf_refPastLastRow_returnsNull() {
-        val table = PostTable.of(SAMPLE_POSTS)
-        val pastLastRow = PostRef.of(generation = table.refTo(0).generation, row = table.size)
-
-        assertNull(table.rowOf(pastLastRow))
-    }
-
-    @Test
     fun equals_tablesOfSamePosts_areEqual() {
         assertEquals(PostTable.of(SAMPLE_POSTS), PostTable.of(SAMPLE_POSTS))
     }

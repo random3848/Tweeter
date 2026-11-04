@@ -75,12 +75,9 @@ data class MapUiState(
 /**
  * The pins of [posts], as the GeoJSON the map draws, written when the table arrives rather than
  * each time the selection changes.
- *
- * The pins of equal tables are equal, as the tables are, though each pin's ID points into its own
- * table.
  */
 data class MapPins(private val posts: PostTable) {
-    /** A pin for each post, identified by the [edu.csuci.tweeter.data.PostRef] of its row. */
+    /** A pin for each post, identified by the post's ID. */
     val geoJson: GeoJsonData = GeoJsonData.JsonString(pinsJsonOf(posts))
 }
 

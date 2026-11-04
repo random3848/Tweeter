@@ -74,24 +74,32 @@ class PostPinsTest {
     }
 
     @Test
-    fun nearestPinnedRow_pinOfEarlierTable_returnsNull() {
+    fun nearestPinnedRow_pinOfEarlierTableWithSamePosts_returnsItsRow() {
         val post = postAt(CAMPUS_TAP_LATITUDE, TAP_LONGITUDE)
         val earlier = PostTable.of(listOf(post))
         val later = PostTable.of(listOf(post))
 
-        assertNull(later.nearestPinnedRow(pinsOf(earlier), campusTap))
+        assertEquals(FIRST_ROW, later.nearestPinnedRow(pinsOf(earlier), campusTap))
     }
 
-    // MapLibre may keep a feature's numeric ID as a double, written back with a decimal point.
     @Test
-    fun nearestPinnedRow_pinIdWrittenAsDouble_returnsItsRow() {
-        val posts = PostTable.of(listOf(postAt(CAMPUS_TAP_LATITUDE, TAP_LONGITUDE)))
-        val id = posts.refTo(FIRST_ROW).toLong()
-        val pin = Feature.fromJson<Geometry?, JsonObject?>(
-            """{"type":"Feature","id":$id.0,"geometry":null,"properties":null}"""
-        )
+    fun nearestPinnedRow_pinOfPostThatMovedRows_returnsItsNewRow() {
+        val moved = postAt(CAMPUS_TAP_LATITUDE, TAP_LONGITUDE)
+        val newer = postAt(latitude = CAMPUS_TAP_LATITUDE + FAR_DEGREES, longitude = TAP_LONGITUDE)
+        val earlier = PostTable.of(listOf(moved))
+        val later = PostTable.of(listOf(newer, moved))
 
-        assertEquals(FIRST_ROW, posts.nearestPinnedRow(listOf(pin), campusTap))
+        assertEquals(SECOND_ROW, later.nearestPinnedRow(pinsOf(earlier), campusTap))
+    }
+
+    @Test
+    fun nearestPinnedRow_pinOfRemovedPost_returnsNull() {
+        val removed = postAt(CAMPUS_TAP_LATITUDE, TAP_LONGITUDE)
+        val kept = postAt(latitude = CAMPUS_TAP_LATITUDE + FAR_DEGREES, longitude = TAP_LONGITUDE)
+        val removedPin = pinsOf(PostTable.of(listOf(removed, kept)))[FIRST_ROW]
+        val later = PostTable.of(listOf(kept))
+
+        assertNull(later.nearestPinnedRow(listOf(removedPin), campusTap))
     }
 
     private fun postAt(latitude: Double, longitude: Double): Post = SAMPLE_POSTS.first().copy(

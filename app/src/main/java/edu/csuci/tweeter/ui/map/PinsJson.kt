@@ -12,24 +12,31 @@ private const val ID_START = """"id":"""
 private const val COORDINATES_START = """"geometry":{"type":"Point","coordinates":["""
 private const val PIN_END = """]},"properties":null}"""
 
-// The longest a Double or a PostRef prints, such as -1.2345678901234567E-300.
-private const val MAX_NUMBER_LENGTH = 24
+// The longest a Double prints, such as -1.2345678901234567E-300.
+private const val MAX_COORDINATE_LENGTH = 24
 
-// The numbers in a pin: its ID and two coordinates.
-private const val NUMBERS_PER_PIN = 3
+// The characters around a pin's ID: its two quotes and the comma after it.
+private const val ID_PUNCTUATION_LENGTH = 3
 
-// A pin's text at its longest, with a comma for each number: after the ID, between the
-// coordinates, and before the pin to separate it from the one before.
-private const val MAX_PIN_LENGTH = PIN_START.length + ID_START.length + COORDINATES_START.length +
-    PIN_END.length + NUMBERS_PER_PIN * (MAX_NUMBER_LENGTH + 1)
+// A pin's two coordinates at their longest, with the comma between them.
+private const val MAX_COORDINATES_LENGTH = 2 * MAX_COORDINATE_LENGTH + 1
+
+// A pin's text at its longest apart from the ID's own characters, with the comma that separates it
+// from the pin before.
+private const val MAX_PIN_LENGTH_WITHOUT_ID = 1 + PIN_START.length + ID_START.length +
+    ID_PUNCTUATION_LENGTH + COORDINATES_START.length + MAX_COORDINATES_LENGTH + PIN_END.length
+
+// A control character is escaped as \u and its code in four hexadecimal digits.
+private const val HEXADECIMAL = 16
+private const val ESCAPE_DIGITS = 4
 
 /**
  * Returns a GeoJSON FeatureCollection with a pin for each post of [posts] whose coordinates are
- * finite, in table order. Each pin's numeric ID is the [edu.csuci.tweeter.data.PostRef] of its
- * post's row, as [edu.csuci.tweeter.data.PostRef.toLong] writes it.
+ * finite, in table order. Each pin's ID is its post's [PostTable.id], so tables holding the same
+ * posts have the same pins, and a pin still identifies its post once the table has changed.
  */
 internal fun pinsJsonOf(posts: PostTable): String {
-    val json = pinsJsonBuilder(maxPins = posts.size)
+    val json = pinsJsonBuilder(pinCount = posts.size, idLength = totalIdLength(posts))
     for (row in 0 until posts.size) {
         json.appendPin(posts, row)
     }
@@ -41,7 +48,7 @@ internal fun pinsJsonOf(posts: PostTable): String {
  * [pinsJsonOf] writes it, or with no pin if [row] is null.
  */
 internal fun pinJsonOf(posts: PostTable, row: Int?): String {
-    val json = pinsJsonBuilder(maxPins = 1)
+    val json = pinsJsonBuilder(pinCount = 1, idLength = row?.let { posts.id(it).length } ?: 0)
     if (row != null) {
         json.appendPin(posts, row)
     }
@@ -53,17 +60,26 @@ internal fun pinJsonOf(posts: PostTable, row: Int?): String {
  * [point] is null.
  */
 internal fun pinJsonAt(point: GeoPoint?): String {
-    val json = pinsJsonBuilder(maxPins = 1)
+    val json = pinsJsonBuilder(pinCount = 1, idLength = 0)
     if (point != null && isFinite(point.latitude, point.longitude)) {
         json.appendPinStart().appendPinCoordinates(point.latitude, point.longitude)
     }
     return json.append(COLLECTION_END).toString()
 }
 
-// Sized once, for the longest text the pins can take.
-private fun pinsJsonBuilder(maxPins: Int): StringBuilder =
-    StringBuilder(COLLECTION_START.length + maxPins * MAX_PIN_LENGTH + COLLECTION_END.length)
-        .append(COLLECTION_START)
+private fun totalIdLength(posts: PostTable): Int {
+    var length = 0
+    for (row in 0 until posts.size) {
+        length += posts.id(row).length
+    }
+    return length
+}
+
+// Sized once for the pins' text, unless an ID needs escaping, which makes it grow.
+private fun pinsJsonBuilder(pinCount: Int, idLength: Int): StringBuilder = StringBuilder(
+    COLLECTION_START.length + pinCount * MAX_PIN_LENGTH_WITHOUT_ID + idLength +
+        COLLECTION_END.length
+).append(COLLECTION_START)
 
 // Skips a post whose coordinates aren't finite: NaN and the infinities have no JSON spelling.
 private fun StringBuilder.appendPin(posts: PostTable, row: Int) {
@@ -71,7 +87,7 @@ private fun StringBuilder.appendPin(posts: PostTable, row: Int) {
     val longitude = posts.longitude(row)
     if (isFinite(latitude, longitude)) {
         appendPinStart()
-            .append(ID_START).append(posts.refTo(row).toLong()).append(',')
+            .append(ID_START).appendJsonString(posts.id(row)).append(',')
             .appendPinCoordinates(latitude, longitude)
     }
 }
@@ -86,6 +102,22 @@ private fun StringBuilder.appendPinStart(): StringBuilder {
     }
     return append(PIN_START)
 }
+
+// [text] as a JSON string: quoted, with its quotes, backslashes and control characters escaped.
+private fun StringBuilder.appendJsonString(text: String): StringBuilder {
+    append('"')
+    for (char in text) {
+        when {
+            char == '"' || char == '\\' -> append('\\').append(char)
+            char < ' ' -> appendUnicodeEscape(char)
+            else -> append(char)
+        }
+    }
+    return append('"')
+}
+
+private fun StringBuilder.appendUnicodeEscape(char: Char): StringBuilder =
+    append("\\u").append(char.code.toString(HEXADECIMAL).padStart(ESCAPE_DIGITS, '0'))
 
 // GeoJSON puts longitude first.
 private fun StringBuilder.appendPinCoordinates(latitude: Double, longitude: Double): StringBuilder =

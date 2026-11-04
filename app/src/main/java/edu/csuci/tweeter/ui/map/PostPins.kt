@@ -4,10 +4,9 @@ import androidx.annotation.VisibleForTesting
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
-import edu.csuci.tweeter.data.PostRef
 import edu.csuci.tweeter.data.PostTable
 import kotlin.math.cos
-import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.contentOrNull
 import org.maplibre.compose.expressions.dsl.const
 import org.maplibre.compose.interaction.ClickResult
 import org.maplibre.compose.layers.CircleLayer
@@ -66,8 +65,8 @@ internal fun PostPins(uiState: MapUiState, onPinClick: (String) -> Unit) {
 }
 
 /**
- * Returns the row of the post whose pin, among [pins], is drawn nearest to [tap], or null if none
- * of [pins] points into this table. Pins drawn from an earlier table point into none.
+ * Returns the row of the post whose pin, among [pins], is drawn nearest to [tap], or null if this
+ * table holds none of their posts. A pin drawn from an earlier table finds its post by its ID.
  */
 @VisibleForTesting
 internal fun PostTable.nearestPinnedRow(pins: List<Feature<*, *>>, tap: Position): Int? {
@@ -88,10 +87,8 @@ internal fun PostTable.nearestPinnedRow(pins: List<Feature<*, *>>, tap: Position
 internal fun PostTable.positionOf(row: Int) =
     Position(longitude = longitude(row), latitude = latitude(row))
 
-// The row that the pin's ID, a PostRef, points to in this table. MapLibre may hand a numeric ID
-// back as a double; a PostRef fits in one exactly.
-private fun PostTable.rowOf(pin: Feature<*, *>): Int? =
-    pin.id?.doubleOrNull?.let { rowOf(PostRef.fromLong(it.toLong())) }
+// The row of the post whose ID the pin carries, or null if this table doesn't hold that post.
+private fun PostTable.rowOf(pin: Feature<*, *>): Int? = pin.id?.contentOrNull?.let(::rowOf)
 
 // How far from the tap the pin of the row is drawn on the map, squared and in degrees of latitude.
 // Away from the equator, a degree of longitude is drawn shorter than a degree of latitude.
