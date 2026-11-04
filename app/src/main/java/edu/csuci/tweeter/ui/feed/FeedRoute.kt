@@ -11,7 +11,7 @@ object FeedRoute
 /**
  * Registers [FeedScreen] under [FeedRoute] in the app's NavHost.
  *
- * @param onShowOnMap Opens Map, where the post the user chose to show is selected.
+ * @param onShowOnMap Opens Map, where the post the user chose to show is requested.
  */
 fun NavGraphBuilder.addFeedScreen(onShowOnMap: () -> Unit) {
     composable<FeedRoute> {

@@ -1,5 +1,6 @@
 package edu.csuci.tweeter.ui.map
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,22 +11,21 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.data.Post
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.camera.CameraUpdate
-import org.maplibre.compose.expressions.dsl.const
 import org.maplibre.compose.interaction.ClickResult
 import org.maplibre.compose.interaction.MapInteractions
-import org.maplibre.compose.layers.CircleLayer
 import org.maplibre.compose.layers.LocationIndicatorLayer
+import org.maplibre.compose.location.LocationState
 import org.maplibre.compose.location.rememberDefaultHeadingProvider
 import org.maplibre.compose.location.rememberLocationState
 import org.maplibre.compose.map.MapState
@@ -39,13 +39,7 @@ import org.maplibre.compose.overlay.MapOverlay
 import org.maplibre.compose.overlay.MapOverlayScope
 import org.maplibre.compose.overlay.MaplibreLogo
 import org.maplibre.compose.overlay.attributions
-import org.maplibre.compose.sources.GeoJsonData
-import org.maplibre.compose.sources.rememberGeoJsonSource
 import org.maplibre.compose.style.BaseStyle
-import org.maplibre.compose.util.MaplibreComposable
-import org.maplibre.spatialk.geojson.Feature
-import org.maplibre.spatialk.geojson.FeatureCollection
-import org.maplibre.spatialk.geojson.Point
 import org.maplibre.spatialk.geojson.Position
 
 // OpenStreetMap's standard map, from its own tile servers. The style also holds the attribution
@@ -57,35 +51,22 @@ internal const val CAMPUS_LATITUDE = 34.1625
 internal const val CAMPUS_LONGITUDE = -119.0440
 internal const val CAMPUS_ZOOM = 15.0
 
-// The map zooms in at least this close on the selected post's pin.
-private const val SELECTED_POST_ZOOM = 16.0
-
-// The pins' GeoJSON property that holds their post's ID.
-private const val POST_ID_PROPERTY = "postId"
-
-internal val PIN_RADIUS = 7.dp
-internal val PIN_OUTLINE_WIDTH = 2.dp
-
-// The selected post's pin is drawn bigger, over the others.
-private val SELECTED_PIN_RADIUS = 10.dp
-private val SELECTED_PIN_OUTLINE_WIDTH = 3.dp
-
-// A tap this close to a pin still selects it, so that the small pins are easy to hit.
-private val PIN_HIT_PADDING = 16.dp
+// The map zooms in at least this close when it moves to a post or to the user.
+private const val CLOSE_UP_ZOOM = 16.0
 
 /**
  * The map: every post as a pin where its photo was taken, and the user's location as a blue dot.
  * It opens over the campus.
  *
- * Tapping a pin selects its post: the map moves to the pin and opens a popup above it with the
- * post's photo, until the user taps the map anywhere else. Pressing the popup shows the post on
- * Home. Feed shows a post here by selecting it in [edu.csuci.tweeter.AppContainer.mapSelection]
- * before opening Map. The location button moves the map to the user, asking for location
- * permission first if the app doesn't have it.
+ * Tapping a pin opens a popup above it with the post's photo, and the map moves to the pin. Back,
+ * or a tap anywhere else on the map, closes the popup; pressing it shows the post on Home. Feed
+ * shows a post here through [edu.csuci.tweeter.AppContainer.showOnMapRequest]. The location
+ * button moves the map to the user, asking for location permission first if the app doesn't
+ * have it.
  *
- * @param onShowInFeed Opens Home, once the post whose popup the user pressed is selected there.
+ * @param onShowInFeed Opens Home, once the post whose popup the user pressed is requested there.
  * @param modifier Applied to the screen.
- * @param viewModel Supplies the posts and the selected one.
+ * @param viewModel Supplies the posts, the open popup and where the map moves next.
  */
 @Composable
 fun MapScreen(
@@ -93,59 +74,118 @@ fun MapScreen(
     modifier: Modifier = Modifier,
     viewModel: MapViewModel = viewModel(factory = MapViewModel.factory)
 ) {
-    val posts by viewModel.posts.collectAsStateWithLifecycle()
-    val selectedPost by viewModel.selectedPost.collectAsStateWithLifecycle()
-    PostMap(
-        posts = posts,
-        selectedPost = selectedPost,
-        onPinClick = viewModel::selectPost,
-        onMapClick = viewModel::clearSelection,
-        onPopupClick = { post ->
-            viewModel.showInFeed(post)
-            onShowInFeed()
-        },
-        modifier = modifier.fillMaxSize()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val locationState = rememberLocationState(headingProvider = rememberDefaultHeadingProvider())
+    val mapState = rememberPostMapState(uiState, locationState, onPinClick = viewModel::selectPost)
+
+    BackHandler(enabled = uiState.selectedPost != null, onBack = viewModel::clearSelection)
+    MapMoveEffect(uiState, mapState, locationState, onMoveFinished = viewModel::finishMove)
+    MaplibreMap(
+        modifier = modifier.fillMaxSize(),
+        state = mapState,
+        interactions = rememberMapInteractions(onMapClick = viewModel::clearSelection),
+        overlay = {
+            MapControls(mapState) {
+                MyLocationButton(
+                    locationState = locationState,
+                    onClick = viewModel::moveToUser,
+                    modifier = Modifier.padding(MapOverlay.Spacing)
+                )
+            }
+            uiState.selectedPost?.let { post ->
+                PinnedPostPopup(
+                    post = post,
+                    onClick = {
+                        viewModel.showInFeed(post)
+                        onShowInFeed()
+                    }
+                )
+            }
+        }
     )
 }
 
 /**
- * A map with one pin per post in [posts], the selected post's popup, the user's location, and a
- * button that moves to it.
+ * The map's state, opening over the campus, with a pin for each post and the user's location
+ * drawn on it.
  *
- * @param posts The posts to pin.
- * @param selectedPost The post whose popup is open and that the map moves to, or null.
+ * @param uiState The posts to pin and the selected one.
+ * @param locationState The user's location, drawn as a blue dot.
  * @param onPinClick Called with the ID of the post whose pin the user taps.
- * @param onMapClick Called when the user taps the map anywhere but on a pin or the popup.
- * @param onPopupClick Called with the selected post when the user presses its popup.
- * @param modifier Applied to the map.
  */
 @Composable
-private fun PostMap(
-    posts: List<Post>,
-    selectedPost: Post?,
-    onPinClick: (String) -> Unit,
-    onMapClick: () -> Unit,
-    onPopupClick: (Post) -> Unit,
-    modifier: Modifier = Modifier
-) {
+private fun rememberPostMapState(
+    uiState: MapUiState,
+    locationState: LocationState,
+    onPinClick: (String) -> Unit
+): MapState {
     val currentOnPinClick by rememberUpdatedState(onPinClick)
-    val currentOnMapClick by rememberUpdatedState(onMapClick)
-    val locationState = rememberLocationState(headingProvider = rememberDefaultHeadingProvider())
-    val mapState = rememberMapState(
+    return rememberMapState(
         baseStyle = BaseStyle.Uri(MAP_STYLE_URI),
         initialCameraPosition = CameraPosition(
             center = Position(longitude = CAMPUS_LONGITUDE, latitude = CAMPUS_LATITUDE),
             zoom = CAMPUS_ZOOM
         )
     ) {
-        PostPins(posts = posts, selectedPost = selectedPost, onPinClick = { currentOnPinClick(it) })
+        PostPins(
+            posts = uiState.posts,
+            selectedPost = uiState.selectedPost,
+            onPinClick = { currentOnPinClick(it) }
+        )
         LocationIndicatorLayer(id = "user-location", locationState = locationState)
     }
-    val interactions = remember {
+}
+
+/**
+ * Moves the map once to where [MapUiState.pendingMove] asks: to the selected post's pin once the
+ * post has loaded, or to the user once their location is known.
+ *
+ * @param uiState The move to make, and the selected post it may be to.
+ * @param mapState The map to move.
+ * @param locationState The user's location.
+ * @param onMoveFinished Called with the move once the camera has arrived.
+ */
+@Composable
+private fun MapMoveEffect(
+    uiState: MapUiState,
+    mapState: MapState,
+    locationState: LocationState,
+    onMoveFinished: (MapMove) -> Unit
+) {
+    val currentOnMoveFinished by rememberUpdatedState(onMoveFinished)
+    val move = uiState.pendingMove
+    val selectedPost = uiState.selectedPost
+    LaunchedEffect(move, selectedPost) {
+        val pendingMove = move ?: return@LaunchedEffect
+        val target = when (pendingMove) {
+            is MapMove.ToPost -> selectedPost?.takeIf { it.id == pendingMove.postId }?.position()
+            MapMove.ToUser -> locationState.awaitLocation()
+        } ?: return@LaunchedEffect
+        mapState.moveCloseTo(target)
+        // Only once the camera has arrived: finishing changes this effect's keys, which cancels it.
+        currentOnMoveFinished(pendingMove)
+    }
+}
+
+/** Returns the user's location, waiting for it if it isn't known yet. */
+private suspend fun LocationState.awaitLocation(): Position =
+    snapshotFlow { lastLocation?.position }.filterNotNull().first()
+
+/** Moves the camera to [position], zooming in to at least [CLOSE_UP_ZOOM]. */
+private suspend fun MapState.moveCloseTo(position: Position) {
+    animateCamera(
+        CameraUpdate(center = position, zoom = maxOf(cameraPosition.zoom, CLOSE_UP_ZOOM))
+    )
+}
+
+/** The map's standard gestures, with [onMapClick] called for taps that no pin takes. */
+@Composable
+private fun rememberMapInteractions(onMapClick: () -> Unit): MapInteractions {
+    val currentOnMapClick by rememberUpdatedState(onMapClick)
+    return remember {
         MapInteractions(MapInteractions.Standard) {
             callbacks {
                 click {
-                    // Only taps that no pin took reach this.
                     onUnhandled {
                         currentOnMapClick()
                         ClickResult.Pass
@@ -154,84 +194,6 @@ private fun PostMap(
             }
         }
     }
-
-    LaunchedEffect(selectedPost?.id) {
-        val post = selectedPost ?: return@LaunchedEffect
-        mapState.animateCamera(
-            CameraUpdate(
-                center = post.position(),
-                zoom = maxOf(mapState.cameraPosition.zoom, SELECTED_POST_ZOOM)
-            )
-        )
-    }
-
-    MaplibreMap(
-        modifier = modifier,
-        state = mapState,
-        interactions = interactions,
-        overlay = {
-            MapControls(mapState) {
-                MyLocationButton(
-                    locationState = locationState,
-                    mapState = mapState,
-                    modifier = Modifier.padding(MapOverlay.Spacing)
-                )
-            }
-            selectedPost?.let { post ->
-                PostPopup(
-                    post = post,
-                    onClick = { onPopupClick(post) },
-                    modifier = Modifier
-                        .placedAt(post.position(), Alignment.BottomCenter)
-                        // The tail's tip touches the top of the selected pin.
-                        .padding(bottom = SELECTED_PIN_RADIUS + SELECTED_PIN_OUTLINE_WIDTH)
-                )
-            }
-        }
-    )
-}
-
-/**
- * One pin per post in [posts], declared in a map's style content, with the selected post's pin
- * drawn bigger over the others.
- *
- * @param posts The posts to pin.
- * @param selectedPost The post whose pin stands out, or null.
- * @param onPinClick Called with the ID of the post whose pin the user taps.
- */
-@Composable
-@MaplibreComposable
-private fun PostPins(posts: List<Post>, selectedPost: Post?, onPinClick: (String) -> Unit) {
-    val pins = remember(posts) { GeoJsonData.Features(posts.toPins()) }
-    val selectedPin = remember(selectedPost) {
-        GeoJsonData.Features(listOfNotNull(selectedPost).toPins())
-    }
-    CircleLayer(
-        id = "post-pins",
-        source = rememberGeoJsonSource(pins),
-        color = const(MaterialTheme.colorScheme.primary),
-        radius = const(PIN_RADIUS),
-        strokeColor = const(MaterialTheme.colorScheme.surface),
-        strokeWidth = const(PIN_OUTLINE_WIDTH),
-        onClick = { features ->
-            val postId = features.firstNotNullOfOrNull { it.properties?.postId() }
-            if (postId == null) {
-                ClickResult.Pass
-            } else {
-                onPinClick(postId)
-                ClickResult.Consume
-            }
-        },
-        hitPadding = PIN_HIT_PADDING
-    )
-    CircleLayer(
-        id = "selected-post-pin",
-        source = rememberGeoJsonSource(selectedPin),
-        color = const(MaterialTheme.colorScheme.primary),
-        radius = const(SELECTED_PIN_RADIUS),
-        strokeColor = const(MaterialTheme.colorScheme.surface),
-        strokeWidth = const(SELECTED_PIN_OUTLINE_WIDTH)
-    )
 }
 
 /**
@@ -270,18 +232,15 @@ internal fun MapOverlayScope.MapControls(mapState: MapState, actions: @Composabl
     }
 }
 
-/** Converts posts to GeoJSON points, each at the place its post's photo was taken. */
-private fun List<Post>.toPins(): FeatureCollection<Point, JsonObject?> = FeatureCollection(
-    map { post ->
-        Feature(
-            geometry = Point(post.position()),
-            properties = JsonObject(mapOf(POST_ID_PROPERTY to JsonPrimitive(post.id)))
-        )
-    }
-)
-
-/** Returns the ID of the post whose pin has these properties, or null if they have none. */
-private fun JsonObject.postId(): String? = (get(POST_ID_PROPERTY) as? JsonPrimitive)?.contentOrNull
-
-/** Returns where this post's photo was taken, as a map position. */
-private fun Post.position() = Position(longitude = longitude, latitude = latitude)
+/** [PostPopup] for [post], placed so that its tail points down at the post's pin. */
+@Composable
+private fun MapOverlayScope.PinnedPostPopup(post: Post, onClick: () -> Unit) {
+    PostPopup(
+        post = post,
+        onClick = onClick,
+        modifier = Modifier
+            .placedAt(post.position(), Alignment.BottomCenter)
+            // The tail's tip touches the top of the selected pin.
+            .padding(bottom = SELECTED_PIN_RADIUS + SELECTED_PIN_OUTLINE_WIDTH)
+    )
+}

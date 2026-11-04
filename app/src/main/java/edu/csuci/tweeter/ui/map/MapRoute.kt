@@ -11,7 +11,7 @@ object MapRoute
 /**
  * Registers [MapScreen] under [MapRoute] in the app's NavHost.
  *
- * @param onShowInFeed Opens Home, where the post whose popup the user pressed is selected.
+ * @param onShowInFeed Opens Home's feed, where the post whose popup the user pressed is requested.
  */
 fun NavGraphBuilder.addMapScreen(onShowInFeed: () -> Unit) {
     composable<MapRoute> {

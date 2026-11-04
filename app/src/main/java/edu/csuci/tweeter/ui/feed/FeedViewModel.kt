@@ -9,7 +9,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.Post
 import edu.csuci.tweeter.data.PostRepository
-import edu.csuci.tweeter.ui.navigation.PostSelection
+import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -27,13 +27,13 @@ data class FeedUiState(val posts: List<Post> = emptyList(), val isLoading: Boole
  * Holds posts for [FeedScreen].
  *
  * @param postRepository Where post data is read from.
- * @param feedSelection The post another screen asked the feed to show, which it scrolls to.
- * @param mapSelection The post whose popup is open on Map, which [showOnMap] selects.
+ * @param showInFeedRequest The post another screen asks the feed to show, which it scrolls to.
+ * @param showOnMapRequest Where [showOnMap] asks Map to show a post.
  */
 class FeedViewModel(
     postRepository: PostRepository,
-    private val feedSelection: PostSelection,
-    private val mapSelection: PostSelection
+    private val showInFeedRequest: ShowPostRequest,
+    private val showOnMapRequest: ShowPostRequest
 ) : ViewModel() {
     /**
      * The current state of the feed, updated whenever posts change.
@@ -55,27 +55,27 @@ class FeedViewModel(
      * The ID of the post another screen asked the feed to show, such as Map's popup, or null. The
      * feed scrolls to it once its posts include it, then calls [clearPostToShow].
      */
-    val postToShow: StateFlow<String?> = feedSelection.postId
+    val postToShow: StateFlow<String?> = showInFeedRequest.postId
 
     /** Forgets [postToShow] once the feed has scrolled to it, so it doesn't scroll there again. */
     fun clearPostToShow() {
-        feedSelection.clear()
+        showInFeedRequest.clear()
     }
 
-    /** Selects [post] on Map, so that Map opens its popup when it opens. */
+    /** Asks Map to show [post], which opens the post's popup when Map opens. */
     fun showOnMap(post: Post) {
-        mapSelection.select(post.id)
+        showOnMapRequest.send(post.id)
     }
 
     companion object {
-        /** Creates a [FeedViewModel] that reads the app's shared posts and selections. */
+        /** Creates a [FeedViewModel] that reads the app's shared posts and requests. */
         val factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as TweeterApplication
                 FeedViewModel(
                     postRepository = application.container.postRepository,
-                    feedSelection = application.container.feedSelection,
-                    mapSelection = application.container.mapSelection
+                    showInFeedRequest = application.container.showInFeedRequest,
+                    showOnMapRequest = application.container.showOnMapRequest
                 )
             }
         }
