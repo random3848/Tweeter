@@ -98,6 +98,7 @@ fun EditProfileScreen(
                     initialsStyle = MaterialTheme.typography.headlineMedium
                 )
                 ChangePhotoButton(
+                    enabled = !editProfileViewModel.isSaving,
                     hasPhoto = editProfileViewModel.hasPhoto,
                     cameraFailed = editProfileViewModel.cameraFailed,
                     onTakePicture = editProfileViewModel::takePicture,

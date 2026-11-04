@@ -33,6 +33,7 @@ import edu.csuci.tweeter.R
  *
  * Camera roll photos come from Android's photo picker, which leaves out where they were taken.
  *
+ * @param enabled Whether the photo can be changed now; it can't while the profile is saved.
  * @param hasPhoto Whether there's a photo to remove; "Remove photo" is offered only then.
  * @param cameraFailed Whether the latest picture couldn't be taken, which the button says.
  * @param onTakePicture Called when the user takes a picture with the camera app.
@@ -46,6 +47,7 @@ import edu.csuci.tweeter.R
 @OptIn(ExperimentalMaterial3Api::class) // For ModalBottomSheet, still experimental in Material 3.
 @Composable
 fun ChangePhotoButton(
+    enabled: Boolean,
     hasPhoto: Boolean,
     cameraFailed: Boolean,
     onTakePicture: () -> Unit,
@@ -78,6 +80,7 @@ fun ChangePhotoButton(
 
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         TextButton(
+            enabled = enabled,
             onClick = {
                 pickerFailed = false
                 onDismissCameraFailure()

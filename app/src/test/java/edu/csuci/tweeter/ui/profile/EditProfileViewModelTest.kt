@@ -412,6 +412,46 @@ class EditProfileViewModelTest {
     }
 
     @Test
+    fun choosePhoto_whileSaving_keepsPhotoBeingUploaded() {
+        photoRepository.uploadFinished = CompletableDeferred()
+        val viewModel = createViewModel()
+        val cameraUri = takeCameraPhoto(viewModel)
+        viewModel.save()
+
+        viewModel.choosePhoto(CHOSEN_PHOTO_URI)
+
+        assertEquals(PhotoChange.Replace(cameraUri), viewModel.photoChange)
+        assertEquals(listOf(cameraUri), contentUrisInDirectory())
+    }
+
+    @Test
+    fun removePhoto_whileSaving_keepsPhotoBeingUploaded() {
+        photoRepository.uploadFinished = CompletableDeferred()
+        val viewModel = createViewModel()
+        val cameraUri = takeCameraPhoto(viewModel)
+        viewModel.save()
+
+        viewModel.removePhoto()
+
+        assertEquals(PhotoChange.Replace(cameraUri), viewModel.photoChange)
+        assertEquals(listOf(cameraUri), contentUrisInDirectory())
+    }
+
+    @Test
+    fun pictureTaken_whileSaving_keepsPhotoBeingUploadedAndDeletesNewFile() {
+        photoRepository.uploadFinished = CompletableDeferred()
+        val viewModel = createViewModel()
+        val cameraUri = takeCameraPhoto(viewModel)
+        openCamera(viewModel)
+        viewModel.save()
+
+        viewModel.pictureTaken(isSaved = true)
+
+        assertEquals(PhotoChange.Replace(cameraUri), viewModel.photoChange)
+        assertEquals(listOf(cameraUri), contentUrisInDirectory())
+    }
+
+    @Test
     fun save_whileWritingProfile_isWritingProfile() {
         profileRepository.saveFinished = CompletableDeferred()
         val viewModel = createViewModel()
@@ -474,6 +514,9 @@ class EditProfileViewModelTest {
         openCamera(viewModel).also { viewModel.pictureTaken(isSaved = true) }
 
     private fun filesInDirectory(): List<File> = cameraDirectory.listFiles().orEmpty().toList()
+
+    private fun contentUrisInDirectory(): List<String> =
+        filesInDirectory().map { file -> CAMERA_URI_PREFIX + file.name }
 
     private fun createViewModel(
         loggedInUid: String? = profile.uid,

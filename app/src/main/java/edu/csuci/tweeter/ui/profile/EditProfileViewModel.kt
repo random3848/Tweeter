@@ -148,11 +148,14 @@ class EditProfileViewModel(
 
     /**
      * Makes the picture the camera app took the new profile photo when [isSaved], and otherwise
-     * deletes its file.
+     * deletes its file. While [isSaving] the picture is ignored, as [choosePhoto] is, and its file
+     * deleted.
      */
     fun pictureTaken(isSaved: Boolean) {
         if (isSaved) {
-            cameraCapture.keep()?.let { picture -> replacePhoto(picture.contentUri, picture.path) }
+            cameraCapture.keep()?.let { picture ->
+                changePhoto(PhotoChange.Replace(picture.contentUri), cameraFilePath = picture.path)
+            }
         } else {
             cameraCapture.discard()
         }
@@ -160,21 +163,29 @@ class EditProfileViewModel(
 
     /**
      * Makes the photo at [photoUri], chosen from the camera roll, the new profile photo, uploaded
-     * when the profile is saved.
+     * when the profile is saved. Ignored while [isSaving], since saving reads the photo it
+     * started with.
      */
     fun choosePhoto(photoUri: String) {
-        replacePhoto(photoUri, cameraFilePath = null)
+        changePhoto(PhotoChange.Replace(photoUri), cameraFilePath = null)
     }
 
-    private fun replacePhoto(photoUri: String, cameraFilePath: String?) {
-        replaceCachedFile(cameraFilePath)
-        updatePhotoChange(PhotoChange.Replace(photoUri))
-    }
-
-    /** Removes the profile photo when the profile is saved. */
+    /** Removes the profile photo when the profile is saved. Ignored while [isSaving]. */
     fun removePhoto() {
-        replaceCachedFile(null)
-        updatePhotoChange(PhotoChange.Remove)
+        changePhoto(PhotoChange.Remove, cameraFilePath = null)
+    }
+
+    // Makes [change], whose photo is in the camera file at [cameraFilePath] if it has one. While
+    // saving, the change is dropped and its own file deleted instead: the photo being uploaded,
+    // and its file, must stay.
+    private fun changePhoto(change: PhotoChange, cameraFilePath: String?) {
+        if (isSaving) {
+            cameraFilePath?.let(cameraFiles::discard)
+            return
+        }
+
+        replaceCachedFile(cameraFilePath)
+        updatePhotoChange(change)
     }
 
     /**
