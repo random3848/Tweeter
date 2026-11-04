@@ -25,6 +25,8 @@ import kotlinx.coroutines.tasks.await
  * listener and one parse per snapshot. Snapshots are delivered and parsed on [dispatcher], off
  * the main thread, one at a time in the order they arrive, so an older snapshot can never replace
  * a newer one. Only [PostDocument]'s fields are read, into one array reused for every document.
+ * When signing in or the listener fails, both are set up again with [retryWithBackoff], while
+ * collectors keep the last table.
  */
 class FirestorePostRepository(
     private val auth: FirebaseAuth,
@@ -35,7 +37,9 @@ class FirestorePostRepository(
     private val posts = firestore.collection(PostDocument.COLLECTION)
     private val newestFirst =
         posts.orderBy(PostDocument.Field.TIMESTAMP.key, Query.Direction.DESCENDING)
-    private val postTable = snapshotsOf(newestFirst, ::tableOf).sharedWhileCollected(scope)
+    private val postTable = snapshotsOf(newestFirst, ::tableOf)
+        .retryWithBackoff(TAG)
+        .sharedWhileCollected(scope)
 
     override fun getPostTable(): Flow<PostTable> = postTable
 
@@ -51,8 +55,8 @@ class FirestorePostRepository(
         val executor = dispatcher.serialExecutor()
         val registration = query.addSnapshotListener(executor) { snapshot, error ->
             if (error != null) {
-                // Keep showing the last posts; the listener stops after an error.
-                Log.e(TAG, "Could not read posts", error)
+                // The listener stops after an error; retrying sets up a new one.
+                close(error)
                 return@addSnapshotListener
             }
             if (snapshot != null) {
