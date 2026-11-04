@@ -16,6 +16,7 @@ import edu.csuci.tweeter.ui.camera.CameraCapture
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -478,7 +479,11 @@ class EditProfileViewModelTest {
             photoRepository = photoRepository,
             accountRepository = FakeAccountRepository(loggedInUid),
             cameraFiles = cameraFiles,
-            cameraCapture = CameraCapture(cameraFiles, savedStateHandle),
+            cameraCapture = CameraCapture(
+                cameraFiles = cameraFiles,
+                savedStateHandle = savedStateHandle,
+                scope = CoroutineScope(dispatcher)
+            ),
             savedStateHandle = savedStateHandle
         )
     }

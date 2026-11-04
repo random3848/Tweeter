@@ -23,6 +23,7 @@ import edu.csuci.tweeter.data.UserProfile
 import edu.csuci.tweeter.data.deleteUnusedPhoto
 import edu.csuci.tweeter.data.getLoggedInProfile
 import edu.csuci.tweeter.ui.camera.CameraCapture
+import edu.csuci.tweeter.ui.camera.CameraControls
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -52,7 +53,8 @@ internal const val PROFILE_WRITE_TIMEOUT_MILLIS = 10_000L
  * @param accountRepository Who is logged in.
  * @param cameraFiles Deletes the file of a camera photo once nothing needs it, even after this
  *     ViewModel is cleared.
- * @param cameraCapture Takes pictures with the camera app.
+ * @param cameraCapture Takes pictures with the camera app, for the screen to control through this
+ *     ViewModel; it's closed with the ViewModel.
  * @param savedStateHandle Keeps the typed name and bio and the photo change.
  */
 class EditProfileViewModel(
@@ -62,7 +64,8 @@ class EditProfileViewModel(
     private val cameraFiles: CameraFiles,
     private val cameraCapture: CameraCapture,
     private val savedStateHandle: SavedStateHandle
-) : ViewModel() {
+) : ViewModel(cameraCapture),
+    CameraControls by cameraCapture {
     // The profile as it's stored, before the edits, or null while it's still being read.
     private var profile by mutableStateOf<UserProfile?>(null)
 
@@ -76,18 +79,6 @@ class EditProfileViewModel(
 
     // The app's own file holding a camera photo in [photoChange], deleted once nothing needs it.
     private var cachedFilePath: String? = savedStateHandle[CACHED_FILE_KEY]
-
-    /** The URI the screen opens the camera app with, as [CameraCapture.uriToOpen] says. */
-    val cameraUriToOpen: String?
-        get() = cameraCapture.uriToOpen
-
-    /** Whether a picture is being taken, from [takePicture] until the camera app answers. */
-    val isTakingPicture: Boolean
-        get() = cameraCapture.isTakingPicture
-
-    /** Whether the latest picture couldn't be taken. */
-    val cameraFailed: Boolean
-        get() = cameraCapture.failed
 
     /** Whether the edits are being saved. */
     var isSaving by mutableStateOf(false)
@@ -155,16 +146,6 @@ class EditProfileViewModel(
         }
     }
 
-    /** Starts taking a picture: the screen then opens the camera app with [cameraUriToOpen]. */
-    fun takePicture() {
-        viewModelScope.launch { cameraCapture.start() }
-    }
-
-    /** Stops asking to open the camera app, which the screen has opened. */
-    fun cameraOpened() {
-        cameraCapture.cameraOpened()
-    }
-
     /**
      * Makes the picture the camera app took the new profile photo when [isSaved], and otherwise
      * deletes its file.
@@ -175,16 +156,6 @@ class EditProfileViewModel(
         } else {
             cameraCapture.discard()
         }
-    }
-
-    /** Gives up on the picture, since no camera app could open, and reports [cameraFailed]. */
-    fun cameraUnavailable() {
-        cameraCapture.cameraUnavailable()
-    }
-
-    /** Stops reporting [cameraFailed], once the user moves on. */
-    fun dismissCameraFailure() {
-        cameraCapture.dismissFailure()
     }
 
     /**
@@ -345,7 +316,7 @@ class EditProfileViewModel(
                     photoRepository = application.container.photoRepository,
                     accountRepository = application.container.accountRepository,
                     cameraFiles = cameraFiles,
-                    cameraCapture = CameraCapture(cameraFiles, savedStateHandle),
+                    cameraCapture = CameraCapture.onMainThread(cameraFiles, savedStateHandle),
                     savedStateHandle = savedStateHandle
                 )
             }

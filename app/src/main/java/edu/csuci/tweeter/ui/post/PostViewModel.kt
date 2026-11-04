@@ -31,6 +31,7 @@ import edu.csuci.tweeter.location.LocationFix
 import edu.csuci.tweeter.location.LocationSource
 import edu.csuci.tweeter.location.PhotoLocator
 import edu.csuci.tweeter.ui.camera.CameraCapture
+import edu.csuci.tweeter.ui.camera.CameraControls
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
@@ -47,7 +48,8 @@ private const val PHOTO_PATH_KEY = "photoPath"
  * was taken, uploads it, shares it as a post, and holds the state the post screen displays.
  *
  * @param cameraFiles Deletes the files of camera photos once nothing needs them.
- * @param cameraCapture Takes pictures with the camera app.
+ * @param cameraCapture Takes pictures with the camera app, for the screen to control through this
+ *     ViewModel; it's closed with the ViewModel.
  */
 class PostViewModel(
     private val photoRepository: PhotoRepository,
@@ -58,7 +60,8 @@ class PostViewModel(
     private val cameraFiles: CameraFiles,
     private val cameraCapture: CameraCapture,
     private val savedStateHandle: SavedStateHandle
-) : ViewModel() {
+) : ViewModel(cameraCapture),
+    CameraControls by cameraCapture {
     private var locateJob: Job? = null
 
     /** The logged-in user's ID, or null while nobody is logged in and posting isn't allowed. */
@@ -104,28 +107,6 @@ class PostViewModel(
     val isPhotoFromCamera: Boolean
         get() = photoPath != null
 
-    /** The URI the screen opens the camera app with, as [CameraCapture.uriToOpen] says. */
-    val cameraUriToOpen: String?
-        get() = cameraCapture.uriToOpen
-
-    /** Whether a picture is being taken, from [takePicture] until the camera app answers. */
-    val isTakingPicture: Boolean
-        get() = cameraCapture.isTakingPicture
-
-    /** Whether the latest picture couldn't be taken. */
-    val cameraFailed: Boolean
-        get() = cameraCapture.failed
-
-    /** Starts taking a picture: the screen then opens the camera app with [cameraUriToOpen]. */
-    fun takePicture() {
-        viewModelScope.launch { cameraCapture.start() }
-    }
-
-    /** Stops asking to open the camera app, which the screen has opened. */
-    fun cameraOpened() {
-        cameraCapture.cameraOpened()
-    }
-
     /**
      * Makes the picture the camera app took the post's photo when [isSaved], and otherwise
      * deletes its file.
@@ -136,16 +117,6 @@ class PostViewModel(
         } else {
             cameraCapture.discard()
         }
-    }
-
-    /** Gives up on the picture, since no camera app could open, and reports [cameraFailed]. */
-    fun cameraUnavailable() {
-        cameraCapture.cameraUnavailable()
-    }
-
-    /** Stops reporting [cameraFailed], once the user moves on to another way to get a photo. */
-    fun dismissCameraFailure() {
-        cameraCapture.dismissFailure()
     }
 
     /** Makes the photo at [uri], chosen from the camera roll, the post's photo. */
@@ -312,7 +283,7 @@ class PostViewModel(
                         ioDispatcher = Dispatchers.IO
                     ),
                     cameraFiles = cameraFiles,
-                    cameraCapture = CameraCapture(cameraFiles, savedStateHandle),
+                    cameraCapture = CameraCapture.onMainThread(cameraFiles, savedStateHandle),
                     savedStateHandle = savedStateHandle
                 )
             }

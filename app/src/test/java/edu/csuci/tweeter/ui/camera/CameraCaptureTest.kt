@@ -5,6 +5,7 @@ package edu.csuci.tweeter.ui.camera
 import androidx.lifecycle.SavedStateHandle
 import edu.csuci.tweeter.data.CameraFiles
 import java.io.File
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -29,74 +30,74 @@ class CameraCaptureTest {
     private val savedStateHandle = SavedStateHandle()
 
     @Test
-    fun start_asksToOpenCameraWithNewFile() = runTest {
+    fun takePicture_asksToOpenCameraWithNewFile() = runTest {
         val capture = cameraCapture()
 
-        capture.start()
+        capture.takePicture()
 
-        assertEquals(listOf(capture.uriToOpen), contentUrisInDirectory())
+        assertEquals(listOf(capture.cameraUriToOpen), contentUrisInDirectory())
         assertTrue(capture.isTakingPicture)
     }
 
     @Test
-    fun start_whileTakingPicture_createsNoOtherFile() = runTest {
+    fun takePicture_whileTakingPicture_createsNoOtherFile() = runTest {
         val capture = cameraCapture()
-        capture.start()
+        capture.takePicture()
 
-        capture.start()
+        capture.takePicture()
 
         assertEquals(1, filesInDirectory().size)
     }
 
     @Test
-    fun start_fileCantBeCreated_failsWithoutOpeningCamera() = runTest {
+    fun takePicture_fileCantBeCreated_failsWithoutOpeningCamera() = runTest {
         directory.writeText("A file where the directory should be")
         val capture = cameraCapture()
 
-        capture.start()
+        capture.takePicture()
 
-        assertTrue(capture.failed)
-        assertNull(capture.uriToOpen)
+        assertTrue(capture.cameraFailed)
+        assertNull(capture.cameraUriToOpen)
         assertFalse(capture.isTakingPicture)
     }
 
     @Test
-    fun start_afterFailure_clearsFailure() = runTest {
+    fun takePicture_afterFailure_clearsFailure() = runTest {
         val capture = cameraCapture()
-        capture.start()
+        capture.takePicture()
         capture.cameraUnavailable()
 
-        capture.start()
+        capture.takePicture()
 
-        assertFalse(capture.failed)
+        assertFalse(capture.cameraFailed)
     }
 
     @Test
-    fun dismissFailure_clearsFailure() = runTest {
+    fun dismissCameraFailure_clearsFailure() = runTest {
         val capture = cameraCapture()
-        capture.start()
+        capture.takePicture()
         capture.cameraUnavailable()
 
-        capture.dismissFailure()
+        capture.dismissCameraFailure()
 
-        assertFalse(capture.failed)
+        assertFalse(capture.cameraFailed)
     }
 
     @Test
     fun cameraOpened_stopsAskingToOpenCamera() = runTest {
         val capture = cameraCapture()
-        capture.start()
+        capture.takePicture()
 
         capture.cameraOpened()
 
-        assertNull(capture.uriToOpen)
+        assertNull(capture.cameraUriToOpen)
         assertTrue(capture.isTakingPicture)
     }
 
     @Test
     fun keep_returnsPictureFileAndFinishes() = runTest {
         val capture = cameraCapture()
-        capture.start()
+        capture.takePicture()
         capture.cameraOpened()
 
         val picture = capture.keep()
@@ -114,7 +115,7 @@ class CameraCaptureTest {
     @Test
     fun discard_deletesFileAndFinishes() = runTest {
         val capture = cameraCapture()
-        capture.start()
+        capture.takePicture()
         capture.cameraOpened()
 
         capture.discard()
@@ -126,36 +127,36 @@ class CameraCaptureTest {
     @Test
     fun cameraUnavailable_deletesFileAndFails() = runTest {
         val capture = cameraCapture()
-        capture.start()
+        capture.takePicture()
 
         capture.cameraUnavailable()
 
         assertEquals(emptyList<File>(), filesInDirectory())
-        assertNull(capture.uriToOpen)
+        assertNull(capture.cameraUriToOpen)
         assertFalse(capture.isTakingPicture)
-        assertTrue(capture.failed)
+        assertTrue(capture.cameraFailed)
     }
 
     @Test
     fun restored_whileCameraOpen_keepsPictureFile() = runTest {
         val capture = cameraCapture()
-        capture.start()
+        capture.takePicture()
         capture.cameraOpened()
 
         val restored = cameraCapture()
 
-        assertNull(restored.uriToOpen)
+        assertNull(restored.cameraUriToOpen)
         assertEquals(contentUrisInDirectory(), listOfNotNull(restored.keep()?.contentUri))
     }
 
     @Test
     fun restored_beforeCameraOpened_stillAsksToOpenIt() = runTest {
         val capture = cameraCapture()
-        capture.start()
+        capture.takePicture()
 
         val restored = cameraCapture()
 
-        assertEquals(capture.uriToOpen, restored.uriToOpen)
+        assertEquals(capture.cameraUriToOpen, restored.cameraUriToOpen)
     }
 
     private fun TestScope.cameraCapture(): CameraCapture = CameraCapture(
@@ -165,7 +166,8 @@ class CameraCaptureTest {
             ioDispatcher = UnconfinedTestDispatcher(testScheduler),
             contentUriOf = ::contentUriOf
         ),
-        savedStateHandle = savedStateHandle
+        savedStateHandle = savedStateHandle,
+        scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
     )
 
     private fun contentUriOf(file: File): String = CONTENT_URI_PREFIX + file.name

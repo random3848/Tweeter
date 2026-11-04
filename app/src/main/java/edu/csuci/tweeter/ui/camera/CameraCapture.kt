@@ -8,6 +8,11 @@ import androidx.lifecycle.SavedStateHandle
 import edu.csuci.tweeter.data.CameraFile
 import edu.csuci.tweeter.data.CameraFiles
 import java.io.IOException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 private const val FILE_PATH_KEY = "cameraFilePath"
 private const val FILE_URI_KEY = "cameraFileUri"
@@ -18,17 +23,21 @@ private const val FAILED_KEY = "cameraFailed"
  * A picture being taken with the camera app for a ViewModel, from creating the file the camera
  * app saves it into until the camera app answers.
  *
- * The ViewModel calls [start]; its screen then opens the camera app with [uriToOpen] (see
- * [CameraOpener]) and reports back. The file survives the app being stopped while the camera app
- * is open, through [savedStateHandle].
+ * The ViewModel exposes it as [CameraControls], passes it to its `ViewModel` constructor so it's
+ * closed with the ViewModel, and finishes each picture with [keep] or [discard]. The file
+ * survives the app being stopped while the camera app is open, through [savedStateHandle].
  *
  * @param cameraFiles Creates and deletes the file, off the main thread.
  * @param savedStateHandle The ViewModel's, keeping the file and whether the camera app opened.
+ * @param scope Where the file is created, on the main thread. It's this capture's alone:
+ *     [close] cancels it.
  */
 class CameraCapture(
     private val cameraFiles: CameraFiles,
-    private val savedStateHandle: SavedStateHandle
-) {
+    private val savedStateHandle: SavedStateHandle,
+    private val scope: CoroutineScope
+) : CameraControls,
+    AutoCloseable {
     private var isCreatingFile by mutableStateOf(false)
 
     // The file the picture is being taken into, from its creation until the camera app answers.
@@ -36,35 +45,22 @@ class CameraCapture(
 
     private var isCameraOpened by mutableStateOf(savedStateHandle[IS_OPENED_KEY] ?: false)
 
-    /**
-     * The URI of the file for the camera app to save the picture into, or null unless the screen
-     * should open the camera app now. It calls [cameraOpened] once it has.
-     */
-    val uriToOpen: String?
+    override val cameraUriToOpen: String?
         get() = file?.contentUri?.takeUnless { isCameraOpened }
 
-    /** Whether a picture is being taken: from [start] until the camera app answers. */
-    val isTakingPicture: Boolean
+    override val isTakingPicture: Boolean
         get() = isCreatingFile || file != null
 
-    /**
-     * Whether the latest picture couldn't be taken, because its file couldn't be created or no
-     * camera app could open.
-     */
-    var failed by mutableStateOf(savedStateHandle[FAILED_KEY] ?: false)
+    override var cameraFailed by mutableStateOf(savedStateHandle[FAILED_KEY] ?: false)
         private set
 
-    /**
-     * Creates the file for a new picture, then asks to open the camera app. Ignored while a
-     * picture is being taken.
-     */
-    suspend fun start() {
+    override fun takePicture() {
         if (isTakingPicture) {
             return
         }
 
         updateFailed(false)
-        createFileWhileTaking()
+        scope.launch { createFileWhileTaking() }
     }
 
     // Creates the file, counting as taking a picture meanwhile so a second start is ignored.
@@ -77,8 +73,7 @@ class CameraCapture(
         }
     }
 
-    /** Stops asking to open the camera app, which the screen has opened. */
-    fun cameraOpened() {
+    override fun cameraOpened() {
         isCameraOpened = true
         savedStateHandle[IS_OPENED_KEY] = true
     }
@@ -97,15 +92,18 @@ class CameraCapture(
         cameraFiles.discard(discarded.path)
     }
 
-    /** Gives up on the picture, since no camera app could open, and discards its file. */
-    fun cameraUnavailable() {
+    override fun cameraUnavailable() {
         updateFailed(true)
         discard()
     }
 
-    /** Stops reporting that the latest picture failed, once the user moves on. */
-    fun dismissFailure() {
+    override fun dismissCameraFailure() {
         updateFailed(false)
+    }
+
+    /** Stops creating a file, for the ViewModel being cleared. */
+    override fun close() {
+        scope.cancel()
     }
 
     private suspend fun createFile() {
@@ -132,7 +130,23 @@ class CameraCapture(
     }
 
     private fun updateFailed(hasFailed: Boolean) {
-        failed = hasFailed
+        cameraFailed = hasFailed
         savedStateHandle[FAILED_KEY] = hasFailed
+    }
+
+    /** Creates [CameraCapture]s. */
+    companion object {
+        /**
+         * A capture that creates files from the main thread, in a scope of its own that is
+         * cancelled when it's closed, as a ViewModel's `viewModelScope` is.
+         */
+        fun onMainThread(
+            cameraFiles: CameraFiles,
+            savedStateHandle: SavedStateHandle
+        ): CameraCapture = CameraCapture(
+            cameraFiles = cameraFiles,
+            savedStateHandle = savedStateHandle,
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        )
     }
 }

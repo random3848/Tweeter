@@ -103,9 +103,7 @@ private fun PostForm(postViewModel: PostViewModel, modifier: Modifier = Modifier
     }
 
     CameraOpener(
-        uriToOpen = postViewModel.cameraUriToOpen,
-        onOpened = postViewModel::cameraOpened,
-        onUnavailable = postViewModel::cameraUnavailable,
+        camera = postViewModel,
         onResult = { isSaved ->
             postViewModel.pictureTaken(isSaved)
             if (isSaved) {

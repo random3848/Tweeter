@@ -11,27 +11,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 
 /**
- * Opens the camera app to save a picture into [uriToOpen] whenever that is set, as
- * [CameraCapture.uriToOpen] asks, and reports what happened.
+ * Opens the camera app whenever [camera] asks for it with [CameraControls.cameraUriToOpen], and
+ * tells [camera] whether it opened.
  *
- * @param onOpened Called once the camera app is open, so it isn't opened again.
- * @param onUnavailable Called instead when no camera app could open.
  * @param onResult Called with whether the camera app saved a picture, once it closes. This also
  *     works after Android stopped the app while the camera app was open.
  */
 @Composable
-fun CameraOpener(
-    uriToOpen: String?,
-    onOpened: () -> Unit,
-    onUnavailable: () -> Unit,
-    onResult: (isSaved: Boolean) -> Unit
-) {
+fun CameraOpener(camera: CameraControls, onResult: (isSaved: Boolean) -> Unit) {
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture(),
         onResult = onResult
     )
-    val currentOnOpened by rememberUpdatedState(onOpened)
-    val currentOnUnavailable by rememberUpdatedState(onUnavailable)
+    val currentCamera by rememberUpdatedState(camera)
+    val uriToOpen = camera.cameraUriToOpen
 
     LaunchedEffect(uriToOpen) {
         if (uriToOpen == null) {
@@ -40,10 +33,10 @@ fun CameraOpener(
 
         try {
             cameraLauncher.launch(Uri.parse(uriToOpen))
-            currentOnOpened()
+            currentCamera.cameraOpened()
         } catch (error: ActivityNotFoundException) {
             Log.e("CameraOpener", "No camera app", error)
-            currentOnUnavailable()
+            currentCamera.cameraUnavailable()
         }
     }
 }
