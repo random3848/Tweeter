@@ -32,8 +32,8 @@ import edu.csuci.tweeter.ui.map.MAP_STYLE_URI
 import edu.csuci.tweeter.ui.map.MapControls
 import edu.csuci.tweeter.ui.map.PIN_OUTLINE_WIDTH
 import edu.csuci.tweeter.ui.map.PIN_RADIUS
+import edu.csuci.tweeter.ui.map.pinJsonAt
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.JsonObject
 import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.camera.CameraUpdate
 import org.maplibre.compose.expressions.dsl.const
@@ -45,9 +45,6 @@ import org.maplibre.compose.map.rememberMapState
 import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.compose.sources.rememberGeoJsonSource
 import org.maplibre.compose.style.BaseStyle
-import org.maplibre.spatialk.geojson.Feature
-import org.maplibre.spatialk.geojson.FeatureCollection
-import org.maplibre.spatialk.geojson.Point
 import org.maplibre.spatialk.geojson.Position
 
 // How close the map zooms in on a picked point it moves to.
@@ -160,7 +157,7 @@ private fun PinMap(
     val currentOnMapClick by rememberUpdatedState(onMapClick)
     val pinColor = MaterialTheme.colorScheme.primary
     val pinOutlineColor = MaterialTheme.colorScheme.surface
-    val pinData = remember(pin) { GeoJsonData.Features(pin.toPins()) }
+    val pinData = GeoJsonData.JsonString(pinJsonAt(pin))
     val mapState = rememberMapState(
         baseStyle = BaseStyle.Uri(MAP_STYLE_URI),
         initialCameraPosition = cameraTarget?.let {
@@ -209,11 +206,6 @@ private fun PinMap(
         overlay = { MapControls(mapState) }
     )
 }
-
-/** Converts this point to a GeoJSON collection of one point, or of none if it is null. */
-private fun GeoPoint?.toPins(): FeatureCollection<Point, JsonObject?> = FeatureCollection(
-    listOfNotNull(this).map { Feature(geometry = Point(it.toPosition()), properties = null) }
-)
 
 private fun GeoPoint.toPosition() = Position(longitude = longitude, latitude = latitude)
 
