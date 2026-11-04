@@ -43,6 +43,10 @@ class FirebasePhotoRepository(
         locationTagRemover.copyWithoutLocation(Uri.parse(photoUri))
     } catch (error: IOException) {
         throw PhotoUploadException(error)
+    } catch (error: SecurityException) {
+        // The app can lose its access to a photo picked from the camera roll, such as when
+        // Android stops it in the background and the screen is restored later.
+        throw PhotoUploadException(error)
     }
 
     // Uploads [uri] as a JPEG into the logged-in user's subfolder of [folder].

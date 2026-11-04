@@ -47,9 +47,8 @@ class EditProfileViewModel(
     private val accountRepository: AccountRepository,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
-    /** The profile as it's stored, before the edits, or null while it's still being read. */
-    var profile by mutableStateOf<UserProfile?>(null)
-        private set
+    // The profile as it's stored, before the edits, or null while it's still being read.
+    private var profile by mutableStateOf<UserProfile?>(null)
 
     /** The name and bio as typed, or null while the profile is still being read. */
     var edits by mutableStateOf<ProfileEdits?>(null)

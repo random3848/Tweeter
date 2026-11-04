@@ -25,6 +25,8 @@
 
     <string name="edit_profile_cancel">Cancel</string>
     <string name="edit_profile_save">Save</string>
+    <string name="edit_profile_change_photo">Change photo</string>
+    <string name="edit_profile_remove_photo">Remove photo</string>
     <string name="edit_profile_name">Name</string>
     <string name="edit_profile_name_required">Enter a name.</string>
     <string name="edit_profile_bio">Bio</string>

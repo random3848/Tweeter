@@ -37,8 +37,8 @@ import edu.csuci.tweeter.R
 import edu.csuci.tweeter.data.UserProfile
 
 /**
- * Lets the logged-in user change their name and bio. Save stores them and returns to Profile;
- * Cancel, or going back, returns without saving.
+ * Lets the logged-in user change their photo, name and bio. Save stores them and returns to
+ * Profile; Cancel, or going back, returns without saving.
  *
  * It has its own top bar, and the app hides its bottom bar here.
  *
@@ -59,7 +59,7 @@ fun EditProfileScreen(
         }
     }
 
-    val profile = editProfileViewModel.profile
+    val avatarProfile = editProfileViewModel.avatarProfile
     val edits = editProfileViewModel.edits
     Column(modifier = modifier.fillMaxSize()) {
         EditProfileTopBar(
@@ -69,7 +69,7 @@ fun EditProfileScreen(
         )
 
         // Until the profile has been read there's nothing to edit; show only the top bar.
-        if (profile != null && edits != null) {
+        if (avatarProfile != null && edits != null) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -80,9 +80,14 @@ fun EditProfileScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 ProfileAvatar(
-                    profile = profile,
+                    profile = avatarProfile,
                     size = 96.dp,
                     initialsStyle = MaterialTheme.typography.headlineMedium
+                )
+                ChangePhotoButton(
+                    hasPhoto = editProfileViewModel.hasPhoto,
+                    onPhotoChosen = editProfileViewModel::choosePhoto,
+                    onRemovePhoto = editProfileViewModel::removePhoto
                 )
                 DisplayNameField(
                     displayName = edits.displayName,
