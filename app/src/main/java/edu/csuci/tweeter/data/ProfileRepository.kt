@@ -19,6 +19,14 @@ interface ProfileRepository {
      * The flow fails with a `FirebaseException` if the profile can't be read.
      */
     fun getProfile(uid: String): Flow<UserProfile>
+
+    /**
+     * Stores [profile] as the profile of user [UserProfile.uid], replacing what was there.
+     *
+     * @throws com.google.firebase.FirebaseException If it can't be stored, such as when
+     *     [profile] isn't the logged-in user's.
+     */
+    suspend fun saveProfile(profile: UserProfile)
 }
 
 /**

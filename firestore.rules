@@ -2,9 +2,28 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // The fields match ProfileDocument in the app. Profiles can't be edited from the app yet.
+    // The fields and limits match ProfileDocument and UserProfile in the app.
     match /users/{uid} {
       allow read: if request.auth != null;
+
+      // Only the logged-in user (not a guest) can save their own profile.
+      allow create, update: if request.auth != null
+                            && request.auth.token.firebase.sign_in_provider != 'anonymous'
+                            && request.auth.uid == uid
+                            && request.resource.data.keys().hasOnly([
+                                 'displayName', 'bio', 'photoUrl'
+                               ])
+                            && request.resource.data.keys().hasAll([
+                                 'displayName', 'bio', 'photoUrl'
+                               ])
+                            && request.resource.data.displayName is string
+                            && request.resource.data.displayName.size() > 0
+                            && request.resource.data.displayName.size() <= 30
+                            && request.resource.data.bio is string
+                            && request.resource.data.bio.size() <= 150
+                            && request.resource.data.photoUrl is string
+                            && (request.resource.data.photoUrl == ''
+                                || request.resource.data.photoUrl.matches('https://.*'));
     }
 
     // The fields match PostDocument in the app.

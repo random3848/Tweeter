@@ -4,6 +4,32 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class ProfileDocumentTest {
+    private val profile = UserProfile(
+        uid = "uid",
+        displayName = "Maya Kim",
+        bio = "Spiders, mostly.",
+        photoUrl = "https://example.com/maya.jpg"
+    )
+
+    @Test
+    fun fieldsOf_profile_storesEverythingButUid() {
+        assertEquals(
+            mapOf(
+                "displayName" to "Maya Kim",
+                "bio" to "Spiders, mostly.",
+                "photoUrl" to "https://example.com/maya.jpg"
+            ),
+            ProfileDocument.fieldsOf(profile)
+        )
+    }
+
+    @Test
+    fun toProfile_fieldsOfProfile_returnsSameProfile() {
+        val fields = ProfileDocument.fieldsOf(profile)
+
+        assertEquals(profile, ProfileDocument.toProfile(profile.uid, fields))
+    }
+
     @Test
     fun toProfile_noDocument_defaultProfile() {
         assertEquals(UserProfile.createDefault("uid"), ProfileDocument.toProfile("uid", null))

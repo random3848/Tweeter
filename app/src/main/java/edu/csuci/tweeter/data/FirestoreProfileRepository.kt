@@ -4,13 +4,14 @@ import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.tasks.await
 
 /**
  * A [ProfileRepository] that stores profiles in Cloud Firestore, as described by
  * [ProfileDocument].
  *
- * It reads profiles for users who are already signed in to Firebase, so unlike
- * [FirestorePostRepository] it doesn't sign in itself.
+ * It reads profiles for users who are already signed in to Firebase and saves the logged-in
+ * user's own, so unlike [FirestorePostRepository] it doesn't sign in itself.
  */
 class FirestoreProfileRepository(firestore: FirebaseFirestore) : ProfileRepository {
     private val profiles = firestore.collection(ProfileDocument.COLLECTION)
@@ -28,5 +29,9 @@ class FirestoreProfileRepository(firestore: FirebaseFirestore) : ProfileReposito
         }
 
         awaitClose { registration.remove() }
+    }
+
+    override suspend fun saveProfile(profile: UserProfile) {
+        profiles.document(profile.uid).set(ProfileDocument.fieldsOf(profile)).await()
     }
 }
