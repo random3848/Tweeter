@@ -26,6 +26,8 @@ import java.time.Instant
  * @property isBookmarked Whether the signed-in user saved the post.
  * @property timestamp When the post was shared. Screens show it as relative time ("12 minutes
  *     ago").
+ * @property animalType The animal identified by the poster; empty when unspecified.
+ * @property confidence Identification confidence from 1 to 5, or null when unspecified.
  */
 data class Post(
     val id: String,
@@ -41,5 +43,7 @@ data class Post(
     val commentCount: Int,
     val isLiked: Boolean,
     val isBookmarked: Boolean,
-    val timestamp: Instant
+    val timestamp: Instant,
+    val animalType: String = "",
+    val confidence: Int? = null
 )
