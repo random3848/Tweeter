@@ -35,22 +35,9 @@ class FirestorePostRepository(
 ) : PostRepository {
     private val posts = firestore.collection(PostDocument.COLLECTION)
     private val newestFirst = posts.orderBy(PostDocument.TIMESTAMP, Query.Direction.DESCENDING)
-    private val postTable = snapshotsOf(newestFirst) { snapshot ->
-        val builder = PostTable.Builder(capacity = snapshot.size())
-        readPosts(snapshot) { builder.add(it) }
-        builder.build()
-    }.sharedWhileCollected(scope)
-
-    override fun getPosts(): Flow<List<Post>> = snapshotsOf(newestFirst, ::postListOf)
+    private val postTable = snapshotsOf(newestFirst, ::tableOf).sharedWhileCollected(scope)
 
     override fun getPostTable(): Flow<PostTable> = postTable
-
-    // Sorted here rather than with orderBy, which together with whereEqualTo would need a
-    // composite index in Firestore.
-    override fun getPostsBy(authorUid: String): Flow<List<Post>> =
-        snapshotsOf(posts.whereEqualTo(PostDocument.AUTHOR_UID, authorUid)) { snapshot ->
-            postListOf(snapshot).apply { sortByDescending { it.timestamp } }
-        }
 
     override suspend fun addPost(post: Post) {
         signIn()
@@ -76,14 +63,9 @@ class FirestorePostRepository(
         awaitClose { registration.remove() }
     }
 
-    private fun postListOf(snapshot: QuerySnapshot): MutableList<Post> {
-        val postList = ArrayList<Post>(snapshot.size())
-        readPosts(snapshot) { postList.add(it) }
-        return postList
-    }
-
-    // Passes each well-formed post in [snapshot] to [consume], in order, and logs the others.
-    private inline fun readPosts(snapshot: QuerySnapshot, consume: (Post) -> Unit) {
+    // The well-formed posts of [snapshot], in order; the others are logged and left out.
+    private fun tableOf(snapshot: QuerySnapshot): PostTable {
+        val builder = PostTable.Builder(capacity = snapshot.size())
         val fields = arrayOfNulls<Any>(fieldPaths.size)
         for (document in snapshot.documents) {
             fields.fillFrom(document)
@@ -91,9 +73,10 @@ class FirestorePostRepository(
             if (post == null) {
                 Log.w(TAG, "Skipping malformed post ${document.id}")
             } else {
-                consume(post)
+                builder.add(post)
             }
         }
+        return builder.build()
     }
 
     private suspend fun signIn() {

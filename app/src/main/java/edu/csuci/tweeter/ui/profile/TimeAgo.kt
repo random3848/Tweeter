@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import edu.csuci.tweeter.R
-import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 private val MILLIS_PER_MINUTE = TimeUnit.MINUTES.toMillis(1)
@@ -62,10 +61,6 @@ fun timeAgoOf(thenMillis: Long, nowMillis: Long): TimeAgo {
     }
 }
 
-/** Returns how long before [now] the moment [then] was. */
-fun timeAgoOf(then: Instant, now: Instant): TimeAgo =
-    timeAgoOf(then.toEpochMilli(), now.toEpochMilli())
-
 /**
  * Returns how long ago [thenMillis] was as text, such as "12 minutes ago".
  *
@@ -85,8 +80,3 @@ fun timeAgoText(thenMillis: Long, nowMillis: Long = System.currentTimeMillis()):
     }
     return pluralStringResource(plurals, amount, amount)
 }
-
-/** Returns how long ago [then] was as text, such as "12 minutes ago". */
-@Composable
-fun timeAgoText(then: Instant, now: Instant = Instant.now()): String =
-    timeAgoText(then.toEpochMilli(), now.toEpochMilli())

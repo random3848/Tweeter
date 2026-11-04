@@ -13,10 +13,12 @@ Layout:
 - `app/src/main/java/edu/csuci/tweeter/data/`: the models (`Post`, `UserProfile`) and the
   repositories screens use through interfaces (`PostRepository`, `ProfileRepository`,
   `AccountRepository`, `PhotoRepository`). `AppContainer` (owned by `TweeterApplication`) creates
-  one Firebase implementation of each; Profile uses `PlaceholderAccountRepository` directly until
-  log-in is built. `PostDocument` and `ProfileDocument` map the models to Firestore fields, and a
-  field added to `PostDocument` also goes into the `hasOnly` list in `firestore.rules`.
-  `FakePostRepository` is an in-memory `PostRepository` for tests and for working offline.
+  one Firebase implementation of each. Screens read posts as one `PostTable`, a structure of
+  arrays with one array per `Post` field, and keep rows of it (`Int` indices) rather than `Post`
+  objects; a row kept where it can outlive its table, such as in a map pin, is a `PostRef`.
+  `PostDocument` and `ProfileDocument` map the models to Firestore fields, and a field added to
+  `PostDocument` also goes into the `hasOnly` list in `firestore.rules` and gets a `PostTable`
+  column. `FakePostRepository` is an in-memory `PostRepository` for tests and for working offline.
 - `app/src/main/java/edu/csuci/tweeter/location/`: finding where a photo was taken
   (`PhotoLocator`, from its EXIF tags or the device) and removing its location tags before upload
   (`LocationTagRemover`).
@@ -341,7 +343,7 @@ Classes and objects:
 - Keep at most one `when` per kind of selection, ideally where the objects are created (for UI
   state, in its screen). Make it exhaustive over the `enum` or `sealed` type, with no `else`, so a
   new case doesn't compile until it's handled.
-- A fixed set of values is an `enum class` (like `FeedSortOrder`) or `sealed` type, not `Int` or
+- A fixed set of values is an `enum class` (like `LocationSource`) or `sealed` type, not `Int` or
   `String` constants; enums can have properties and functions.
 - No magic numbers or strings: a value whose meaning isn't obvious gets a named constant
   (`SECONDS_PER_DAY`), in tests too. A value that reads clearly where it is (`radius * 2`, or a
