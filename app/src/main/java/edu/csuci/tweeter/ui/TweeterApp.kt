@@ -10,7 +10,12 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -87,7 +92,8 @@ internal val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
  * A tab left open keeps its state, but only the open screen is composed, with one exception: the
  * map stays composed under the NavHost, so that it is drawn and ready the moment the user switches
  * to Map. Every other screen hides it with a background of its own (see `opaqueComposable`), and
- * Map's route draws nothing over it.
+ * Map's route draws nothing over it. Unless the app opens on Map, the map is composed only once the
+ * first frame is drawn, so that creating it doesn't hold back the first screen.
  *
  * @param modifier Applied to the whole app
  */
@@ -98,6 +104,7 @@ fun TweeterApp(modifier: Modifier = Modifier) {
     val destination = backStackEntry?.destination
     val isOnFeed = destination?.hasRoute(FeedRoute::class) == true
     val isOnMap = destination?.hasRoute(MapRoute::class) == true
+    val hasDrawnFirstFrame = rememberFirstFrameDrawn()
     val isOnProfile = destination?.hasRoute(ProfileRoute::class) == true
     val isOnAuth = destination?.hasRoute(LogInRoute::class) == true ||
         destination?.hasRoute(CreateAccountRoute::class) == true
@@ -161,7 +168,9 @@ fun TweeterApp(modifier: Modifier = Modifier) {
                 .padding(innerPadding)
                 .consumeWindowInsets(innerPadding)
         ) {
-            MapScreen(isShown = isOnMap, onShowInFeed = { navController.navigateToFeed() })
+            if (hasDrawnFirstFrame || isOnMap) {
+                MapScreen(isShown = isOnMap, onShowInFeed = { navController.navigateToFeed() })
+            }
             NavHost(
                 navController = navController,
                 startDestination = FeedRoute,
@@ -196,6 +205,18 @@ fun TweeterApp(modifier: Modifier = Modifier) {
             }
         }
     }
+}
+
+/** Whether the first frame has been drawn: false while composing it, and true from the next. */
+@Composable
+private fun rememberFirstFrameDrawn(): Boolean {
+    var isDrawn by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        // Resumes as the next frame starts, after the first was drawn.
+        withFrameNanos { }
+        isDrawn = true
+    }
+    return isDrawn
 }
 
 /**
