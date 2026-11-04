@@ -6,7 +6,6 @@ import androidx.exifinterface.media.ExifInterface
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 // Where the copies are written, inside the app's cache directory.
 private const val COPY_DIRECTORY = "uploads"
@@ -66,30 +65,40 @@ class LocationTagRemover(context: Context) {
      * caller deletes the copy when it is done with it.
      *
      * @throws IOException If the photo can't be read, or its format can't have tags removed
-     *     (ExifInterface writes JPEG, PNG and WebP). No copy is left behind then.
+     *     (ExifInterface writes JPEG, PNG and WebP). No copy is left behind then, nor when the
+     *     coroutine is cancelled.
      */
-    suspend fun copyWithoutLocation(uri: Uri): File = withContext(Dispatchers.IO) {
+    suspend fun copyWithoutLocation(uri: Uri): File = writeNewFile(
+        dispatcher = Dispatchers.IO,
+        create = ::createCopy,
+        write = { copy -> writeWithoutLocation(uri, copy) }
+    )
+
+    // Creates an empty file for a copy, and the directory copies go in if it's missing.
+    private fun createCopy(): File {
         val directory = File(appContext.cacheDir, COPY_DIRECTORY)
         if (!directory.isDirectory && !directory.mkdirs()) {
             throw IOException("Could not create $directory")
         }
-        val copy = File.createTempFile("photo_", ".jpg", directory)
+        return File.createTempFile("photo_", ".jpg", directory)
+    }
+
+    private fun writeWithoutLocation(uri: Uri, copy: File) {
+        val input = appContext.contentResolver.openInputStream(uri) ?:
+            throw IOException("Could not open $uri")
+        input.use { source -> copy.outputStream().use { source.copyTo(it) } }
+        removeLocationTags(copy)
+    }
+
+    private fun removeLocationTags(photo: File) {
         try {
-            val input = appContext.contentResolver.openInputStream(uri) ?:
-                throw IOException("Could not open $uri")
-            input.use { source -> copy.outputStream().use { source.copyTo(it) } }
-            val exif = ExifInterface(copy)
+            val exif = ExifInterface(photo)
             for (tag in LOCATION_TAGS) {
                 exif.setAttribute(tag, null)
             }
             exif.saveAttributes()
-            copy
-        } catch (error: IOException) {
-            copy.delete()
-            throw error
         } catch (error: UnsupportedOperationException) {
-            copy.delete()
-            throw IOException("Can't remove the location tags from $uri", error)
+            throw IOException("Can't remove the location tags from $photo", error)
         }
     }
 }
