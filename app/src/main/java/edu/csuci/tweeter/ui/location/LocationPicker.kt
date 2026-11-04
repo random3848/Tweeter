@@ -40,6 +40,8 @@ import org.maplibre.compose.expressions.dsl.const
 import org.maplibre.compose.interaction.ClickResult
 import org.maplibre.compose.interaction.MapInteractions
 import org.maplibre.compose.layers.CircleLayer
+import org.maplibre.compose.map.AndroidRenderMode
+import org.maplibre.compose.map.MapUiOptions
 import org.maplibre.compose.map.MaplibreMap
 import org.maplibre.compose.map.rememberMapState
 import org.maplibre.compose.sources.GeoJsonData
@@ -49,6 +51,12 @@ import org.maplibre.spatialk.geojson.Position
 
 // How close the map zooms in on a picked point it moves to.
 private const val FOCUS_ZOOM = 17.0
+
+// The posts map stays composed under every screen, drawn by a SurfaceView behind the window. A
+// second SurfaceView here would sit behind the window too, transparent until its style loads, and
+// let the posts map show through. A TextureView draws inside the window instead, over the Post
+// screen's opaque background.
+private val TEXTURE_MAP_UI_OPTIONS = MapUiOptions { renderMode = AndroidRenderMode.Texture }
 
 /**
  * A map for choosing where a photo was taken, with a "Use my location" button below it.
@@ -204,6 +212,7 @@ private fun PinMap(
         modifier = modifier,
         state = mapState,
         interactions = interactions,
+        uiOptions = TEXTURE_MAP_UI_OPTIONS,
         overlay = { MapControls(mapState) }
     )
 }

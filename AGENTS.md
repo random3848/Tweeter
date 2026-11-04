@@ -451,8 +451,10 @@ Startup:
 
 Drawing:
 - Keep the GPU paths on: Compose draws with hardware acceleration, Coil decodes photos off the
-  main thread into hardware bitmaps, and MapLibre renders with Vulkan in a SurfaceView. Don't turn
-  any of them off.
+  main thread into hardware bitmaps, and MapLibre renders with Vulkan, the posts map in a
+  SurfaceView. Don't turn any of them off. Any other map, such as the location picker's, draws in
+  a TextureView: a second SurfaceView would sit behind the window with the posts map's and let it
+  show through.
 - A bitmap in `res/` is no bigger than it is drawn at xxxhdpi (4×) and goes in `drawable-xxxhdpi`.
   `painterResource` decodes it on the main thread, and Android scales a bitmap in `drawable/` up
   from mdpi, 2.6× on a 420 dpi screen.
