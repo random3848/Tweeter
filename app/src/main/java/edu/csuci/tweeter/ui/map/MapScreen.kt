@@ -73,8 +73,8 @@ fun MapScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val locationState = rememberLocationState(headingProvider = rememberDefaultHeadingProvider())
-    PostMapLayers(viewModel.map, uiState, locationState, onPinClick = viewModel::selectPost)
-    val mapState = viewModel.map.state
+    PostMapLayers(viewModel, uiState, locationState)
+    val mapState = viewModel.mapState
 
     BackHandler(enabled = uiState.selectedRow != null, onBack = viewModel::clearSelection)
     MapMoveEffect(uiState, mapState, locationState, onMoveFinished = viewModel::finishMove)
@@ -102,32 +102,32 @@ fun MapScreen(
 }
 
 /**
- * Draws a pin for each post in [uiState], and the user's location, on [map] while this screen
- * presents it.
+ * Draws a pin for each post in [uiState], and the user's location, on the map of [viewModel]
+ * while this screen presents it.
  *
- * @param map The map to draw on.
+ * A map composes the layer content it was created with, and this one outlives the screen, so its
+ * content draws the layers that the presenting screen hands it here.
+ *
+ * @param viewModel Holds the map to draw on, and selects the post whose pin the user taps.
  * @param uiState The posts to pin and the selected one.
  * @param locationState The user's location, drawn as a blue dot.
- * @param onPinClick Called with the ID of the post whose pin the user taps.
  */
 @Composable
 private fun PostMapLayers(
-    map: PostMap,
+    viewModel: MapViewModel,
     uiState: MapUiState,
-    locationState: LocationState,
-    onPinClick: (String) -> Unit
+    locationState: LocationState
 ) {
-    val currentOnPinClick by rememberUpdatedState(onPinClick)
     // Set while composing, as rememberUpdatedState sets its value, rather than in a SideEffect:
     // MapLibre composes the layers of a map it presents before SideEffects run, and layers it
     // found missing then would disappear from the map for a frame.
-    map.layers = {
-        PostPins(uiState, onPinClick = { currentOnPinClick(it) })
+    viewModel.drawLayers {
+        PostPins(uiState, onPinClick = viewModel::selectPost)
         LocationIndicatorLayer(id = "user-location", locationState = locationState)
     }
     // The map outlives this screen; it mustn't keep the screen's location updates.
-    DisposableEffect(map) {
-        onDispose { map.layers = {} }
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.clearLayers() }
     }
 }
 

@@ -1,6 +1,7 @@
 package edu.csuci.tweeter.ui.map
 
 import android.os.Bundle
+import androidx.compose.runtime.Composable
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -29,6 +30,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import org.maplibre.compose.camera.CameraPosition
+import org.maplibre.compose.map.MapState
 import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.spatialk.geojson.Position
 
@@ -121,11 +123,14 @@ class MapViewModel internal constructor(
 
     private val lazyMap = lazy { createMap(restoredCamera?.let(::decodeCamera) ?: CAMPUS_CAMERA) }
 
+    private val map: PostMap by lazyMap
+
     /**
-     * The map, created the first time Map shows it. It opens over the campus, or where it was
-     * before Android ended the app, and lives as long as this ViewModel.
+     * The map to present with `MaplibreMap`, created the first time it is read. It opens over the
+     * campus, or where it was before Android ended the app, and lives as long as this ViewModel.
      */
-    internal val map: PostMap by lazyMap
+    internal val mapState: MapState
+        get() = map.state
 
     // Written once per distinct table: a table equal to the last one, as Firestore sends when only
     // a post's write status changes, keeps the pins already written.
@@ -184,6 +189,16 @@ class MapViewModel internal constructor(
     /** Asks Feed to show the post with [postId], which it scrolls to when it opens. */
     fun showInFeed(postId: String) {
         showInFeedRequest.send(postId)
+    }
+
+    /** Draws [layers] over the map, in place of the layers drawn before. */
+    internal fun drawLayers(layers: @Composable () -> Unit) {
+        map.drawLayers(layers)
+    }
+
+    /** Draws no layers over the map from now on. */
+    internal fun clearLayers() {
+        map.clearLayers()
     }
 
     override fun onCleared() {

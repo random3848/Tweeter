@@ -20,11 +20,8 @@ import org.maplibre.compose.style.BaseStyle
  * @param camera Where the map opens.
  */
 internal class PostMap(camera: CameraPosition) : AutoCloseable {
-    /**
-     * The layers drawn over the style: those of the screen presenting [state], or none while no
-     * screen does. MapLibre composes them only while a screen presents [state].
-     */
-    var layers: @Composable () -> Unit by mutableStateOf({})
+    // The layers drawn over the style. MapLibre composes them only while a screen presents state.
+    private var layers: @Composable () -> Unit by mutableStateOf({})
 
     /** The map to present with `MaplibreMap`. */
     val state: MapState = DefaultMapRuntime.instance.createMapState(
@@ -32,6 +29,16 @@ internal class PostMap(camera: CameraPosition) : AutoCloseable {
         cameraPosition = camera
     ) {
         layers()
+    }
+
+    /** Draws [layers] over the style, in place of the layers drawn before. */
+    fun drawLayers(layers: @Composable () -> Unit) {
+        this.layers = layers
+    }
+
+    /** Draws no layers over the style from now on. */
+    fun clearLayers() {
+        layers = {}
     }
 
     override fun close() {
