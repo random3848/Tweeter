@@ -34,7 +34,8 @@ class FirestorePostRepository(
     private val dispatcher: CoroutineDispatcher
 ) : PostRepository {
     private val posts = firestore.collection(PostDocument.COLLECTION)
-    private val newestFirst = posts.orderBy(PostDocument.TIMESTAMP, Query.Direction.DESCENDING)
+    private val newestFirst =
+        posts.orderBy(PostDocument.Field.TIMESTAMP.key, Query.Direction.DESCENDING)
     private val postTable = snapshotsOf(newestFirst, ::tableOf).sharedWhileCollected(scope)
 
     override fun getPostTable(): Flow<PostTable> = postTable

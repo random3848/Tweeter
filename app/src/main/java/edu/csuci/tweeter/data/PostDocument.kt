@@ -7,20 +7,15 @@ import com.google.firebase.firestore.FieldValue
  * How a [Post] is stored as a Firestore document in the [COLLECTION] collection.
  *
  * The document ID is [Post.id]. [Post.isLiked] and [Post.isBookmarked] depend on who is looking,
- * so they aren't stored and read back as false. [Post.timestamp] isn't stored either: Firestore
- * sets [TIMESTAMP] to when it receives the post, so a phone with a wrong clock can't misdate it.
+ * so they aren't stored and read back as false. [Post.timestamp] isn't stored either:
+ * Firestore sets [Field.TIMESTAMP] to when it receives the post, so a phone with a wrong clock
+ * can't misdate it.
  *
  * A document is read field by field into an array in [Field] order, never as a whole map.
  */
 object PostDocument {
     /** The collection every post is stored in. */
     const val COLLECTION = "posts"
-
-    /** The field posts are ordered by: when the post was shared. */
-    const val TIMESTAMP = "timestamp"
-
-    /** The field a user's posts are found by: the poster's ID, absent if nobody was logged in. */
-    const val AUTHOR_UID = "authorUid"
 
     private const val MIN_CONFIDENCE = 1
     private const val MAX_CONFIDENCE = 5
@@ -31,7 +26,7 @@ object PostDocument {
         val key: String
     ) {
         /** The poster's ID. */
-        AUTHOR_UID_FIELD(AUTHOR_UID),
+        AUTHOR_UID("authorUid"),
 
         /** The poster's name. */
         USERNAME("username"),
@@ -61,7 +56,7 @@ object PostDocument {
         COMMENT_COUNT("commentCount"),
 
         /** When Firestore received the post. */
-        TIMESTAMP_FIELD(TIMESTAMP),
+        TIMESTAMP("timestamp"),
 
         /** The animal in the photo. */
         ANIMAL_TYPE("animalType"),
@@ -71,8 +66,8 @@ object PostDocument {
     }
 
     /**
-     * Returns the fields to store for [post], with [TIMESTAMP] left for Firestore to set and
-     * [AUTHOR_UID] left out when it is empty.
+     * Returns the fields to store for [post], with [Field.TIMESTAMP] left for Firestore to set and
+     * [Field.AUTHOR_UID] left out when it is empty.
      */
     fun fieldsOf(post: Post): Map<String, Any> = buildMap {
         put(Field.USERNAME.key, post.username)
@@ -85,8 +80,8 @@ object PostDocument {
         put(Field.ANIMAL_TYPE.key, post.animalType)
         put(Field.LIKE_COUNT.key, post.likeCount)
         put(Field.COMMENT_COUNT.key, post.commentCount)
-        put(TIMESTAMP, FieldValue.serverTimestamp())
-        if (post.authorUid.isNotEmpty()) put(AUTHOR_UID, post.authorUid)
+        put(Field.TIMESTAMP.key, FieldValue.serverTimestamp())
+        if (post.authorUid.isNotEmpty()) put(Field.AUTHOR_UID.key, post.authorUid)
         post.confidence?.let { put(Field.CONFIDENCE.key, it) }
     }
 
@@ -94,9 +89,9 @@ object PostDocument {
      * Returns the post stored in document [id] with [fields], indexed by [Field.ordinal], or null
      * if a required field is missing or has the wrong type.
      *
-     * The text fields that may be empty ([AUTHOR_UID] among them) and the counts default when
-     * missing, so a post added by hand in the Firebase console only needs [Field.USERNAME],
-     * [Field.LATITUDE], [Field.LONGITUDE], [Field.IMAGE_URI] and [TIMESTAMP]. A confidence
+     * The text fields that may be empty ([Field.AUTHOR_UID] among them) and the counts default
+     * when missing, so a post added by hand in the Firebase console only needs [Field.USERNAME],
+     * [Field.LATITUDE], [Field.LONGITUDE], [Field.IMAGE_URI] and [Field.TIMESTAMP]. A confidence
      * outside 1 to 5 is dropped.
      */
     fun toPost(id: String, fields: Array<Any?>): Post? {
@@ -105,11 +100,11 @@ object PostDocument {
         val latitude = (fields[Field.LATITUDE.ordinal] as? Number)?.toDouble() ?: return null
         val longitude = (fields[Field.LONGITUDE.ordinal] as? Number)?.toDouble() ?: return null
         val imageUri = fields[Field.IMAGE_URI.ordinal] as? String ?: return null
-        val timestamp = fields[Field.TIMESTAMP_FIELD.ordinal] as? Timestamp ?: return null
+        val timestamp = fields[Field.TIMESTAMP.ordinal] as? Timestamp ?: return null
 
         return Post(
             id = id,
-            authorUid = textIn(fields, Field.AUTHOR_UID_FIELD),
+            authorUid = textIn(fields, Field.AUTHOR_UID),
             username = username,
             avatar = Avatar(
                 initials = fields[Field.AVATAR_INITIALS.ordinal] as? String ?:
