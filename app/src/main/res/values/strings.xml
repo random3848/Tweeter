@@ -9,6 +9,8 @@
 
     <string name="feed_photo_description">Feed photo</string>
     <string name="feed_empty_message">No photos shared yet.</string>
+    <string name="feed_no_photo">No photo</string>
+    <string name="feed_confidence_rating">Confidence: %1$d of 5</string>
     <string name="feed_show_on_map">Show on map</string>
 
     <string name="map_my_location">Show my location</string>
