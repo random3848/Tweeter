@@ -3,6 +3,10 @@
 package edu.csuci.tweeter.ui.post
 
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import edu.csuci.tweeter.data.CameraFiles
 import edu.csuci.tweeter.data.FakeAccountRepository
 import edu.csuci.tweeter.data.FakePostRepository
@@ -163,6 +167,28 @@ class PostViewModelTest {
     }
 
     @Test
+    fun cleared_afterCameraPhoto_deletesCameraFile() {
+        val store = ViewModelStore()
+        val viewModel = createViewModelIn(store)
+        openCamera(viewModel)
+        viewModel.pictureTaken(isSaved = true)
+
+        store.clear()
+
+        assertEquals(emptyList<String>(), contentUrisInDirectory())
+    }
+
+    @Test
+    fun cleared_whileTakingPicture_deletesCameraFile() {
+        val store = ViewModelStore()
+        openCamera(createViewModelIn(store))
+
+        store.clear()
+
+        assertEquals(emptyList<String>(), contentUrisInDirectory())
+    }
+
+    @Test
     fun uploadPhoto_uploadFails_failsWithoutPost() {
         val viewModel = createViewModel(photoRepository = FailingPhotoRepository())
         viewModel.choosePhoto(CAMERA_ROLL_URI)
@@ -181,6 +207,12 @@ class PostViewModelTest {
         val cameraUri = checkNotNull(viewModel.cameraUriToOpen) { "The camera wasn't asked for" }
         viewModel.cameraOpened()
         return cameraUri
+    }
+
+    // A ViewModel that [store] holds, so that clearing [store] clears it.
+    private fun createViewModelIn(store: ViewModelStore): PostViewModel {
+        val factory = viewModelFactory { initializer { createViewModel() } }
+        return ViewModelProvider.create(store, factory)[PostViewModel::class]
     }
 
     private fun createViewModel(

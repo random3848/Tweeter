@@ -308,6 +308,17 @@ class EditProfileViewModelTest {
     }
 
     @Test
+    fun cleared_whileTakingPicture_deletesCameraFile() {
+        val store = ViewModelStore()
+        val factory = viewModelFactory { initializer { createViewModel() } }
+        openCamera(ViewModelProvider.create(store, factory)[EditProfileViewModel::class])
+
+        store.clear()
+
+        assertEquals(emptyList<File>(), filesInDirectory())
+    }
+
+    @Test
     fun save_photoChosen_uploadsItAndSavesItsUrl() {
         val viewModel = createViewModel()
         viewModel.choosePhoto(CHOSEN_PHOTO_URI)

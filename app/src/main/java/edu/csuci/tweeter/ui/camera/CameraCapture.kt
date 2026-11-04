@@ -101,9 +101,13 @@ class CameraCapture(
         updateFailed(false)
     }
 
-    /** Stops creating a file, for the ViewModel being cleared. */
+    /**
+     * Stops taking the picture, for the ViewModel being cleared: stops creating its file, and
+     * discards the file of a picture still being taken, which nothing can keep anymore.
+     */
     override fun close() {
         scope.cancel()
+        discard()
     }
 
     private suspend fun createFile() {

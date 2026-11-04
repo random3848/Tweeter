@@ -237,6 +237,10 @@ class PostViewModel(
         location = LocationFix(point, LocationSource.MANUAL)
     }
 
+    override fun onCleared() {
+        photoPath?.let(cameraFiles::discard)
+    }
+
     private fun newPost(
         photoUrl: String,
         point: GeoPoint,
