@@ -10,7 +10,6 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -25,7 +24,8 @@ import kotlinx.coroutines.tasks.await
  * [getPostTable] returns the same flow to every caller: one snapshot listener, started in
  * [scope] while anyone collects and removed as soon as nobody does, so every screen shares one
  * listener and one parse per snapshot. Snapshots are delivered and parsed on [dispatcher], off
- * the main thread, reading only [PostDocument]'s fields into one array reused for every document.
+ * the main thread, one at a time in the order they arrive, so an older snapshot can never replace
+ * a newer one. Only [PostDocument]'s fields are read, into one array reused for every document.
  */
 class FirestorePostRepository(
     private val auth: FirebaseAuth,
@@ -44,11 +44,11 @@ class FirestorePostRepository(
         posts.document(post.id).set(PostDocument.fieldsOf(post)).await()
     }
 
-    // [read] of each snapshot of [query], made on [dispatcher].
+    // [read] of each snapshot of [query], made on [dispatcher] one snapshot at a time.
     private fun <T> snapshotsOf(query: Query, read: (QuerySnapshot) -> T): Flow<T> = callbackFlow {
         signIn()
 
-        val executor = dispatcher.asExecutor()
+        val executor = dispatcher.serialExecutor()
         val registration = query.addSnapshotListener(executor) { snapshot, error ->
             if (error != null) {
                 // Keep showing the last posts; the listener stops after an error.
