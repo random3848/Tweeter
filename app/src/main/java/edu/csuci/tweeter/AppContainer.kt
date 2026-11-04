@@ -1,8 +1,6 @@
 package edu.csuci.tweeter
 
 import android.content.Context
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.ProcessLifecycleOwner
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
@@ -16,15 +14,17 @@ import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.location.LocationTagRemover
-import edu.csuci.tweeter.ui.WhileAppVisible
 import edu.csuci.tweeter.ui.map.startMapEngine
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+
+// How long a ViewModel keeps sharing after its screen stops collecting: longer than an activity
+// takes to be recreated for a rotation.
+private const val SHARING_STOP_TIMEOUT_MILLIS = 5_000L
 
 /**
  * The objects the whole app shares, created once by [TweeterApplication].
@@ -42,7 +42,7 @@ import kotlinx.coroutines.launch
  *             postRepository = application.container.postRepository,
  *             showInFeedRequest = application.container.showInFeedRequest,
  *             showOnMapRequest = application.container.showOnMapRequest,
- *             sharing = application.container.whileAppVisible
+ *             sharing = application.container.whileScreenCollects
  *         )
  *     }
  * }
@@ -106,13 +106,13 @@ class AppContainer(private val context: Context) {
     val showInFeedRequest: ShowPostRequest = ShowPostRequest()
 
     /**
-     * When ViewModels share the state their screens show: while the app is on screen. A rotation,
-     * which recreates every screen, doesn't stop their listeners and start them again.
+     * When ViewModels share the state their screens show: while a screen collects it, and for 5 s
+     * after the last collector stops. That covers an activity recreated for a rotation, which
+     * doesn't stop the listeners and start them again, while the ViewModel of a screen that isn't
+     * shown, such as a saved back-stack entry (Feed's while Map is open), stops 5 s later.
      */
-    val whileAppVisible: SharingStarted = WhileAppVisible(
-        isAppVisible = ProcessLifecycleOwner.get().lifecycle.currentStateFlow
-            .map { state -> state.isAtLeast(Lifecycle.State.STARTED) }
-    )
+    val whileScreenCollects: SharingStarted =
+        SharingStarted.WhileSubscribed(stopTimeoutMillis = SHARING_STOP_TIMEOUT_MILLIS)
 
     /**
      * Gets ready, on background threads, what the first screens use: the repositories they read,

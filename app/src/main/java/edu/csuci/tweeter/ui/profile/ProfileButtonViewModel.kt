@@ -22,7 +22,8 @@ import kotlinx.coroutines.flow.stateIn
  *
  * @param profileRepository Where the logged-in user's profile is read from.
  * @param accountRepository Who is logged in.
- * @param sharing When [profile] follows the profile: while the app is on screen, in the app.
+ * @param sharing When [profile] follows the profile: while the button collects it, in the
+ *     app.
  */
 class ProfileButtonViewModel(
     profileRepository: ProfileRepository,
@@ -49,7 +50,7 @@ class ProfileButtonViewModel(
                 ProfileButtonViewModel(
                     profileRepository = application.container.profileRepository,
                     accountRepository = application.container.accountRepository,
-                    sharing = application.container.whileAppVisible
+                    sharing = application.container.whileScreenCollects
                 )
             }
         }

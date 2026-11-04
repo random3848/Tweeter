@@ -97,7 +97,7 @@ class ProfileViewModelTest {
     }
 
     // Profile follows its sources while the test collects its state, as it does in the app while
-    // the app is on screen.
+    // Profile collects it.
     private fun TestScope.profileViewModel(
         accountRepository: FakeAccountRepository
     ): ProfileViewModel {

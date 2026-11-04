@@ -106,7 +106,7 @@ data class PinnedPosts(val posts: PostTable) {
  * @param createMap Creates the map, opening where the camera given to it points.
  * @param pinsDispatcher Where the pins are written: off the main thread, since writing a pin for
  *     every post takes a while.
- * @param sharing When [uiState] follows the posts: while the app is on screen, in the app.
+ * @param sharing When [uiState] follows the posts: while Map collects it, in the app.
  */
 class MapViewModel internal constructor(
     postRepository: PostRepository,
@@ -231,7 +231,7 @@ class MapViewModel internal constructor(
                     savedStateHandle = createSavedStateHandle(),
                     createMap = ::PostMap,
                     pinsDispatcher = Dispatchers.Default,
-                    sharing = application.container.whileAppVisible
+                    sharing = application.container.whileScreenCollects
                 )
             }
         }

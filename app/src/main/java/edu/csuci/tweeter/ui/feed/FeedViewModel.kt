@@ -29,7 +29,7 @@ data class FeedUiState(val posts: PostTable = PostTable.EMPTY, val isLoading: Bo
  * @param postRepository Where post data is read from.
  * @param showInFeedRequest The post another screen asks the feed to show, which it scrolls to.
  * @param showOnMapRequest Where [showOnMap] asks Map to show a post.
- * @param sharing When [uiState] follows the posts: while the app is on screen, in the app.
+ * @param sharing When [uiState] follows the posts: while Feed collects it, in the app.
  */
 class FeedViewModel(
     postRepository: PostRepository,
@@ -73,7 +73,7 @@ class FeedViewModel(
                     postRepository = application.container.postRepository,
                     showInFeedRequest = application.container.showInFeedRequest,
                     showOnMapRequest = application.container.showOnMapRequest,
-                    sharing = application.container.whileAppVisible
+                    sharing = application.container.whileScreenCollects
                 )
             }
         }

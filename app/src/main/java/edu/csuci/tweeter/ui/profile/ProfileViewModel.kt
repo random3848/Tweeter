@@ -65,8 +65,8 @@ sealed interface ProfileUiState {
  * @param accountRepository Supplies the registered user's identity.
  * @param profileRepository Where the profile is read from.
  * @param postRepository Where every post is read from; Profile shows the user's rows of it.
- * @param sharing When [uiState] follows the account, profile and posts: while the app is on
- *     screen, in the app.
+ * @param sharing When [uiState] follows the account, profile and posts: while Profile
+ *     collects it, in the app.
  */
 class ProfileViewModel(
     private val accountRepository: AccountRepository,
@@ -122,7 +122,7 @@ class ProfileViewModel(
                     accountRepository = application.container.accountRepository,
                     profileRepository = application.container.profileRepository,
                     postRepository = application.container.postRepository,
-                    sharing = application.container.whileAppVisible
+                    sharing = application.container.whileScreenCollects
                 )
             }
         }

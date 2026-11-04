@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
  *
  * To read posts in a ViewModel, turn the flow into state the screen can observe:
  * `val posts = postRepository.getPostTable().stateIn(viewModelScope, sharing, PostTable.EMPTY)`,
- * with `sharing` from `AppContainer.whileAppVisible`, and keep rows of the table rather than
+ * with `sharing` from `AppContainer.whileScreenCollects`, and keep rows of the table rather than
  * copies of its posts. To add one, call [addPost] from `viewModelScope.launch { }`.
  */
 interface PostRepository {

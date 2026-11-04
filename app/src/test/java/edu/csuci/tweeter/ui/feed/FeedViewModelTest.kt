@@ -119,7 +119,7 @@ class FeedViewModelTest {
     )
 
     // The feed's state follows the repository while the test collects it, as it does in the app
-    // while the app is on screen.
+    // while Feed collects it.
     private fun TestScope.collectedFeedViewModel(
         repository: PostRepository = FakePostRepository()
     ): FeedViewModel {

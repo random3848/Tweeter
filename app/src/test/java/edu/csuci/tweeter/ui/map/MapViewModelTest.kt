@@ -229,8 +229,8 @@ class MapViewModelTest {
         )
     }
 
-    // The map follows its posts while the test collects its state, as it does in the app while the
-    // app is on screen. No test shows the map, which needs MapLibre's native engine.
+    // The map follows its posts while the test collects its state, as it does in the app while Map
+    // collects it. No test shows the map, which needs MapLibre's native engine.
     private fun TestScope.mapViewModel(
         repository: PostRepository = FakePostRepository()
     ): MapViewModel {
