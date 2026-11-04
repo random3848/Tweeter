@@ -67,6 +67,7 @@ internal fun MyLocationButton(
             val location = locationState.lastLocation
             when {
                 permission is LocationPermission.NotGranted && permission.canRequest == false -> {
+                    isWaitingForLocation = true
                     settingsLauncher.openApplicationSettings()
                 }
 
