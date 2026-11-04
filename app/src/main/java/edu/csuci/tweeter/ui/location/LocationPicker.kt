@@ -157,7 +157,8 @@ private fun PinMap(
     val currentOnMapClick by rememberUpdatedState(onMapClick)
     val pinColor = MaterialTheme.colorScheme.primary
     val pinOutlineColor = MaterialTheme.colorScheme.surface
-    val pinData = GeoJsonData.JsonString(pinJsonAt(pin))
+    // Written once per pin, not on every recomposition.
+    val pinData = remember(pin) { GeoJsonData.JsonString(pinJsonAt(pin)) }
     val mapState = rememberMapState(
         baseStyle = BaseStyle.Uri(MAP_STYLE_URI),
         initialCameraPosition = cameraTarget?.let {
