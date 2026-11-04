@@ -29,8 +29,10 @@ import edu.csuci.tweeter.ui.navigation.TweeterBottomBar
 import edu.csuci.tweeter.ui.navigation.TweeterTopBar
 import edu.csuci.tweeter.ui.post.PostRoute
 import edu.csuci.tweeter.ui.post.addPostScreen
+import edu.csuci.tweeter.ui.profile.EditProfileRoute
 import edu.csuci.tweeter.ui.profile.ProfileButton
 import edu.csuci.tweeter.ui.profile.ProfileRoute
+import edu.csuci.tweeter.ui.profile.addEditProfileScreen
 import edu.csuci.tweeter.ui.profile.addProfileScreen
 
 /**
@@ -75,6 +77,7 @@ private val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
  * Profile is not a tab: Feed's profile button opens it, and Home stays selected while it is open.
  * It draws its own top bar with a back arrow, so the shared one is hidden there. Profile and Post
  * open Log in and Create account for guests, and the tab they were opened from stays selected.
+ * Profile's "Edit profile" button opens Edit profile, which hides both bars.
  *
  * @param modifier Applied to the whole app
  */
@@ -87,6 +90,8 @@ fun TweeterApp(modifier: Modifier = Modifier) {
     val isOnProfile = destination?.hasRoute(ProfileRoute::class) == true
     val isOnAuth = destination?.hasRoute(LogInRoute::class) == true ||
         destination?.hasRoute(CreateAccountRoute::class) == true
+    val isOnEditProfile = destination?.hasRoute(EditProfileRoute::class) == true
+    val hasOwnTopBar = isOnProfile || isOnAuth || isOnEditProfile
     // Log in and Create account keep the tab of the screen that opened them selected.
     val tabDestination = if (isOnAuth) {
         navController.previousBackStackEntry?.destination
@@ -107,7 +112,7 @@ fun TweeterApp(modifier: Modifier = Modifier) {
     Scaffold(
         modifier = modifier,
         topBar = {
-            if (!isOnProfile && !isOnAuth) {
+            if (!hasOwnTopBar) {
                 TweeterTopBar(
                     actions = {
                         if (isOnFeed) {
@@ -124,27 +129,29 @@ fun TweeterApp(modifier: Modifier = Modifier) {
             }
         },
         bottomBar = {
-            TweeterBottomBar(
-                items = BOTTOM_BAR_ITEMS,
-                isSelected = { item ->
-                    val route = item.route
-                    when {
-                        route == null -> false
+            if (!isOnEditProfile) {
+                TweeterBottomBar(
+                    items = BOTTOM_BAR_ITEMS,
+                    isSelected = { item ->
+                        val route = item.route
+                        when {
+                            route == null -> false
 
-                        // Profile opens from Feed, so Home stays selected on it.
-                        route == FeedRoute && isOnProfileTab -> true
+                            // Profile opens from Feed, so Home stays selected on it.
+                            route == FeedRoute && isOnProfileTab -> true
 
-                        else -> {
-                            tabDestination?.hierarchy.orEmpty().any {
-                                it.hasRoute(route::class)
+                            else -> {
+                                tabDestination?.hierarchy.orEmpty().any {
+                                    it.hasRoute(route::class)
+                                }
                             }
                         }
+                    },
+                    onSelect = { route ->
+                        navController.navigateToTopLevel(route)
                     }
-                },
-                onSelect = { route ->
-                    navController.navigateToTopLevel(route)
-                }
-            )
+                )
+            }
         }
     ) { innerPadding ->
         NavHost(
@@ -162,8 +169,14 @@ fun TweeterApp(modifier: Modifier = Modifier) {
             addProfileScreen(
                 onBack = { navController.navigateUp() },
                 onLogIn = openLogIn,
-                onCreateAccount = openCreateAccount
+                onCreateAccount = openCreateAccount,
+                onEditProfile = {
+                    navController.navigate(EditProfileRoute) {
+                        launchSingleTop = true
+                    }
+                }
             )
+            addEditProfileScreen(onClose = { navController.navigateUp() })
             addLogInScreen(
                 onBack = { navController.navigateUp() },
                 onAuthenticated = { navController.popBackStack() }

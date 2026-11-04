@@ -21,6 +21,15 @@
     <string name="profile_empty_message">Photos you share show up here.</string>
     <string name="profile_post_details">%1$s · %2$s</string>
     <string name="profile_log_in_title">Log in to see your profile</string>
+    <string name="profile_edit">Edit profile</string>
+
+    <string name="edit_profile_cancel">Cancel</string>
+    <string name="edit_profile_save">Save</string>
+    <string name="edit_profile_name">Name</string>
+    <string name="edit_profile_name_required">Enter a name.</string>
+    <string name="edit_profile_bio">Bio</string>
+    <string name="edit_profile_bio_length">%1$d/%2$d</string>
+    <string name="edit_profile_save_failed">Could not save your profile. Please try again.</string>
 
     <string name="time_ago_just_now">Just now</string>
     <plurals name="time_ago_minutes">

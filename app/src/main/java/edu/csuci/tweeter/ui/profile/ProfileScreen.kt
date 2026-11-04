@@ -6,9 +6,12 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -40,12 +43,14 @@ import edu.csuci.tweeter.ui.navigation.BackTopBar
  * @param profileViewModel Supplies the registered user's profile and posts.
  * @param onLogIn Opens the login form.
  * @param onCreateAccount Opens the registration form.
+ * @param onEditProfile Opens Edit profile.
  */
 @Composable
 fun ProfileScreen(
     onBack: () -> Unit,
     onLogIn: () -> Unit,
     onCreateAccount: () -> Unit,
+    onEditProfile: () -> Unit,
     modifier: Modifier = Modifier,
     profileViewModel: ProfileViewModel = viewModel(factory = ProfileViewModel.factory)
 ) {
@@ -81,7 +86,8 @@ fun ProfileScreen(
             is ProfileUiState.LoggedIn -> {
                 ProfileContent(
                     profile = state.profile,
-                    posts = state.posts
+                    posts = state.posts,
+                    onEditProfile = onEditProfile
                 )
             }
         }
@@ -89,7 +95,7 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun ProfileContent(profile: UserProfile, posts: List<Post>) {
+private fun ProfileContent(profile: UserProfile, posts: List<Post>, onEditProfile: () -> Unit) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(vertical = 16.dp),
@@ -99,6 +105,7 @@ private fun ProfileContent(profile: UserProfile, posts: List<Post>) {
             ProfileHeader(
                 profile = profile,
                 postCount = posts.size,
+                onEditProfile = onEditProfile,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -118,7 +125,12 @@ private fun ProfileContent(profile: UserProfile, posts: List<Post>) {
 }
 
 @Composable
-private fun ProfileHeader(profile: UserProfile, postCount: Int, modifier: Modifier = Modifier) {
+private fun ProfileHeader(
+    profile: UserProfile,
+    postCount: Int,
+    onEditProfile: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -143,6 +155,15 @@ private fun ProfileHeader(profile: UserProfile, postCount: Int, modifier: Modifi
         }
         if (profile.bio.isNotBlank()) {
             Text(text = profile.bio, style = MaterialTheme.typography.bodyMedium)
+        }
+        FilledTonalButton(
+            onClick = onEditProfile,
+            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(40.dp)
+        ) {
+            Text(text = stringResource(R.string.profile_edit))
         }
     }
 }
