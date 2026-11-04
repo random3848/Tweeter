@@ -136,7 +136,11 @@ fun TweeterApp(modifier: Modifier = Modifier) {
                     onSelect = { index ->
                         val route = BOTTOM_BAR_ITEMS[index].route
                         if (route != null) {
-                            navController.navigateToTopLevel(route)
+                            if (index == selectedIndex) {
+                                navController.returnToTab(route)
+                            } else {
+                                navController.navigateToTopLevel(route)
+                            }
                         }
                     }
                 )
@@ -218,13 +222,12 @@ private fun rememberFirstFrameDrawn(): Boolean {
  */
 private fun NavHostController.navigateToFeed() {
     navigateToTopLevel(FeedRoute)
-    popBackStack(FeedRoute, inclusive = false)
+    returnToTab(FeedRoute)
 }
 
 /**
- * Switches tabs while preserving navigation state and avoiding duplicate destinations.
- * to Feed, tapping the current tab does nothing, and each tab keeps its state while another one
- * is open.
+ * Switches to the tab of [route], keeping the screens opened in each tab while another is open,
+ * without stacking a second copy of a screen that is already on top.
  */
 private fun NavHostController.navigateToTopLevel(route: Any) {
     navigate(route) {
@@ -234,4 +237,13 @@ private fun NavHostController.navigateToTopLevel(route: Any) {
         launchSingleTop = true
         restoreState = true
     }
+}
+
+/**
+ * Shows the screen the tab of [route] opens to, closing the screens opened from it, such as
+ * Profile on Home or Log in on Post: what tapping the tab that is already selected does.
+ * [navigateToTopLevel] would restore those screens instead.
+ */
+private fun NavHostController.returnToTab(route: Any) {
+    popBackStack(route, inclusive = false)
 }
