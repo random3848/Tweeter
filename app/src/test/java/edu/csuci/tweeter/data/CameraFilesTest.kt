@@ -4,9 +4,12 @@ package edu.csuci.tweeter.data
 
 import java.io.File
 import java.io.IOException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -62,6 +65,7 @@ class CameraFilesTest {
     fun create_noContentUri_deletesFileAndRethrows() = runTest {
         val files = CameraFiles(
             directory = directory,
+            scope = backgroundScope,
             ioDispatcher = UnconfinedTestDispatcher(testScheduler),
             contentUriOf = { throw IllegalArgumentException("Not a shared folder") }
         )
@@ -73,29 +77,37 @@ class CameraFilesTest {
     }
 
     @Test
-    fun delete_deletesFile() = runTest {
-        val files = cameraFiles()
+    fun discard_deletesFileOnIoDispatcher() = runTest {
+        val ioDispatcher = StandardTestDispatcher(testScheduler)
+        val files = cameraFiles(ioDispatcher)
         val cameraFile = files.create()
 
-        files.delete(cameraFile.path)
+        files.discard(cameraFile.path)
+        val existsUntilIoRuns = File(cameraFile.path).exists()
+        runCurrent()
 
+        assertTrue(existsUntilIoRuns)
         assertFalse(File(cameraFile.path).exists())
     }
 
     @Test
-    fun delete_fileAlreadyGone_doesNothing() = runTest {
+    fun discard_fileAlreadyGone_doesNothing() = runTest {
         val files = cameraFiles()
         val cameraFile = files.create()
-        files.delete(cameraFile.path)
+        files.discard(cameraFile.path)
 
-        files.delete(cameraFile.path)
+        files.discard(cameraFile.path)
+        runCurrent()
 
         assertFalse(File(cameraFile.path).exists())
     }
 
-    private fun TestScope.cameraFiles(): CameraFiles = CameraFiles(
+    private fun TestScope.cameraFiles(
+        ioDispatcher: CoroutineDispatcher = UnconfinedTestDispatcher(testScheduler)
+    ): CameraFiles = CameraFiles(
         directory = directory,
-        ioDispatcher = UnconfinedTestDispatcher(testScheduler),
+        scope = backgroundScope,
+        ioDispatcher = ioDispatcher,
         contentUriOf = ::contentUriOf
     )
 

@@ -7,6 +7,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import edu.csuci.tweeter.data.AccountRepository
+import edu.csuci.tweeter.data.CameraFiles
 import edu.csuci.tweeter.data.FirebaseAccountRepository
 import edu.csuci.tweeter.data.FirebasePhotoRepository
 import edu.csuci.tweeter.data.FirestorePostRepository
@@ -88,6 +89,14 @@ class AppContainer(private val context: Context) {
             storage = FirebaseStorage.getInstance(),
             locationTagRemover = LocationTagRemover(context, ioDispatcher = Dispatchers.IO)
         )
+    }
+
+    /**
+     * The files the camera app saves post and profile photos into. Discarded ones are deleted in
+     * the app's scope, so leaving a screen doesn't stop that.
+     */
+    val cameraFiles: CameraFiles by lazy {
+        CameraFiles.inCacheOf(context, scope = applicationScope, ioDispatcher = Dispatchers.IO)
     }
 
     /** The post Feed asks Map to show. Map opens the post's popup, then clears the request. */

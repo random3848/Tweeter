@@ -85,19 +85,20 @@ class CameraCapture(
 
     /**
      * Finishes taking the picture, which the camera app saved, and returns its file, or null when
-     * no picture was being taken. The caller deletes the file once nothing needs it.
+     * no picture was being taken. The caller discards the file with [CameraFiles.discard] once
+     * nothing needs it.
      */
     fun keep(): CameraFile? = file.also { updateFile(null) }
 
-    /** Finishes taking the picture, which the camera app didn't save, and deletes its file. */
-    suspend fun discard() {
+    /** Finishes taking the picture, which the camera app didn't save, and discards its file. */
+    fun discard() {
         val discarded = file ?: return
         updateFile(null)
-        cameraFiles.delete(discarded.path)
+        cameraFiles.discard(discarded.path)
     }
 
-    /** Gives up on the picture, since no camera app could open, and deletes its file. */
-    suspend fun cameraUnavailable() {
+    /** Gives up on the picture, since no camera app could open, and discards its file. */
+    fun cameraUnavailable() {
         updateFailed(true)
         discard()
     }

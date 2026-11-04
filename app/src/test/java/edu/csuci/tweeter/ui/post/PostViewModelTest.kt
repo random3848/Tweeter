@@ -16,6 +16,7 @@ import edu.csuci.tweeter.ui.camera.CameraCapture
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -37,6 +38,9 @@ class PostViewModelTest {
     val temporaryFolder = TemporaryFolder()
 
     private val dispatcher = UnconfinedTestDispatcher()
+
+    // Outlives the ViewModels, as the app's scope does, to delete camera photos they discard.
+    private val appScope = TestScope(dispatcher)
 
     private val directory: File
         get() = File(temporaryFolder.root, "photos")
@@ -163,6 +167,7 @@ class PostViewModelTest {
     private fun createViewModel(): PostViewModel {
         val cameraFiles = CameraFiles(
             directory = directory,
+            scope = appScope,
             ioDispatcher = dispatcher,
             contentUriOf = ::contentUriOf
         )

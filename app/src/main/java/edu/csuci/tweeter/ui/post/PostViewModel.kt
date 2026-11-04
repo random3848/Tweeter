@@ -137,13 +137,13 @@ class PostViewModel(
         if (isSaved) {
             cameraCapture.keep()?.let { picture -> replacePhoto(picture.contentUri, picture.path) }
         } else {
-            viewModelScope.launch { cameraCapture.discard() }
+            cameraCapture.discard()
         }
     }
 
     /** Gives up on the picture, since no camera app could open, and reports [cameraFailed]. */
     fun cameraUnavailable() {
-        viewModelScope.launch { cameraCapture.cameraUnavailable() }
+        cameraCapture.cameraUnavailable()
     }
 
     /** Stops reporting [cameraFailed], once the user moves on to another way to get a photo. */
@@ -162,7 +162,7 @@ class PostViewModel(
         clearUploadResult()
         val replacedPath = photoPath
         updatePhoto(uri, cameraFilePath)
-        replacedPath?.let(::deleteCameraFile)
+        replacedPath?.let(cameraFiles::discard)
     }
 
     private fun updatePhoto(uri: String?, cameraFilePath: String?) {
@@ -170,10 +170,6 @@ class PostViewModel(
         photoPath = cameraFilePath
         savedStateHandle[PHOTO_URI_KEY] = uri
         savedStateHandle[PHOTO_PATH_KEY] = cameraFilePath
-    }
-
-    private fun deleteCameraFile(path: String) {
-        viewModelScope.launch { cameraFiles.delete(path) }
     }
 
     /**
@@ -257,7 +253,7 @@ class PostViewModel(
     private fun forgetSharedPhoto() {
         val sharedPath = photoPath
         updatePhoto(uri = null, cameraFilePath = null)
-        sharedPath?.let(::deleteCameraFile)
+        sharedPath?.let(cameraFiles::discard)
     }
 
     /**
@@ -316,7 +312,7 @@ class PostViewModel(
         val factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as TweeterApplication
-                val cameraFiles = CameraFiles.inCacheOf(application, Dispatchers.IO)
+                val cameraFiles = application.container.cameraFiles
                 val savedStateHandle = createSavedStateHandle()
                 PostViewModel(
                     photoRepository = application.container.photoRepository,

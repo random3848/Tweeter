@@ -161,6 +161,7 @@ class CameraCaptureTest {
     private fun TestScope.cameraCapture(): CameraCapture = CameraCapture(
         cameraFiles = CameraFiles(
             directory = directory,
+            scope = backgroundScope,
             ioDispatcher = UnconfinedTestDispatcher(testScheduler),
             contentUriOf = ::contentUriOf
         ),
