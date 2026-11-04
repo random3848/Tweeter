@@ -33,15 +33,9 @@ import edu.csuci.tweeter.ui.theme.TweeterTheme
  * @param title The screen's name, such as "Profile".
  * @param onBack Goes back to the screen this one was opened from.
  * @param modifier Applied to the whole bar.
- * @param actions Optional controls displayed to the right of the title.
  */
 @Composable
-fun BackTopBar(
-    title: String,
-    onBack: () -> Unit,
-    modifier: Modifier = Modifier,
-    actions: @Composable () -> Unit = {}
-) {
+fun BackTopBar(title: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
     Surface(color = MaterialTheme.colorScheme.surface, modifier = modifier) {
         Column(
             modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars)
@@ -59,12 +53,7 @@ fun BackTopBar(
                         contentDescription = stringResource(R.string.navigation_back)
                     )
                 }
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.weight(1f)
-                )
-                actions()
+                Text(text = title, style = MaterialTheme.typography.titleLarge)
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
