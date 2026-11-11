@@ -2,10 +2,16 @@
     <string name="app_name">Tweeter</string>
 
     <string name="navigation_home">Home</string>
+    <string name="navigation_search">Search</string>
+    <string name="navigation_camera">Camera</string>
     <string name="navigation_create_post">Create post</string>
     <string name="navigation_map">Map</string>
     <string name="navigation_profile">Profile</string>
     <string name="navigation_back">Back</string>
+    <string name="camera_permission_required">Camera permission is required to view live camera preview.</string>
+    <string name="grant_permission">Grant permission</string>
+    <string name="camera_close">Close camera</string>
+    <string name="camera_retake">Retake photo</string>
 
     <!-- Two details of a post on one line, such as its place and when it was shared. -->
     <string name="post_details">%1$s · %2$s</string>
