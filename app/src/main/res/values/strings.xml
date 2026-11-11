@@ -76,6 +76,9 @@
     <string name="post_location_from_photo">Location from the photo: %1$.5f, %2$.5f</string>
     <string name="post_location_from_device">Location from your device: %1$.5f, %2$.5f</string>
     <string name="post_location_picked">Location you picked: %1$.5f, %2$.5f</string>
+    <string name="post_animal_label">Animal</string>
+    <string name="post_animal_hint">Search for the animal, or leave this empty if you\'re not sure.</string>
+    <string name="post_animal_not_chosen">Choose an animal from the list, or clear this field.</string>
 
     <string name="location_picker_use_my_location">Use my location</string>
     <string name="location_picker_no_fix">Couldn\'t get your location. Tap the map instead.</string>

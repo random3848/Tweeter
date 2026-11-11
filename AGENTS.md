@@ -12,9 +12,10 @@ Layout:
   NavHost that opens to Feed.
 - `app/src/main/java/edu/csuci/tweeter/data/`: the models (`Post`, `UserProfile`) and the
   repositories screens use through interfaces (`PostRepository`, `ProfileRepository`,
-  `AccountRepository`, `PhotoRepository`). `AppContainer` (owned by `TweeterApplication`) creates
-  one Firebase implementation of each; Profile uses `PlaceholderAccountRepository` directly until
-  log-in is built. `PostDocument` and `ProfileDocument` map the models to Firestore fields, and a
+  `AccountRepository`, `PhotoRepository`, `AnimalRepository`). `AppContainer` (owned by
+  `TweeterApplication`) creates one Firebase implementation of each, except `AnimalRepository`,
+  which is the in-memory `FakeAnimalRepository` until the iNaturalist one is built; Profile uses
+  `PlaceholderAccountRepository` directly until log-in is built. `PostDocument` and `ProfileDocument` map the models to Firestore fields, and a
   field added to `PostDocument` also goes into the `hasOnly` list in `firestore.rules`.
   `FakePostRepository` is an in-memory `PostRepository` for tests and for working offline.
 - `app/src/main/java/edu/csuci/tweeter/location/`: finding where a photo was taken

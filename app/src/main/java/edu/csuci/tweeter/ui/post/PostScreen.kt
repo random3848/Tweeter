@@ -319,13 +319,21 @@ private fun locationStatus(location: LocationFix?, isLocating: Boolean): String 
 }
 
 @Composable
-private fun PostDetailsDialog(onDismiss: () -> Unit, onPost: (String, String, Int) -> Unit) {
+private fun PostDetailsDialog(
+    onDismiss: () -> Unit,
+    onPost: (String, String, Int) -> Unit,
+    animalPicker: AnimalPickerViewModel = viewModel(factory = AnimalPickerViewModel.factory)
+) {
     var caption by rememberSaveable { mutableStateOf("") }
-    var animalType by rememberSaveable { mutableStateOf("") }
     var confidence by rememberSaveable { mutableStateOf(3f) }
+    // The picker outlives the dialog, so it's emptied on close, as the caption is.
+    val close = {
+        animalPicker.clear()
+        onDismiss()
+    }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = close,
         title = { Text("Post details") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -334,11 +342,7 @@ private fun PostDetailsDialog(onDismiss: () -> Unit, onPost: (String, String, In
                     onValueChange = { caption = it },
                     label = { Text("Caption") }
                 )
-                OutlinedTextField(
-                    value = animalType,
-                    onValueChange = { animalType = it },
-                    label = { Text("Animal type") }
-                )
+                AnimalField(picker = animalPicker)
                 Text("Confidence: ${confidence.roundToInt()} of 5")
                 Slider(
                     value = confidence,
@@ -349,12 +353,18 @@ private fun PostDetailsDialog(onDismiss: () -> Unit, onPost: (String, String, In
             }
         },
         confirmButton = {
-            Button(onClick = { onPost(caption, animalType, confidence.roundToInt()) }) {
+            Button(
+                enabled = animalPicker.isComplete,
+                onClick = {
+                    onPost(caption, animalPicker.chosenAnimal.orEmpty(), confidence.roundToInt())
+                    animalPicker.clear()
+                }
+            ) {
                 Text("Post")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = close) { Text("Cancel") }
         }
     )
 }
