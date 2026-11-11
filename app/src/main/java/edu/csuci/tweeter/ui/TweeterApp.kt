@@ -75,8 +75,9 @@ private val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
  * not edit this file beyond those two lines; keep everything else in the feature's package
  *
  * Profile is not a tab: Feed's profile button opens it, and Home stays selected while it is open.
- * It draws its own top bar with a back arrow, so the shared one is hidden there. Profile and Post
- * open Log in and Create account for guests, and the tab they were opened from stays selected.
+ * Pressing Home always shows the feed itself, closing Profile or any screen opened from it.
+ * Profile draws its own top bar with a back arrow, so the shared one is hidden there. Profile and
+ * Post open Log in and Create account for guests, and the tab they were opened from stays selected.
  * Profile's "Edit profile" button opens Edit profile, which hides both bars.
  *
  * @param modifier Applied to the whole app
@@ -148,7 +149,11 @@ fun TweeterApp(modifier: Modifier = Modifier) {
                         }
                     },
                     onSelect = { route ->
-                        navController.navigateToTopLevel(route)
+                        if (route == FeedRoute) {
+                            navController.navigateToFeed()
+                        } else {
+                            navController.navigateToTopLevel(route)
+                        }
                     }
                 )
             }
@@ -192,7 +197,8 @@ fun TweeterApp(modifier: Modifier = Modifier) {
 
 /**
  * Opens the Home tab on the feed itself, closing any screen opened from it, such as Profile or
- * Log in, which the tab would otherwise restore over the feed.
+ * Log in, which the tab would otherwise restore over the feed. Pressing Home and Map's popup both
+ * use it.
  */
 private fun NavHostController.navigateToFeed() {
     navigateToTopLevel(FeedRoute)
@@ -200,9 +206,8 @@ private fun NavHostController.navigateToFeed() {
 }
 
 /**
- * Switches tabs while preserving navigation state and avoiding duplicate destinations.
- * to Feed, tapping the current tab does nothing, and each tab keeps its state while another one
- * is open.
+ * Switches to the tab whose screen is registered under [route]. Each tab keeps its state while
+ * another one is open, and pressing the current tab does nothing.
  */
 private fun NavHostController.navigateToTopLevel(route: Any) {
     navigate(route) {
