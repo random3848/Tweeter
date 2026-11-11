@@ -47,9 +47,15 @@ private val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
         route = FeedRoute
     ),
     BottomBarItem(
-        selectedIcon = R.drawable.ic_upload_filled,
-        unselectedIcon = R.drawable.ic_upload_unfilled,
-        description = R.string.navigation_create_post,
+        selectedIcon = R.drawable.ic_search_filled,
+        unselectedIcon = R.drawable.ic_search_unfilled,
+        description = R.string.navigation_search,
+        route = null
+    ),
+    BottomBarItem(
+        selectedIcon = R.drawable.ic_camera_filled,
+        unselectedIcon = R.drawable.ic_camera_unfilled,
+        description = R.string.navigation_camera,
         route = PostRoute
     ),
     BottomBarItem(
@@ -91,7 +97,8 @@ fun TweeterApp(modifier: Modifier = Modifier) {
     val isOnAuth = destination?.hasRoute(LogInRoute::class) == true ||
         destination?.hasRoute(CreateAccountRoute::class) == true
     val isOnEditProfile = destination?.hasRoute(EditProfileRoute::class) == true
-    val hasOwnTopBar = isOnProfile || isOnAuth || isOnEditProfile
+    val isOnCamera = destination?.hasRoute(PostRoute::class) == true
+    val hasOwnTopBar = isOnProfile || isOnAuth || isOnEditProfile || isOnCamera
     // Log in and Create account keep the tab of the screen that opened them selected.
     val tabDestination = if (isOnAuth) {
         navController.previousBackStackEntry?.destination
@@ -164,7 +171,11 @@ fun TweeterApp(modifier: Modifier = Modifier) {
                 .consumeWindowInsets(innerPadding)
         ) {
             addFeedScreen(onShowOnMap = { navController.navigateToTopLevel(MapRoute) })
-            addPostScreen(onLogIn = openLogIn, onCreateAccount = openCreateAccount)
+            addPostScreen(
+                onLogIn = openLogIn,
+                onCreateAccount = openCreateAccount,
+                onClose = { navController.navigateUp() }
+            )
             addMapScreen(onShowInFeed = { navController.navigateToFeed() })
             addProfileScreen(
                 onBack = { navController.navigateUp() },
