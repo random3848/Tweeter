@@ -13,6 +13,7 @@ import org.maplibre.compose.layers.CircleLayer
 import org.maplibre.compose.sources.rememberGeoJsonSource
 import org.maplibre.compose.util.MaplibreComposable
 import org.maplibre.spatialk.geojson.Feature
+import org.maplibre.spatialk.geojson.Point
 import org.maplibre.spatialk.geojson.Position
 
 internal val PIN_RADIUS = 7.dp
@@ -35,7 +36,6 @@ private val PIN_HIT_PADDING = 16.dp
 @Composable
 @MaplibreComposable
 internal fun PostPins(uiState: MapUiState, onPinClick: (String) -> Unit) {
-    val posts = uiState.posts
     CircleLayer(
         id = "post-pins",
         source = rememberGeoJsonSource(uiState.pinnedPosts.pins),
@@ -44,11 +44,11 @@ internal fun PostPins(uiState: MapUiState, onPinClick: (String) -> Unit) {
         strokeColor = const(MaterialTheme.colorScheme.surface),
         strokeWidth = const(PIN_OUTLINE_WIDTH),
         onClick = { tappedPins ->
-            val tappedRow = position?.let { tap -> posts.nearestPinnedRow(tappedPins, tap) }
-            if (tappedRow == null) {
+            val postId = position?.let { tap -> nearestPinnedPostId(tappedPins, tap) }
+            if (postId == null) {
                 ClickResult.Pass
             } else {
-                onPinClick(posts.id(tappedRow))
+                onPinClick(postId)
                 ClickResult.Consume
             }
         },
@@ -65,22 +65,24 @@ internal fun PostPins(uiState: MapUiState, onPinClick: (String) -> Unit) {
 }
 
 /**
- * Returns the row of the post whose pin, among [pins], is drawn nearest to [tap], or null if this
- * table holds none of their posts. A pin drawn from an earlier table finds its post by its ID.
+ * Returns the ID of the post whose pin, among [pins], is drawn nearest to [tap], or null if none
+ * of them is a post's pin. Each pin carries its post's ID and position, so this reads only the
+ * tapped pins, not the posts, and a pin drawn from an earlier table still names its post.
  */
 @VisibleForTesting
-internal fun PostTable.nearestPinnedRow(pins: List<Feature<*, *>>, tap: Position): Int? {
-    var nearestRow: Int? = null
+internal fun nearestPinnedPostId(pins: List<Feature<*, *>>, tap: Position): String? {
+    var nearestPostId: String? = null
     var nearestDistance = Double.POSITIVE_INFINITY
     for (pin in pins) {
-        val row = rowOf(pin) ?: continue
-        val distance = squaredDistanceOnMap(row, tap)
+        val postId = pin.id?.contentOrNull ?: continue
+        val position = (pin.geometry as? Point)?.coordinates ?: continue
+        val distance = squaredDistanceOnMap(position, tap)
         if (distance < nearestDistance) {
-            nearestRow = row
+            nearestPostId = postId
             nearestDistance = distance
         }
     }
-    return nearestRow
+    return nearestPostId
 }
 
 /**
@@ -97,13 +99,10 @@ internal fun PostTable.pinPositionOf(row: Int): Position? {
     }
 }
 
-// The row of the post whose ID the pin carries, or null if this table doesn't hold that post.
-private fun PostTable.rowOf(pin: Feature<*, *>): Int? = pin.id?.contentOrNull?.let(::rowOf)
-
-// How far from the tap the pin of the row is drawn on the map, squared and in degrees of latitude.
-// Away from the equator, a degree of longitude is drawn shorter than a degree of latitude.
-private fun PostTable.squaredDistanceOnMap(row: Int, tap: Position): Double {
-    val east = (longitude(row) - tap.longitude) * cos(Math.toRadians(tap.latitude))
-    val north = latitude(row) - tap.latitude
+// How far from [tap] a pin at [position] is drawn on the map, squared and in degrees of
+// latitude. Away from the equator, a degree of longitude is drawn shorter than one of latitude.
+private fun squaredDistanceOnMap(position: Position, tap: Position): Double {
+    val east = (position.longitude - tap.longitude) * cos(Math.toRadians(tap.latitude))
+    val north = position.latitude - tap.latitude
     return east * east + north * north
 }

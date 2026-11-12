@@ -10,6 +10,7 @@ import org.junit.Test
 import org.maplibre.spatialk.geojson.Feature
 import org.maplibre.spatialk.geojson.FeatureCollection
 import org.maplibre.spatialk.geojson.Geometry
+import org.maplibre.spatialk.geojson.Point
 import org.maplibre.spatialk.geojson.Position
 
 private const val TAP_LONGITUDE = -119.0
@@ -25,23 +26,21 @@ private const val FAR_DEGREES = 0.001
 private const val LONG_EAST_DEGREES = 0.001
 private const val SHORT_NORTH_DEGREES = 0.0007
 
-private const val FIRST_ROW = 0
-private const val SECOND_ROW = 1
+private const val SECOND_PIN = 1
 
 class PostPinsTest {
     private val campusTap = Position(longitude = TAP_LONGITUDE, latitude = CAMPUS_TAP_LATITUDE)
 
     @Test
-    fun nearestPinnedRow_returnsRowClosestToTap() {
+    fun nearestPinnedPostId_returnsPostOfPinClosestToTap() {
         val far = postAt(latitude = CAMPUS_TAP_LATITUDE + FAR_DEGREES, longitude = TAP_LONGITUDE)
         val near = postAt(latitude = CAMPUS_TAP_LATITUDE + NEAR_DEGREES, longitude = TAP_LONGITUDE)
-        val posts = PostTable.of(listOf(far, near))
 
-        assertEquals(SECOND_ROW, posts.nearestPinnedRow(pinsOf(posts), campusTap))
+        assertEquals(near.id, nearestPinnedPostId(pinsOf(far, near), campusTap))
     }
 
     @Test
-    fun nearestPinnedRow_countsDegreesOfLongitudeAsDrawnOnMap() {
+    fun nearestPinnedPostId_countsDegreesOfLongitudeAsDrawnOnMap() {
         val north = postAt(
             latitude = FAR_NORTH_TAP_LATITUDE + SHORT_NORTH_DEGREES,
             longitude = TAP_LONGITUDE
@@ -50,56 +49,30 @@ class PostPinsTest {
             latitude = FAR_NORTH_TAP_LATITUDE,
             longitude = TAP_LONGITUDE + LONG_EAST_DEGREES
         )
-        val posts = PostTable.of(listOf(north, east))
         val tap = Position(longitude = TAP_LONGITUDE, latitude = FAR_NORTH_TAP_LATITUDE)
 
-        assertEquals(SECOND_ROW, posts.nearestPinnedRow(pinsOf(posts), tap))
+        assertEquals(east.id, nearestPinnedPostId(pinsOf(north, east), tap))
     }
 
     @Test
-    fun nearestPinnedRow_onlyAmongTappedPins() {
+    fun nearestPinnedPostId_onlyAmongTappedPins() {
         val near = postAt(latitude = CAMPUS_TAP_LATITUDE + NEAR_DEGREES, longitude = TAP_LONGITUDE)
         val far = postAt(latitude = CAMPUS_TAP_LATITUDE + FAR_DEGREES, longitude = TAP_LONGITUDE)
-        val posts = PostTable.of(listOf(near, far))
-        val farPin = pinsOf(posts)[SECOND_ROW]
+        val farPin = pinsOf(near, far)[SECOND_PIN]
 
-        assertEquals(SECOND_ROW, posts.nearestPinnedRow(listOf(farPin), campusTap))
+        assertEquals(far.id, nearestPinnedPostId(listOf(farPin), campusTap))
     }
 
     @Test
-    fun nearestPinnedRow_noPins_returnsNull() {
-        val posts = PostTable.of(listOf(postAt(CAMPUS_TAP_LATITUDE, TAP_LONGITUDE)))
-
-        assertNull(posts.nearestPinnedRow(emptyList(), campusTap))
+    fun nearestPinnedPostId_noPins_returnsNull() {
+        assertNull(nearestPinnedPostId(emptyList(), campusTap))
     }
 
     @Test
-    fun nearestPinnedRow_pinOfEarlierTableWithSamePosts_returnsItsRow() {
-        val post = postAt(CAMPUS_TAP_LATITUDE, TAP_LONGITUDE)
-        val earlier = PostTable.of(listOf(post))
-        val later = PostTable.of(listOf(post))
+    fun nearestPinnedPostId_featureWithoutId_isNoPin() {
+        val unnamed = Feature(geometry = Point(campusTap), properties = null)
 
-        assertEquals(FIRST_ROW, later.nearestPinnedRow(pinsOf(earlier), campusTap))
-    }
-
-    @Test
-    fun nearestPinnedRow_pinOfPostThatMovedRows_returnsItsNewRow() {
-        val moved = postAt(CAMPUS_TAP_LATITUDE, TAP_LONGITUDE)
-        val newer = postAt(latitude = CAMPUS_TAP_LATITUDE + FAR_DEGREES, longitude = TAP_LONGITUDE)
-        val earlier = PostTable.of(listOf(moved))
-        val later = PostTable.of(listOf(newer, moved))
-
-        assertEquals(SECOND_ROW, later.nearestPinnedRow(pinsOf(earlier), campusTap))
-    }
-
-    @Test
-    fun nearestPinnedRow_pinOfRemovedPost_returnsNull() {
-        val removed = postAt(CAMPUS_TAP_LATITUDE, TAP_LONGITUDE)
-        val kept = postAt(latitude = CAMPUS_TAP_LATITUDE + FAR_DEGREES, longitude = TAP_LONGITUDE)
-        val removedPin = pinsOf(PostTable.of(listOf(removed, kept)))[FIRST_ROW]
-        val later = PostTable.of(listOf(kept))
-
-        assertNull(later.nearestPinnedRow(listOf(removedPin), campusTap))
+        assertNull(nearestPinnedPostId(listOf(unnamed), campusTap))
     }
 
     private fun postAt(latitude: Double, longitude: Double): Post = SAMPLE_POSTS.first().copy(
@@ -108,7 +81,8 @@ class PostPinsTest {
         longitude = longitude
     )
 
-    // The pins as MapLibre hands them back: read from the GeoJSON the map draws.
-    private fun pinsOf(posts: PostTable): List<Feature<Geometry, JsonObject?>> =
-        FeatureCollection.fromJson<Geometry, JsonObject?>(pinsJsonOf(posts)).features
+    // The pins of [posts] as MapLibre hands them back: read from the GeoJSON the map draws.
+    private fun pinsOf(vararg posts: Post): List<Feature<Geometry, JsonObject?>> =
+        FeatureCollection.fromJson<Geometry, JsonObject?>(pinsJsonOf(PostTable.of(posts.asList())))
+            .features
 }
