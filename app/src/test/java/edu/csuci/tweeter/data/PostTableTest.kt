@@ -24,7 +24,7 @@ class PostTableTest {
         val table = PostTable.of(posts)
 
         assertEquals(
-            posts.map { it.withUnshownFieldsCleared() },
+            posts.map { it.withFieldsNotReadBackCleared() },
             posts.indices.map { table.postAt(it) }
         )
     }
@@ -156,11 +156,11 @@ class PostTableTest {
         return builder
     }
 
-    // The post a row holds, read back field by field, with the fields the table doesn't keep
-    // cleared.
+    // The post a row holds, read back field by field, with the fields the table doesn't give
+    // back cleared.
     private fun PostTable.postAt(row: Int): Post = Post(
         id = id(row),
-        authorUid = authorUid(row),
+        authorUid = "",
         username = username(row),
         avatar = Avatar(initials = avatarInitials(row)),
         locationName = locationName(row),
@@ -177,7 +177,13 @@ class PostTableTest {
         confidence = confidence(row)
     )
 
-    // No screen shows these fields yet, so the table doesn't keep them.
-    private fun Post.withUnshownFieldsCleared(): Post =
-        copy(likeCount = 0, commentCount = 0, isLiked = false, isBookmarked = false)
+    // No screen shows likes, comments or bookmarks yet, so the table doesn't keep them. It keeps
+    // authors only to find their rows with rowsBy, which the tests of rowsBy cover.
+    private fun Post.withFieldsNotReadBackCleared(): Post = copy(
+        authorUid = "",
+        likeCount = 0,
+        commentCount = 0,
+        isLiked = false,
+        isBookmarked = false
+    )
 }
