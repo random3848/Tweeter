@@ -12,9 +12,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -108,7 +108,9 @@ internal val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
 @Composable
 fun TweeterApp(modifier: Modifier = Modifier) {
     val navController = rememberNavController()
-    val mapCover = remember { MapCover() }
+    val mapCover = rememberSaveable(saver = MapCover.Saver) {
+        MapCover(hidesMapUntilCounted = true)
+    }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val destination = backStackEntry?.destination
     val isOnMap = destination?.hasRoute(MapRoute::class) == true
@@ -180,6 +182,9 @@ fun TweeterApp(modifier: Modifier = Modifier) {
                         modifier = Modifier.zIndex(-1f)
                     )
                 }
+                // After the screens the NavHost composed have counted themselves: side effects
+                // run after the DisposableEffects they count themselves in.
+                SideEffect { mapCover.finishFirstCount() }
             }
         }
     }
