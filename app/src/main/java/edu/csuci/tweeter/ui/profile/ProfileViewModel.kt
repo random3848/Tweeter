@@ -23,7 +23,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
@@ -42,8 +41,8 @@ sealed interface ProfileUiState {
     /**
      * The logged-in user's profile.
      *
-     * Equal to another [LoggedIn] with the same profile, table contents and rows, so tests and
-     * the state flow compare what is shown rather than which arrays hold it.
+     * Equal to another [LoggedIn] with the same profile, the same table and the same rows, so the
+     * state flow tells new state from old without comparing the posts in its tables.
      *
      * @property profile What they show about themselves.
      * @property table Every post, newest first.
@@ -53,7 +52,7 @@ sealed interface ProfileUiState {
         ProfileUiState {
         override fun equals(other: Any?): Boolean = other is LoggedIn &&
             profile == other.profile &&
-            table == other.table &&
+            table === other.table &&
             rows.contentEquals(other.rows)
 
         override fun hashCode(): Int = Objects.hash(profile, table, rows.contentHashCode())
@@ -104,10 +103,8 @@ class ProfileViewModel(
             initialValue = ProfileUiState.Loading
         )
 
-    // Found once per distinct table: a table equal to the last one, as Firestore sends when only a
-    // post's write status changes, keeps the rows already found.
+    // Found once per table, which the repository sends only when the posts change.
     private fun postsBy(uid: String): Flow<UserPosts> = postRepository.getPostTable()
-        .distinctUntilChanged()
         .map { table -> UserPosts(table, table.rowsBy(uid)) }
         .flowOn(rowsDispatcher)
 

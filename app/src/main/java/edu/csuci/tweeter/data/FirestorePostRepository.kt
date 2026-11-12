@@ -12,6 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -25,8 +26,9 @@ import kotlinx.coroutines.tasks.await
  * listener and one parse per snapshot. Snapshots are delivered and parsed on [dispatcher], off
  * the main thread, one at a time in the order they arrive, so an older snapshot can never replace
  * a newer one. Only [PostDocument]'s fields are read, into one array reused for every document.
- * When signing in or the listener fails, both are set up again with [retryWithBackoff], while
- * collectors keep the last table.
+ * A table holding the same posts as the last, as Firestore sends when only a post's write status
+ * changes, is dropped there, once for every screen. When signing in or the listener fails, both
+ * are set up again with [retryWithBackoff], while collectors keep the last table.
  */
 class FirestorePostRepository(
     private val auth: FirebaseAuth,
@@ -39,6 +41,7 @@ class FirestorePostRepository(
         posts.orderBy(PostDocument.Field.TIMESTAMP.key, Query.Direction.DESCENDING)
     private val postTable = snapshotsOf(newestFirst, ::tableOf)
         .retryWithBackoff(TAG)
+        .distinctUntilChanged(PostTable::holdsSamePosts)
         .sharedWhileCollected(scope)
 
     override fun getPostTable(): Flow<PostTable> = postTable

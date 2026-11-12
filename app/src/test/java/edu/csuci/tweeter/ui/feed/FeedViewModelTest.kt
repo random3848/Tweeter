@@ -6,9 +6,9 @@ import edu.csuci.tweeter.data.FakePostRepository
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.SAMPLE_POSTS
+import edu.csuci.tweeter.data.assertSamePosts
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 import java.time.Instant
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
@@ -24,6 +24,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -58,7 +59,8 @@ class FeedViewModelTest {
 
         val uiState = viewModel.uiState.value
 
-        assertEquals(FeedUiState(posts = PostTable.of(SAMPLE_POSTS), isLoading = false), uiState)
+        assertFalse(uiState.isLoading)
+        assertSamePosts(PostTable.of(SAMPLE_POSTS), uiState.posts)
     }
 
     @Test
@@ -112,14 +114,10 @@ class FeedViewModelTest {
         assertEquals(SAMPLE_POSTS[0].id, viewModel.postToShow.value)
     }
 
-    private fun feedViewModel(
-        repository: PostRepository = FakePostRepository(),
-        postsDispatcher: CoroutineDispatcher = UnconfinedTestDispatcher()
-    ) = FeedViewModel(
+    private fun feedViewModel(repository: PostRepository = FakePostRepository()) = FeedViewModel(
         postRepository = repository,
         showInFeedRequest = showInFeedRequest,
         showOnMapRequest = showOnMapRequest,
-        postsDispatcher = postsDispatcher,
         sharing = SharingStarted.WhileSubscribed()
     )
 
@@ -128,7 +126,7 @@ class FeedViewModelTest {
     private fun TestScope.collectedFeedViewModel(
         repository: PostRepository = FakePostRepository()
     ): FeedViewModel {
-        val viewModel = feedViewModel(repository, UnconfinedTestDispatcher(testScheduler))
+        val viewModel = feedViewModel(repository)
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect()
         }

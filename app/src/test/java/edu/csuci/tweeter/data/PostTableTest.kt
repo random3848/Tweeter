@@ -4,8 +4,9 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit.MILLIS
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 private const val UNKNOWN_ID = "no-such-post"
@@ -105,34 +106,29 @@ class PostTableTest {
     }
 
     @Test
-    fun equals_tablesOfSamePosts_areEqual() {
-        assertEquals(PostTable.of(SAMPLE_POSTS), PostTable.of(SAMPLE_POSTS))
+    fun holdsSamePosts_tablesOfSamePosts_true() {
+        assertTrue(PostTable.of(SAMPLE_POSTS).holdsSamePosts(PostTable.of(SAMPLE_POSTS)))
     }
 
     @Test
-    fun equals_tablesOfDifferentPosts_differ() {
+    fun holdsSamePosts_postEdited_false() {
         val edited = SAMPLE_POSTS.map { it.copy(caption = "edited") }
 
-        assertNotEquals(PostTable.of(SAMPLE_POSTS), PostTable.of(edited))
+        assertFalse(PostTable.of(SAMPLE_POSTS).holdsSamePosts(PostTable.of(edited)))
     }
 
     @Test
-    fun hashCode_tablesOfSamePosts_areEqual() {
-        assertEquals(PostTable.of(SAMPLE_POSTS).hashCode(), PostTable.of(SAMPLE_POSTS).hashCode())
+    fun holdsSamePosts_postRemoved_false() {
+        val fewer = PostTable.of(SAMPLE_POSTS.drop(1))
+
+        assertFalse(PostTable.of(SAMPLE_POSTS).holdsSamePosts(fewer))
     }
 
     @Test
-    fun hashCode_tableBuiltWithRoomLeft_equalsHashCodeOfFullTable() {
+    fun holdsSamePosts_tableBuiltWithRoomLeft_matchesFullTable() {
         val full = PostTable.of(listOf(SAMPLE_POSTS[0]))
 
-        assertEquals(full.hashCode(), builderWithRoomAfter(SAMPLE_POSTS[0]).build().hashCode())
-    }
-
-    @Test
-    fun build_fewerPostsThanCapacity_holdsOnlyAddedPosts() {
-        val builder = builderWithRoomAfter(SAMPLE_POSTS[0])
-
-        assertEquals(PostTable.of(listOf(SAMPLE_POSTS[0])), builder.build())
+        assertTrue(full.holdsSamePosts(builderWithRoomAfter(SAMPLE_POSTS[0]).build()))
     }
 
     @Test(expected = IllegalStateException::class)
@@ -150,7 +146,7 @@ class PostTableTest {
 
         builder.add(SAMPLE_POSTS[1])
 
-        assertEquals(PostTable.of(listOf(SAMPLE_POSTS[0])), table)
+        assertSamePosts(PostTable.of(listOf(SAMPLE_POSTS[0])), table)
     }
 
     // A builder holding [post], with room for one more.

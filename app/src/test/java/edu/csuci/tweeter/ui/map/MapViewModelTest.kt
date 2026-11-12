@@ -33,7 +33,6 @@ private const val ONLY_ROW = 0
 class MapViewModelTest {
     private val showOnMapRequest = ShowPostRequest()
     private val showInFeedRequest = ShowPostRequest()
-    private val samplePosts = PinnedPosts(PostTable.of(SAMPLE_POSTS))
 
     @Before
     fun useTestMainDispatcher() {
@@ -53,12 +52,8 @@ class MapViewModelTest {
         viewModel.selectPost(post.id)
 
         assertEquals(
-            MapUiState(
-                pinnedPosts = samplePosts,
-                selectedRow = SAMPLE_POSTS.indexOf(post),
-                pendingMove = MapMove.ToPost(post.id)
-            ),
-            viewModel.uiState.value
+            SAMPLE_POSTS.indexOf(post) to MapMove.ToPost(post.id),
+            viewModel.uiState.value.selection()
         )
     }
 
@@ -90,7 +85,7 @@ class MapViewModelTest {
 
         viewModel.clearSelection()
 
-        assertEquals(MapUiState(pinnedPosts = samplePosts), viewModel.uiState.value)
+        assertEquals(null to null, viewModel.uiState.value.selection())
     }
 
     @Test
@@ -111,14 +106,7 @@ class MapViewModelTest {
 
         viewModel.finishMove(MapMove.ToPost(post.id))
 
-        assertEquals(
-            MapUiState(
-                pinnedPosts = samplePosts,
-                selectedRow = SAMPLE_POSTS.indexOf(post),
-                pendingMove = null
-            ),
-            viewModel.uiState.value
-        )
+        assertEquals(SAMPLE_POSTS.indexOf(post) to null, viewModel.uiState.value.selection())
     }
 
     @Test
@@ -163,12 +151,8 @@ class MapViewModelTest {
         val viewModel = mapViewModel()
 
         assertEquals(
-            MapUiState(
-                pinnedPosts = samplePosts,
-                selectedRow = SAMPLE_POSTS.indexOf(post),
-                pendingMove = MapMove.ToPost(post.id)
-            ),
-            viewModel.uiState.value
+            SAMPLE_POSTS.indexOf(post) to MapMove.ToPost(post.id),
+            viewModel.uiState.value.selection()
         )
     }
 
@@ -189,7 +173,7 @@ class MapViewModelTest {
 
         val reopenedMap = mapViewModel()
 
-        assertEquals(MapUiState(pinnedPosts = samplePosts), reopenedMap.uiState.value)
+        assertEquals(null to null, reopenedMap.uiState.value.selection())
     }
 
     @Test
@@ -274,7 +258,7 @@ class MapViewModelTest {
             showInFeedRequest = showInFeedRequest,
             savedStateHandle = SavedStateHandle(),
             createMap = { error("Unit tests don't show the map") },
-            pinsDispatcher = UnconfinedTestDispatcher(testScheduler),
+            postsDispatcher = UnconfinedTestDispatcher(testScheduler),
             sharing = SharingStarted.WhileSubscribed()
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -282,4 +266,7 @@ class MapViewModelTest {
         }
         return viewModel
     }
+
+    // The selected post's row and where the map moves next.
+    private fun MapUiState.selection(): Pair<Int?, MapMove?> = selectedRow to pendingMove
 }

@@ -17,7 +17,8 @@ import kotlinx.coroutines.flow.Flow
 interface PostRepository {
     /**
      * All posts as one [PostTable], newest first. Emits a new table whenever a post is added or
-     * changes.
+     * changes, and only then: each table holds other posts than the one before it, so screens
+     * tell tables apart by identity, without comparing their posts.
      */
     fun getPostTable(): Flow<PostTable>
 

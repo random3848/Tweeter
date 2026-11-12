@@ -5,9 +5,6 @@ import java.util.Arrays
 // How a post without a confidence ([Post.confidence] null) is stored.
 private const val NO_CONFIDENCE: Byte = 0
 
-// The multiplier List.hashCode uses: an odd prime, so that each row's hash spreads over the rest.
-private const val HASH_MULTIPLIER = 31
-
 /**
  * Posts in one fixed order, newest first, stored as a structure of arrays: one array per field of
  * [Post] that a screen shows, each indexed by the post's row.
@@ -15,6 +12,10 @@ private const val HASH_MULTIPLIER = 31
  * Screens keep rows, not `Post` objects. A pass over one field, such as Map reading every post's
  * coordinates, reads only that field's array. A table never changes once built: changed posts come
  * in a new table, where [rowOf] finds a post again by its ID.
+ *
+ * Tables are equal only to themselves, so that UI state holding one compares it in constant time.
+ * [PostRepository] emits a table only when its posts differ from the last one's, which
+ * [holdsSamePosts] compares.
  *
  * @property size How many posts the table holds; their rows are 0 until [size]. The arrays can be
  *     longer, by the rows its [Builder] had room for, which the table never reads.
@@ -93,17 +94,12 @@ class PostTable private constructor(
         return rows
     }
 
-    override fun equals(other: Any?): Boolean =
-        this === other || (other is PostTable && holdsSamePosts(other))
-
-    // Over the IDs alone: equal tables hold the same IDs.
-    override fun hashCode(): Int {
-        var hash = size
-        for (row in 0 until size) {
-            hash = HASH_MULTIPLIER * hash + ids[row].hashCode()
-        }
-        return hash
-    }
+    /**
+     * Whether [other] holds the same posts as this table, in the same rows. It compares every
+     * shown field of every post, so it's a pass over the whole table.
+     */
+    fun holdsSamePosts(other: PostTable): Boolean =
+        this === other || (size == other.size && hasSameTexts(other) && hasSameNumbers(other))
 
     override fun toString(): String = "PostTable(ids=${ids.asList().subList(0, size)})"
 
@@ -116,9 +112,6 @@ class PostTable private constructor(
         }
         return count
     }
-
-    private fun holdsSamePosts(other: PostTable): Boolean =
-        size == other.size && hasSameTexts(other) && hasSameNumbers(other)
 
     private fun hasSameTexts(other: PostTable): Boolean =
         haveSameRows(ids, other.ids) && haveSameRows(authorUids, other.authorUids) &&

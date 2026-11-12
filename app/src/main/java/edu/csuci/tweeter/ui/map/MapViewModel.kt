@@ -21,7 +21,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -107,8 +106,8 @@ data class PinnedPosts(val posts: PostTable) {
  * @param showInFeedRequest Where [showInFeed] asks Feed to show a post.
  * @param savedStateHandle Keeps the camera if Android ends the app while it is in the background.
  * @param createMap Creates the map, opening where the camera given to it points.
- * @param pinsDispatcher Where the pins are written: off the main thread, since writing a pin for
- *     every post takes a while.
+ * @param postsDispatcher Where the pins are written and the selected post's row is found: off
+ *     the main thread, since each is a pass over every post.
  * @param sharing When [uiState] follows the posts: while Map collects it, in the app.
  */
 class MapViewModel internal constructor(
@@ -117,7 +116,7 @@ class MapViewModel internal constructor(
     private val showInFeedRequest: ShowPostRequest,
     savedStateHandle: SavedStateHandle,
     createMap: (CameraPosition) -> PostMap,
-    pinsDispatcher: CoroutineDispatcher,
+    postsDispatcher: CoroutineDispatcher,
     sharing: SharingStarted
 ) : ViewModel() {
     private val selection = MutableStateFlow(Selection())
@@ -137,12 +136,8 @@ class MapViewModel internal constructor(
     internal val mapState: MapState
         get() = map.state
 
-    // Written once per distinct table: a table equal to the last one, as Firestore sends when only
-    // a post's write status changes, keeps the pins already written.
-    private val pinnedPosts: Flow<PinnedPosts> = postRepository.getPostTable()
-        .distinctUntilChanged()
-        .map(::PinnedPosts)
-        .flowOn(pinsDispatcher)
+    // Written once per table, which the repository sends only when the posts change.
+    private val pinnedPosts: Flow<PinnedPosts> = postRepository.getPostTable().map(::PinnedPosts)
 
     /**
      * What the map shows, updated as the posts change and the user taps. A new selection only
@@ -154,7 +149,7 @@ class MapViewModel internal constructor(
             selectedRow = selection.postId?.let(pinnedPosts.posts::rowOf),
             pendingMove = selection.pendingMove
         )
-    }.stateIn(viewModelScope, sharing, MapUiState())
+    }.flowOn(postsDispatcher).stateIn(viewModelScope, sharing, MapUiState())
 
     init {
         savedStateHandle.setSavedStateProvider(CAMERA_KEY) {
@@ -233,7 +228,7 @@ class MapViewModel internal constructor(
                     showInFeedRequest = application.container.showInFeedRequest,
                     savedStateHandle = createSavedStateHandle(),
                     createMap = ::PostMap,
-                    pinsDispatcher = Dispatchers.Default,
+                    postsDispatcher = Dispatchers.Default,
                     sharing = application.container.whileScreenCollects
                 )
             }

@@ -8,6 +8,7 @@ import edu.csuci.tweeter.data.FakeProfileRepository
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.SAMPLE_POSTS
 import edu.csuci.tweeter.data.UserProfile
+import edu.csuci.tweeter.data.assertSamePosts
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -20,6 +21,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -64,14 +66,11 @@ class ProfileViewModelTest {
     fun uiState_loggedIn_showsProfileAndOnlyTheirRowsInTableOrder() = runTest {
         val viewModel = profileViewModel(FakeAccountRepository(initialUid = USER_UID))
 
-        val state = viewModel.uiState.value
+        val state = viewModel.uiState.value as ProfileUiState.LoggedIn
 
-        val expected = ProfileUiState.LoggedIn(
-            profile = profile,
-            table = PostTable.of(posts),
-            rows = intArrayOf(posts.indexOf(newer), posts.indexOf(older))
-        )
-        assertEquals(expected, state)
+        assertEquals(profile, state.profile)
+        assertSamePosts(PostTable.of(posts), state.table)
+        assertArrayEquals(intArrayOf(posts.indexOf(newer), posts.indexOf(older)), state.rows)
     }
 
     @Test

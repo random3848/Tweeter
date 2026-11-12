@@ -3,7 +3,6 @@ package edu.csuci.tweeter.data
 import java.time.Instant
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class FakePostRepositoryTest {
@@ -11,7 +10,7 @@ class FakePostRepositoryTest {
     fun getPostTable_startsWithSamplePosts() = runBlocking {
         val repository = FakePostRepository()
 
-        assertEquals(PostTable.of(SAMPLE_POSTS), repository.getPostTable().first())
+        assertSamePosts(PostTable.of(SAMPLE_POSTS), repository.getPostTable().first())
     }
 
     @Test
@@ -21,7 +20,8 @@ class FakePostRepositoryTest {
 
         repository.addPost(post)
 
-        assertEquals(PostTable.of(listOf(post) + SAMPLE_POSTS), repository.getPostTable().first())
+        val expected = PostTable.of(listOf(post) + SAMPLE_POSTS)
+        assertSamePosts(expected, repository.getPostTable().first())
     }
 
     @Test
@@ -31,6 +31,6 @@ class FakePostRepositoryTest {
 
         repository.addPost(post)
 
-        assertEquals(PostTable.of(listOf(post)), repository.getPostTable().first())
+        assertSamePosts(PostTable.of(listOf(post)), repository.getPostTable().first())
     }
 }
