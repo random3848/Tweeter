@@ -16,12 +16,15 @@ import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -108,7 +111,7 @@ data class PinnedPosts(val posts: PostTable) {
  * @param createMap Creates the map, opening where the camera given to it points.
  * @param postsDispatcher Where the pins are written and the selected post's row is found: off
  *     the main thread, since each is a pass over every post.
- * @param sharing When [uiState] follows the posts: while Map collects it, in the app.
+ * @param sharing When [uiState] runs: while Map collects it, in the app.
  */
 class MapViewModel internal constructor(
     postRepository: PostRepository,
@@ -120,6 +123,9 @@ class MapViewModel internal constructor(
     sharing: SharingStarted
 ) : ViewModel() {
     private val selection = MutableStateFlow(Selection())
+
+    // Whether the screen shows the map; the state follows the posts and selection only then.
+    private val isMapShown = MutableStateFlow(false)
 
     // The camera saved before Android ended the app, as JSON, or null if there is none.
     private val restoredCamera: String? =
@@ -139,17 +145,25 @@ class MapViewModel internal constructor(
     // Written once per table, which the repository sends only when the posts change.
     private val pinnedPosts: Flow<PinnedPosts> = postRepository.getPostTable().map(::PinnedPosts)
 
+    // What the map shows while the user sees it. A new selection only finds its post's row and
+    // writes that one pin.
+    private val shownUiState: Flow<MapUiState> =
+        combine(pinnedPosts, selection) { pinnedPosts, selection ->
+            MapUiState(
+                pinnedPosts = pinnedPosts,
+                selectedRow = selection.postId?.let(pinnedPosts.posts::rowOf),
+                pendingMove = selection.pendingMove
+            )
+        }.flowOn(postsDispatcher)
+
     /**
-     * What the map shows, updated as the posts change and the user taps. A new selection only
-     * finds its post's row and writes that one pin.
+     * What the map shows, updated as the posts change and the user taps, while the screen shows
+     * the map (see [setMapShown]).
      */
-    val uiState: StateFlow<MapUiState> = combine(pinnedPosts, selection) { pinnedPosts, selection ->
-        MapUiState(
-            pinnedPosts = pinnedPosts,
-            selectedRow = selection.postId?.let(pinnedPosts.posts::rowOf),
-            pendingMove = selection.pendingMove
-        )
-    }.flowOn(postsDispatcher).stateIn(viewModelScope, sharing, MapUiState())
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val uiState: StateFlow<MapUiState> = isMapShown
+        .flatMapLatest { isShown -> if (isShown) shownUiState else emptyFlow() }
+        .stateIn(viewModelScope, sharing, MapUiState())
 
     init {
         savedStateHandle.setSavedStateProvider(CAMERA_KEY) {
@@ -161,6 +175,15 @@ class MapViewModel internal constructor(
                 showOnMapRequest.clear()
             }
         }
+    }
+
+    /**
+     * Says whether the screen shows the map, rather than drawing another screen over it. While
+     * hidden, [uiState] stays as it last was, so the hidden map keeps drawing that, without
+     * following the posts or keeping the shared post listener running for it.
+     */
+    fun setMapShown(isShown: Boolean) {
+        isMapShown.value = isShown
     }
 
     /** Opens the popup of the post with [postId], closing any other, and moves the map to it. */

@@ -10,6 +10,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -67,10 +68,11 @@ private const val CLOSE_UP_ZOOM = 16.0
  * button moves the map to the user, asking for location permission first if the app doesn't
  * have it.
  *
- * The app keeps this screen composed under every other screen, so the map is drawn and ready the
- * moment the user switches to it. While hidden, it takes no touches, shows no controls, stops
- * following the user's location, and is left out of the accessibility tree, so that a screen
- * reader doesn't find the map and its top bar under the screen drawn over them.
+ * Once opened, the app keeps this screen composed under every other screen, so the map is drawn
+ * and ready the moment the user switches back to it. While hidden, it takes no touches, shows no
+ * controls, stops following the posts and the user's location, keeping what it last drew, and is
+ * left out of the accessibility tree, so that a screen reader doesn't find the map and its top
+ * bar under the screen drawn over them.
  *
  * @param isShown Whether the user sees the map: the NavHost draws no screen over it.
  * @param onShowInFeed Opens Home, once the post whose popup the user pressed is requested there.
@@ -84,6 +86,8 @@ fun MapScreen(
     modifier: Modifier = Modifier,
     viewModel: MapViewModel = viewModel(factory = MapViewModel.factory)
 ) {
+    // The ViewModel pauses the state while the map is hidden, keeping what it last showed.
+    SideEffect { viewModel.setMapShown(isShown) }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val locationState = rememberLocationState(
         headingProvider = rememberDefaultHeadingProvider(),

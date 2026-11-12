@@ -52,10 +52,10 @@ import org.maplibre.spatialk.geojson.Position
 // How close the map zooms in on a picked point it moves to.
 private const val FOCUS_ZOOM = 17.0
 
-// The posts map stays composed under every screen, drawn by a SurfaceView behind the window. A
-// second SurfaceView here would sit behind the window too, transparent until its style loads, and
-// let the posts map show through. A TextureView draws inside the window instead, over the Post
-// screen's opaque background.
+// Once Map has been opened, the posts map stays composed under every screen, drawn by a
+// SurfaceView behind the window. A second SurfaceView here would sit behind the window too,
+// transparent until its style loads, and let the posts map show through. A TextureView draws
+// inside the window instead, over the Post screen's opaque background.
 private val TEXTURE_MAP_UI_OPTIONS = MapUiOptions { renderMode = AndroidRenderMode.Texture }
 
 /**

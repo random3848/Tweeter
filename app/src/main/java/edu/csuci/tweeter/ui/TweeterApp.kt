@@ -15,8 +15,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -94,13 +94,13 @@ internal val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
  * the tab they were opened from stays selected. Profile's "Edit profile" button opens Edit
  * profile, which hides the bottom bar too.
  *
- * A tab left open keeps its state, but only the open screen is composed, with one exception: the
- * map stays composed under the NavHost, so that it is drawn and ready the moment the user switches
- * to Map. Every other screen hides it with a background of its own (see `opaqueComposable`), and
- * Map's route draws nothing over it. The map counts as shown while the NavHost composes none of
- * those screens, which follows what the NavHost draws rather than the back stack, which changes a
- * few frames earlier. Unless the app opens on Map, the map is composed only once the first frame
- * is drawn, so that creating it doesn't hold back the first screen.
+ * A tab left open keeps its state, but only the open screen is composed, with one exception: once
+ * Map has been opened, the map stays composed under the NavHost, so that it is drawn and ready the
+ * moment the user switches back to it. Until then it isn't composed at all, so the app doesn't
+ * create it or load its tiles for users who never open Map. Every other screen hides it with a
+ * background of its own (see `opaqueComposable`), and Map's route draws nothing over it. The map
+ * counts as shown while the NavHost composes none of those screens, which follows what the
+ * NavHost draws rather than the back stack, which changes a few frames earlier.
  *
  * @param modifier Applied to the whole app
  */
@@ -111,7 +111,13 @@ fun TweeterApp(modifier: Modifier = Modifier) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val destination = backStackEntry?.destination
     val isOnMap = destination?.hasRoute(MapRoute::class) == true
-    val hasDrawnFirstFrame = rememberFirstFrameDrawn()
+    // Set as Map first opens, and kept, also when Android ends the app in the background.
+    var hasOpenedMap by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(isOnMap) {
+        if (isOnMap) {
+            hasOpenedMap = true
+        }
+    }
     val isOnAuth = destination?.hasRoute(LogInRoute::class) == true ||
         destination?.hasRoute(CreateAccountRoute::class) == true
     val isOnEditProfile = destination?.hasRoute(EditProfileRoute::class) == true
@@ -161,7 +167,7 @@ fun TweeterApp(modifier: Modifier = Modifier) {
                 .consumeWindowInsets(innerPadding)
         ) {
             CompositionLocalProvider(LocalMapCover provides mapCover) {
-                if (hasDrawnFirstFrame || isOnMap) {
+                if (hasOpenedMap || isOnMap) {
                     MapScreen(
                         isShown = !mapCover.hidesMap,
                         onShowInFeed = { navController.navigateToFeed() }
@@ -228,18 +234,6 @@ private fun TweeterNavHost(
             onAuthenticated = { navController.popBackStack() }
         )
     }
-}
-
-/** Whether the first frame has been drawn: false while composing it, and true from the next. */
-@Composable
-private fun rememberFirstFrameDrawn(): Boolean {
-    var isDrawn by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        // Resumes as the next frame starts, after the first was drawn.
-        withFrameNanos { }
-        isDrawn = true
-    }
-    return isDrawn
 }
 
 /**

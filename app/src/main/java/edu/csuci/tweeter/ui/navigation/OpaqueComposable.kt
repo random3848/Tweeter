@@ -47,9 +47,9 @@ val LocalMapCover = staticCompositionLocalOf<MapCover> {
  * Registers [content] as the screen of route [T], as `composable` does, drawn on the app's
  * background, and counted in [LocalMapCover] while it's composed.
  *
- * The map stays composed under the NavHost, so every screen but Map hides it, even where the
- * screen draws nothing. While the NavHost switches screens, the screen being left keeps the map
- * hidden until it is gone.
+ * Once Map has been opened, the map stays composed under the NavHost, so every screen but Map
+ * hides it, even where the screen draws nothing. While the NavHost switches screens, the screen
+ * being left keeps the map hidden until it is gone.
  */
 inline fun <reified T : Any> NavGraphBuilder.opaqueComposable(
     noinline content: @Composable () -> Unit

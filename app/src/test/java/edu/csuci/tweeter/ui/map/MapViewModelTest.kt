@@ -201,6 +201,29 @@ class MapViewModelTest {
     }
 
     @Test
+    fun uiState_mapHidden_doesNotFollowPosts() = runTest {
+        val repository = FakePostRepository(initialPosts = emptyList())
+        val viewModel = mapViewModel(repository)
+        viewModel.setMapShown(false)
+
+        repository.addPost(SAMPLE_POSTS.first())
+
+        assertEquals(0, viewModel.uiState.value.posts.size)
+    }
+
+    @Test
+    fun uiState_mapShownAgain_followsPosts() = runTest {
+        val repository = FakePostRepository(initialPosts = emptyList())
+        val viewModel = mapViewModel(repository)
+        viewModel.setMapShown(false)
+        repository.addPost(SAMPLE_POSTS.first())
+
+        viewModel.setMapShown(true)
+
+        assertEquals(1, viewModel.uiState.value.posts.size)
+    }
+
+    @Test
     fun selectPost_pinsSelectedPostAlone() = runTest {
         val viewModel = mapViewModel()
         val post = SAMPLE_POSTS[1]
@@ -247,8 +270,8 @@ class MapViewModelTest {
         assertNull(viewModel.uiState.value.selectedPosition)
     }
 
-    // The map follows its posts while the test collects its state, as it does in the app while Map
-    // collects it. No test shows the map, which needs MapLibre's native engine.
+    // The map is shown and follows its posts while the test collects its state, as it does in the
+    // app while Map shows it. No test draws the map, which needs MapLibre's native engine.
     private fun TestScope.mapViewModel(
         repository: PostRepository = FakePostRepository()
     ): MapViewModel {
@@ -264,6 +287,7 @@ class MapViewModelTest {
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect()
         }
+        viewModel.setMapShown(true)
         return viewModel
     }
 

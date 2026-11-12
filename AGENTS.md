@@ -9,7 +9,8 @@ Firestore, Storage and Authentication.
 Layout:
 - `app/`: the app, package `edu.csuci.tweeter`, for Android 14 (API 34) and later.
   `MainActivity` shows `ui/TweeterApp.kt`: one Scaffold with the bottom bar and a NavHost that
-  opens to Feed, drawn over the map, which stays composed so that Map shows it at once.
+  opens to Feed, drawn over the map, which is composed once Map is first opened and stays composed
+  from then on, so that Map shows it at once.
 - `app/src/main/java/edu/csuci/tweeter/data/`: the models (`Post`, `UserProfile`) and the
   repositories screens use through interfaces (`PostRepository`, `ProfileRepository`,
   `AccountRepository`, `PhotoRepository`). `AppContainer` (owned by `TweeterApplication`) creates
@@ -40,7 +41,8 @@ Layout:
 Adding a screen (`ui/feed/` is the example):
 - Give it its own package, `ui/<feature>/`, holding the screen, a `@Serializable` route object
   and a `NavGraphBuilder.add<Feature>Screen()` function that registers the screen under it with
-  `opaqueComposable`, which draws the screen on the app's background over the map.
+  `opaqueComposable`, which draws the screen on the app's background over the map, and hides the
+  map while the screen is composed.
 - The screen draws its own top bar, `TweeterTopBar` for a tab or `BackTopBar` for a screen opened
   from another, at the top of its layout. A bar in the Scaffold would change with the back stack,
   a few frames before NavHost swaps the screens, and show over the wrong screen meanwhile.
@@ -449,7 +451,7 @@ Threads:
 Startup:
 - The first frame waits for everything its composition touches. A library whose first use is slow
   (Firebase, MapLibre) is started from `AppContainer.prepareFirstScreens()` on background threads,
-  and something not on screen at launch, like the map, is composed from the frame after the first.
+  and something not on screen at launch, like the map, isn't composed until it's needed.
 
 Drawing:
 - Keep the GPU paths on: Compose draws with hardware acceleration, Coil decodes photos off the
