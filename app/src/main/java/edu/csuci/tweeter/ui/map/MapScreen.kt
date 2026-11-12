@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -30,7 +29,6 @@ import kotlinx.coroutines.flow.first
 import org.maplibre.compose.camera.CameraUpdate
 import org.maplibre.compose.interaction.ClickResult
 import org.maplibre.compose.interaction.MapInteractions
-import org.maplibre.compose.layers.LocationIndicatorLayer
 import org.maplibre.compose.location.LocationState
 import org.maplibre.compose.location.rememberDefaultHeadingProvider
 import org.maplibre.compose.location.rememberLocationState
@@ -93,7 +91,9 @@ fun MapScreen(
         headingProvider = rememberDefaultHeadingProvider(),
         enabled = isShown
     )
-    PostMapLayers(viewModel, uiState, locationState)
+    // After each composition that applies, so that one Compose throws away hands the map nothing.
+    // The map keeps what it was handed last, so a new screen's first frame still has the pins.
+    SideEffect { viewModel.drawLayers(uiState, locationState) }
     val mapState = viewModel.mapState
 
     if (isShown) {
@@ -130,37 +130,6 @@ fun MapScreen(
                 }
             }
         )
-    }
-}
-
-/**
- * Draws a pin for each post in [uiState], and the user's location, on the map of [viewModel]
- * while this screen presents it.
- *
- * A map composes the layer content it was created with, and this one outlives the screen, so its
- * content draws the layers that the presenting screen hands it here.
- *
- * @param viewModel Holds the map to draw on, and selects the post whose pin the user taps.
- * @param uiState The posts to pin and the selected one.
- * @param locationState The user's location, drawn as a blue dot.
- */
-@Composable
-private fun PostMapLayers(
-    viewModel: MapViewModel,
-    uiState: MapUiState,
-    locationState: LocationState
-) {
-    // Set while composing, as rememberUpdatedState sets its value, rather than in a SideEffect:
-    // MapLibre composes the layers of a map it presents before SideEffects run, and layers it
-    // found missing then would disappear from the map for a frame.
-    viewModel.drawLayers {
-        PostPins(uiState, onPinClick = viewModel::selectPost)
-        LocationIndicatorLayer(id = "user-location", locationState = locationState)
-    }
-    // The map outlives this screen, which goes with its activity; it mustn't keep the screen's
-    // location state.
-    DisposableEffect(viewModel) {
-        onDispose { viewModel.clearLayers() }
     }
 }
 

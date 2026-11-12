@@ -280,7 +280,7 @@ class MapViewModelTest {
             showOnMapRequest = showOnMapRequest,
             showInFeedRequest = showInFeedRequest,
             savedStateHandle = SavedStateHandle(),
-            createMap = { error("Unit tests don't show the map") },
+            createMap = { _, _ -> error("Unit tests don't show the map") },
             postsDispatcher = UnconfinedTestDispatcher(testScheduler),
             sharing = SharingStarted.WhileSubscribed()
         )

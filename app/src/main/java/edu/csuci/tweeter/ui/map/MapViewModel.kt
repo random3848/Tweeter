@@ -1,7 +1,6 @@
 package edu.csuci.tweeter.ui.map
 
 import android.os.Bundle
-import androidx.compose.runtime.Composable
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -32,6 +31,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import org.maplibre.compose.camera.CameraPosition
+import org.maplibre.compose.location.LocationState
 import org.maplibre.compose.map.MapState
 import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.spatialk.geojson.Position
@@ -108,7 +108,8 @@ data class PinnedPosts(val posts: PostTable) {
  * @param showOnMapRequest The post Feed asks Map to show, whose popup this opens once.
  * @param showInFeedRequest Where [showInFeed] asks Feed to show a post.
  * @param savedStateHandle Keeps the camera if Android ends the app while it is in the background.
- * @param createMap Creates the map, opening where the camera given to it points.
+ * @param createMap Creates the map, opening where the camera given to it points, and calling the
+ *     function given with it with the ID of the post whose pin the user taps.
  * @param postsDispatcher Where the pins are written and the selected post's row is found: off
  *     the main thread, since each is a pass over every post.
  * @param sharing When [uiState] runs: while Map collects it, in the app.
@@ -118,7 +119,7 @@ class MapViewModel internal constructor(
     private val showOnMapRequest: ShowPostRequest,
     private val showInFeedRequest: ShowPostRequest,
     savedStateHandle: SavedStateHandle,
-    createMap: (CameraPosition) -> PostMap,
+    createMap: (CameraPosition, (postId: String) -> Unit) -> PostMap,
     postsDispatcher: CoroutineDispatcher,
     sharing: SharingStarted
 ) : ViewModel() {
@@ -131,7 +132,9 @@ class MapViewModel internal constructor(
     private val restoredCamera: String? =
         savedStateHandle.get<Bundle>(CAMERA_KEY)?.getString(CAMERA_KEY)
 
-    private val lazyMap = lazy { createMap(restoredCamera?.let(::decodeCamera) ?: CAMPUS_CAMERA) }
+    private val lazyMap = lazy {
+        createMap(restoredCamera?.let(::decodeCamera) ?: CAMPUS_CAMERA, ::selectPost)
+    }
 
     private val map: PostMap by lazyMap
 
@@ -214,14 +217,12 @@ class MapViewModel internal constructor(
         showInFeedRequest.send(postId)
     }
 
-    /** Draws [layers] over the map, in place of the layers drawn before. */
-    internal fun drawLayers(layers: @Composable () -> Unit) {
-        map.drawLayers(layers)
-    }
-
-    /** Draws no layers over the map from now on. */
-    internal fun clearLayers() {
-        map.clearLayers()
+    /**
+     * Draws the pins of [uiState], what the screen shows, and the user's location from
+     * [locationState] on the map, from now on.
+     */
+    internal fun drawLayers(uiState: MapUiState, locationState: LocationState) {
+        map.drawLayers(uiState, locationState)
     }
 
     override fun onCleared() {
