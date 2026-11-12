@@ -203,7 +203,8 @@ class PostTable private constructor(
             latitudes[row] = post.latitude
             longitudes[row] = post.longitude
             timestampsMillis[row] = post.timestamp.toEpochMilli()
-            confidences[row] = post.confidence?.toConfidenceByte() ?: NO_CONFIDENCE
+            // Post keeps confidences from 1 to 5, which a Byte holds, and 0 means none.
+            confidences[row] = post.confidence?.toByte() ?: NO_CONFIDENCE
         }
     }
 
@@ -220,9 +221,4 @@ class PostTable private constructor(
             return builder.build()
         }
     }
-}
-
-private fun Int.toConfidenceByte(): Byte {
-    require(this in 1..Byte.MAX_VALUE) { "Confidence $this can't be stored" }
-    return toByte()
 }

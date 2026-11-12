@@ -27,7 +27,10 @@ import java.time.Instant
  * @property timestamp When the post was shared. Screens show it as relative time ("12 minutes
  *     ago").
  * @property animalType The animal identified by the poster; empty when unspecified.
- * @property confidence Identification confidence from 1 to 5, or null when unspecified.
+ * @property confidence Identification confidence from [MIN_CONFIDENCE] to [MAX_CONFIDENCE], or
+ *     null when unspecified.
+ * @throws IllegalArgumentException If [confidence] is outside that range, so that no screen, table
+ *     or repository gets a post with one.
  */
 data class Post(
     val id: String,
@@ -46,4 +49,19 @@ data class Post(
     val timestamp: Instant,
     val animalType: String = "",
     val confidence: Int? = null
-)
+) {
+    init {
+        require(confidence == null || confidence in MIN_CONFIDENCE..MAX_CONFIDENCE) {
+            "Confidence $confidence isn't from $MIN_CONFIDENCE to $MAX_CONFIDENCE"
+        }
+    }
+
+    /** The range of [confidence]. */
+    companion object {
+        /** The lowest [confidence]: a guess. */
+        const val MIN_CONFIDENCE = 1
+
+        /** The highest [confidence]: sure. */
+        const val MAX_CONFIDENCE = 5
+    }
+}

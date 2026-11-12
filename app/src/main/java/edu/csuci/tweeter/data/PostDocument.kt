@@ -17,9 +17,6 @@ object PostDocument {
     /** The collection every post is stored in. */
     const val COLLECTION = "posts"
 
-    private const val MIN_CONFIDENCE = 1
-    private const val MAX_CONFIDENCE = 5
-
     /** A stored field, whose ordinal is its index in the array [toPost] reads. */
     enum class Field(override val key: String) : DocumentField {
         /** The poster's ID. */
@@ -119,7 +116,7 @@ object PostDocument {
             timestamp = timestamp.toInstant(),
             animalType = textIn(fields, Field.ANIMAL_TYPE),
             confidence = (fields[Field.CONFIDENCE.ordinal] as? Number)?.toInt()
-                ?.takeIf { it in MIN_CONFIDENCE..MAX_CONFIDENCE }
+                ?.takeIf { it in Post.MIN_CONFIDENCE..Post.MAX_CONFIDENCE }
         )
     }
 
