@@ -46,17 +46,24 @@ internal suspend fun sharePost(
     return photoUrl
 }
 
-// Returns the uploaded photo's URL and the author. If either step fails, or this is cancelled,
-// the upload is stopped, and its photo deleted if it was uploaded all the same.
+// Returns the uploaded photo's URL and the author, found at the same time.
 private suspend fun uploadWhileFindingAuthor(
     photo: PostPhoto,
     findAuthor: suspend () -> UserProfile?
 ): Pair<String, UserProfile> = coroutineScope {
-    val upload = async { photo.upload() }
+    photo.awaitWithAuthorOrDelete(async { photo.upload() }, findAuthor)
+}
+
+// Returns the URL [upload] uploads to and the author. If either step fails, or this is
+// cancelled, the upload is stopped, and its photo deleted if it was uploaded all the same.
+private suspend fun PostPhoto.awaitWithAuthorOrDelete(
+    upload: Deferred<String>,
+    findAuthor: suspend () -> UserProfile?
+): Pair<String, UserProfile> {
     try {
-        upload.awaitWithAuthor(findAuthor)
+        return upload.awaitWithAuthor(findAuthor)
     } catch (error: Throwable) {
-        withContext(NonCancellable) { photo.deleteUpload(upload) }
+        withContext(NonCancellable) { deleteUpload(upload) }
         throw error
     }
 }

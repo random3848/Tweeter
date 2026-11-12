@@ -32,17 +32,23 @@ internal suspend fun <ResultT> prepareNewFile(
     dispatcher: CoroutineDispatcher,
     create: () -> File,
     prepare: (File) -> ResultT
-): ResultT {
-    var file: File? = null
-    try {
-        return withContext(dispatcher) {
-            val created = create()
-            file = created
-            prepare(created)
+): ResultT = FileInPreparation(dispatcher).createAndPrepare(create, prepare)
+
+// One file being created and readied on [dispatcher], remembered so that it can be deleted when
+// its caller doesn't get it.
+private class FileInPreparation(private val dispatcher: CoroutineDispatcher) {
+    private var file: File? = null
+
+    suspend fun <ResultT> createAndPrepare(
+        create: () -> File,
+        prepare: (File) -> ResultT
+    ): ResultT {
+        try {
+            return withContext(dispatcher) { prepare(create().also { file = it }) }
+        } catch (error: Throwable) {
+            file?.let { deleteFile(dispatcher, it) }
+            throw error
         }
-    } catch (error: Throwable) {
-        file?.let { deleteFile(dispatcher, it) }
-        throw error
     }
 }
 

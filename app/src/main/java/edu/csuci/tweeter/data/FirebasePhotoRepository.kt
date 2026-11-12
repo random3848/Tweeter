@@ -89,13 +89,16 @@ class FirebasePhotoRepository(
         }
     }
 
-    // Uploads [uri] here and returns its download URL. A photo that was uploaded but whose URL
-    // couldn't be fetched, or stopped being waited for, is deleted again: nothing could show it.
+    // Uploads [uri] here and returns its download URL.
     private suspend fun StorageReference.putFileAndGetUrl(
         uri: Uri,
         metadata: StorageMetadata
-    ): String {
-        val upload = putFile(uri, metadata)
+    ): String = urlOf(putFile(uri, metadata))
+
+    // Waits for [upload] and returns the download URL of the photo it puts here. A photo that was
+    // uploaded but whose URL couldn't be fetched, or stopped being waited for, is deleted again:
+    // nothing could show it.
+    private suspend fun StorageReference.urlOf(upload: UploadTask): String {
         try {
             upload.awaitOrCancel()
             return downloadUrl.await().toString()
