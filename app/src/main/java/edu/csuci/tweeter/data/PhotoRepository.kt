@@ -23,7 +23,8 @@ interface PhotoRepository {
     suspend fun uploadProfilePhoto(photoUri: String): String
 
     /**
-     * Deletes the uploaded photo at [photoUrl], a URL returned by one of the uploads.
+     * Deletes the uploaded photo at [photoUrl], a URL returned by one of the uploads. A photo
+     * that's already gone counts as deleted.
      *
      * @throws PhotoDeletionException If it can't be deleted, such as when nobody is logged in, or
      *     [photoUrl] isn't the URL of an uploaded photo.

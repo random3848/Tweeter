@@ -1,9 +1,11 @@
 package edu.csuci.tweeter.data
 
 import android.net.Uri
+import com.google.android.gms.tasks.Tasks
 import com.google.firebase.FirebaseException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageException
 import com.google.firebase.storage.StorageMetadata
 import com.google.firebase.storage.StorageReference
 import com.google.firebase.storage.UploadTask
@@ -119,11 +121,17 @@ class FirebasePhotoRepository(
         }
     }
 
-    // Deletes the photo [upload] put here, if it got here. This cleans up after a failure or
+    // Deletes the photo [upload] put here, if it may have got here, once the upload has ended:
+    // when it succeeded, and also when it was cancelled, since Storage can store the photo as the
+    // cancel arrives, and the task then still ends cancelled. This cleans up after a failure or
     // cancellation, so it doesn't throw.
     private suspend fun StorageReference.deleteIfStored(upload: UploadTask) {
-        if (upload.isSuccessful) {
-            cleanUpUnusedPhoto { deleteStored() }
+        cleanUpUnusedPhoto {
+            Tasks.whenAllComplete(upload).await()
+            val mayBeStored = upload.isSuccessful || upload.isCanceled
+            if (mayBeStored) {
+                deleteStored()
+            }
         }
     }
 
@@ -135,9 +143,15 @@ class FirebasePhotoRepository(
         throw PhotoDeletionException(error)
     }
 
+    // Deletes the stored photo here. One that isn't there, as after an upload cancelled before
+    // Storage stored it, counts as deleted.
     private suspend fun StorageReference.deleteStored() {
         try {
             delete().await()
+        } catch (error: StorageException) {
+            if (error.errorCode != StorageException.ERROR_OBJECT_NOT_FOUND) {
+                throw PhotoDeletionException(error)
+            }
         } catch (error: FirebaseException) {
             throw PhotoDeletionException(error)
         }
