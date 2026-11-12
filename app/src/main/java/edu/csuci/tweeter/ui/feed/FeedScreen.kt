@@ -63,16 +63,14 @@ fun FeedScreen(
     feedViewModel: FeedViewModel = viewModel(factory = FeedViewModel.factory)
 ) {
     val uiState by feedViewModel.uiState.collectAsStateWithLifecycle()
-    val postToShow by feedViewModel.postToShow.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
 
-    LaunchedEffect(postToShow, uiState.posts) {
-        val postId = postToShow ?: return@LaunchedEffect
-        // The feed can still show the posts it had before this one was shared, so the request
-        // stays until a table with the post arrives.
-        val row = uiState.posts.rowOf(postId) ?: return@LaunchedEffect
-        listState.scrollToItem(row)
-        feedViewModel.clearPostToShow()
+    val rowToShow = uiState.rowToShow
+    LaunchedEffect(rowToShow) {
+        if (rowToShow != null) {
+            listState.scrollToItem(rowToShow)
+            feedViewModel.clearPostToShow()
+        }
     }
 
     // Takes the post's ID, so that it stays the same lambda as new tables arrive.

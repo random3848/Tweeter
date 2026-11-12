@@ -9,6 +9,7 @@ import edu.csuci.tweeter.data.SAMPLE_POSTS
 import edu.csuci.tweeter.data.assertSamePosts
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 import java.time.Instant
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
@@ -75,23 +76,36 @@ class FeedViewModelTest {
     }
 
     @Test
-    fun postToShow_isPostMapAskedFeedToShow() {
-        val viewModel = feedViewModel()
+    fun uiState_postAskedToShow_hasItsRow() = runTest {
+        val viewModel = collectedFeedViewModel()
         val post = SAMPLE_POSTS[1]
 
         showInFeedRequest.send(post.id)
 
-        assertEquals(post.id, viewModel.postToShow.value)
+        assertEquals(SAMPLE_POSTS.indexOf(post), viewModel.uiState.value.rowToShow)
     }
 
     @Test
-    fun clearPostToShow_forgetsRequest() {
-        val viewModel = feedViewModel()
+    fun uiState_postAskedToShowNotLoadedYet_hasItsRowOnceItArrives() = runTest {
+        val repository = FakePostRepository()
+        val viewModel = collectedFeedViewModel(repository)
+        showInFeedRequest.send(NEW_POST_ID)
+        val rowBeforePostArrives = viewModel.uiState.value.rowToShow
+
+        repository.addPost(SAMPLE_POSTS.first().copy(id = NEW_POST_ID, timestamp = Instant.now()))
+
+        assertNull(rowBeforePostArrives)
+        assertEquals(0, viewModel.uiState.value.rowToShow)
+    }
+
+    @Test
+    fun clearPostToShow_leavesNoRowToShow() = runTest {
+        val viewModel = collectedFeedViewModel()
         showInFeedRequest.send(SAMPLE_POSTS[1].id)
 
         viewModel.clearPostToShow()
 
-        assertNull(viewModel.postToShow.value)
+        assertNull(viewModel.uiState.value.rowToShow)
     }
 
     @Test
@@ -111,13 +125,17 @@ class FeedViewModelTest {
 
         viewModel.showOnMap(SAMPLE_POSTS[1].id)
 
-        assertEquals(SAMPLE_POSTS[0].id, viewModel.postToShow.value)
+        assertEquals(SAMPLE_POSTS[0].id, showInFeedRequest.postId.value)
     }
 
-    private fun feedViewModel(repository: PostRepository = FakePostRepository()) = FeedViewModel(
+    private fun feedViewModel(
+        repository: PostRepository = FakePostRepository(),
+        postsDispatcher: CoroutineDispatcher = UnconfinedTestDispatcher()
+    ) = FeedViewModel(
         postRepository = repository,
         showInFeedRequest = showInFeedRequest,
         showOnMapRequest = showOnMapRequest,
+        postsDispatcher = postsDispatcher,
         sharing = SharingStarted.WhileSubscribed()
     )
 
@@ -126,7 +144,7 @@ class FeedViewModelTest {
     private fun TestScope.collectedFeedViewModel(
         repository: PostRepository = FakePostRepository()
     ): FeedViewModel {
-        val viewModel = feedViewModel(repository)
+        val viewModel = feedViewModel(repository, UnconfinedTestDispatcher(testScheduler))
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect()
         }
