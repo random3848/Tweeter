@@ -21,11 +21,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -110,17 +111,17 @@ data class PinnedPosts(val posts: PostTable) {
  * @param savedStateHandle Keeps the camera if Android ends the app while it is in the background.
  * @param createMap Creates the map, opening where the camera given to it points, and calling the
  *     function given with it with the ID of the post whose pin the user taps.
- * @param postsDispatcher Where the pins are written and the selected post's row is found: off
- *     the main thread, since each is a pass over every post.
+ * @param postsDispatcher Where pins are written, tables compared with the pinned posts, and the
+ *     selected post's row found: off the main thread, since each is a pass over every post.
  * @param sharing When [uiState] runs: while Map collects it, in the app.
  */
 class MapViewModel internal constructor(
-    postRepository: PostRepository,
+    private val postRepository: PostRepository,
     private val showOnMapRequest: ShowPostRequest,
     private val showInFeedRequest: ShowPostRequest,
     savedStateHandle: SavedStateHandle,
     createMap: (CameraPosition, (postId: String) -> Unit) -> PostMap,
-    postsDispatcher: CoroutineDispatcher,
+    private val postsDispatcher: CoroutineDispatcher,
     sharing: SharingStarted
 ) : ViewModel() {
     private val selection = MutableStateFlow(Selection())
@@ -145,13 +146,19 @@ class MapViewModel internal constructor(
     internal val mapState: MapState
         get() = map.state
 
-    // Written once per table, which the repository sends only when the posts change.
-    private val pinnedPosts: Flow<PinnedPosts> = postRepository.getPostTable().map(::PinnedPosts)
+    /**
+     * What the map shows, updated as the posts change and the user taps, while the screen shows
+     * the map (see [setMapShown]).
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val uiState: StateFlow<MapUiState> = isMapShown
+        .flatMapLatest { isShown -> if (isShown) shownUiState() else emptyFlow() }
+        .stateIn(viewModelScope, sharing, MapUiState())
 
     // What the map shows while the user sees it. A new selection only finds its post's row and
     // writes that one pin.
-    private val shownUiState: Flow<MapUiState> =
-        combine(pinnedPosts, selection) { pinnedPosts, selection ->
+    private fun shownUiState(): Flow<MapUiState> =
+        combine(pinnedPosts(), selection) { pinnedPosts, selection ->
             MapUiState(
                 pinnedPosts = pinnedPosts,
                 selectedRow = selection.postId?.let(pinnedPosts.posts::rowOf),
@@ -159,14 +166,14 @@ class MapViewModel internal constructor(
             )
         }.flowOn(postsDispatcher)
 
-    /**
-     * What the map shows, updated as the posts change and the user taps, while the screen shows
-     * the map (see [setMapShown]).
-     */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val uiState: StateFlow<MapUiState> = isMapShown
-        .flatMapLatest { isShown -> if (isShown) shownUiState else emptyFlow() }
-        .stateIn(viewModelScope, sharing, MapUiState())
+    // The posts as pins, starting with those the map shows already. Pins are written once per set
+    // of posts: showing Map again with the posts it showed when hidden, from the same table or a
+    // new listener's, keeps their pins, since writing one for every post takes a while.
+    private fun pinnedPosts(): Flow<PinnedPosts> = postRepository.getPostTable()
+        .scan(uiState.value.pinnedPosts) { pinned, table ->
+            if (pinned.posts.holdsSamePosts(table)) pinned else PinnedPosts(table)
+        }
+        .distinctUntilChanged()
 
     init {
         savedStateHandle.setSavedStateProvider(CAMERA_KEY) {

@@ -21,6 +21,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Before
 import org.junit.Test
 import org.maplibre.compose.sources.GeoJsonData
@@ -221,6 +222,17 @@ class MapViewModelTest {
         viewModel.setMapShown(true)
 
         assertEquals(1, viewModel.uiState.value.posts.size)
+    }
+
+    @Test
+    fun uiState_mapShownAgainWithSamePosts_keepsTheirPins() = runTest {
+        val viewModel = mapViewModel()
+        val pinnedPosts = viewModel.uiState.value.pinnedPosts
+        viewModel.setMapShown(false)
+
+        viewModel.setMapShown(true)
+
+        assertSame(pinnedPosts, viewModel.uiState.value.pinnedPosts)
     }
 
     @Test
