@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -167,13 +168,18 @@ fun TweeterApp(modifier: Modifier = Modifier) {
                 .consumeWindowInsets(innerPadding)
         ) {
             CompositionLocalProvider(LocalMapCover provides mapCover) {
+                // Composed before the map, so that the map's Back handler, composed with it, comes
+                // after the NavHost's and takes Back first, also when both are composed at once,
+                // as when the activity is recreated.
+                TweeterNavHost(navController, openLogIn, openCreateAccount)
                 if (hasOpenedMap || isOnMap) {
                     MapScreen(
                         isShown = !mapCover.hidesMap,
-                        onShowInFeed = { navController.navigateToFeed() }
+                        onShowInFeed = { navController.navigateToFeed() },
+                        // Drawn under the NavHost's screens, though composed after them.
+                        modifier = Modifier.zIndex(-1f)
                     )
                 }
-                TweeterNavHost(navController, openLogIn, openCreateAccount)
             }
         }
     }

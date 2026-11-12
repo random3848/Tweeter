@@ -97,7 +97,8 @@ fun MapScreen(
     val mapState = viewModel.mapState
 
     if (isShown) {
-        // Composed as Map opens, after the NavHost's own handler, so that it takes Back first.
+        // Registered after the NavHost's own handler, since the app composes this screen after
+        // the NavHost, so that it takes Back first.
         BackHandler(enabled = uiState.selectedRow != null, onBack = viewModel::clearSelection)
     }
     MapMoveEffect(uiState, mapState, locationState, onMoveFinished = viewModel::finishMove)
