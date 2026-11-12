@@ -142,7 +142,7 @@ private fun FeedList(
                 username = posts.username(row),
                 details = postDetailsText(posts.locationName(row), posts.timestampMillis(row))
             )
-            PostPhoto(
+            PhotoWithMapLabel(
                 postId = posts.id(row),
                 imageUri = posts.imageUri(row),
                 onShowOnMap = onShowOnMap
@@ -215,7 +215,7 @@ private fun PostHeader(avatarInitials: String, username: String, details: String
  * @param onShowOnMap Shows the post with the given ID on Map.
  */
 @Composable
-private fun PostPhoto(postId: String, imageUri: String, onShowOnMap: (String) -> Unit) {
+private fun PhotoWithMapLabel(postId: String, imageUri: String, onShowOnMap: (String) -> Unit) {
     Box {
         PhotoCard(imageUri = imageUri)
         ShowOnMapLabel(
