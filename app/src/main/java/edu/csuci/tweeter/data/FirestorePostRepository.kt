@@ -44,7 +44,7 @@ class FirestorePostRepository(
     private val newestFirst =
         posts.orderBy(PostDocument.Field.TIMESTAMP.key, Query.Direction.DESCENDING)
     private val postTable = snapshotsOf(newestFirst)
-        .retryWithBackoff(TAG)
+        .retryWithBackoff(TAG, resetsBackoff = ::isFromServer)
         .map(::tableOf)
         .flowOn(dispatcher)
         .distinctUntilChanged(PostTable::holdsSamePosts)
@@ -76,6 +76,10 @@ class FirestorePostRepository(
 
         awaitClose { registration.remove() }
     }.conflate()
+
+    // Whether [snapshot] came from the server. One from the phone's cache can come first even
+    // when the server then rejects the listener, so it doesn't show the listener works again.
+    private fun isFromServer(snapshot: QuerySnapshot): Boolean = !snapshot.metadata.isFromCache
 
     // The well-formed posts of [snapshot], in order; the others are logged and left out.
     private fun tableOf(snapshot: QuerySnapshot): PostTable {

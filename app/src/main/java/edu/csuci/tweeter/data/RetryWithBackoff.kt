@@ -20,12 +20,18 @@ internal const val MAX_RETRY_DELAY_MILLIS = 60_000L
  *
  * It waits before each retry: [FIRST_RETRY_DELAY_MILLIS] after a first failure, twice as long
  * after each further failure in a row, up to [MAX_RETRY_DELAY_MILLIS], and the first delay again
- * once a value has arrived. Collectors keep what they received meanwhile, so a shared flow keeps
- * its latest value. Cancelling the collector stops it, and an [Error] isn't retried but thrown.
+ * once a value for which [resetsBackoff] is true has arrived. A value that can arrive before the
+ * failure all the same, such as a listener's snapshot from its cache, shouldn't reset it.
+ * Collectors keep what they received meanwhile, so a shared flow keeps its latest value.
+ * Cancelling the collector stops it, and an [Error] isn't retried but thrown.
  */
-fun <T> Flow<T>.retryWithBackoff(tag: String): Flow<T> = flow {
+fun <T> Flow<T>.retryWithBackoff(tag: String, resetsBackoff: (T) -> Boolean): Flow<T> = flow {
     val backoff = Backoff(tag)
-    val retried = onEach { backoff.reset() }.retryWhen { cause, _ ->
+    val retried = onEach { value ->
+        if (resetsBackoff(value)) {
+            backoff.reset()
+        }
+    }.retryWhen { cause, _ ->
         val isRetried = cause is Exception
         if (isRetried) {
             backoff.waitAfter(cause)
