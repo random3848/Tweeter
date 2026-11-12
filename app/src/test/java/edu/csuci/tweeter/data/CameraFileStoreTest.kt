@@ -4,10 +4,18 @@ package edu.csuci.tweeter.data
 
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.async
+import kotlinx.coroutines.job
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -125,6 +133,45 @@ class CameraFileStoreTest {
         runCurrent()
 
         assertFalse(File(cameraFile.path).exists())
+    }
+
+    @Test
+    fun discardAll_deletesEveryFile() = runTest {
+        val store = cameraFileStore()
+        store.create()
+        store.create()
+
+        store.discardAll()
+        runCurrent()
+
+        assertEquals(emptyList<File>(), directory.listFiles().orEmpty().toList())
+    }
+
+    @Test
+    fun create_whileDiscardingAll_keepsNewFile() = runBlocking {
+        val listingAllowed = CountDownLatch(1)
+        // Lists its files only once allowed, so that discarding them waits there meanwhile.
+        val slowToList = object : File(directory.path) {
+            override fun listFiles(): Array<File>? {
+                listingAllowed.await()
+                return super.listFiles()
+            }
+        }
+        val discardScope = CoroutineScope(Job())
+        val kept = Executors.newFixedThreadPool(2).asCoroutineDispatcher().use { ioDispatcher ->
+            val store = CameraFileStore(
+                findDirectory = { slowToList },
+                scope = discardScope,
+                ioDispatcher = ioDispatcher,
+                contentUriOf = ::contentUriOf
+            )
+            store.discardAll()
+            val creating = async(start = CoroutineStart.UNDISPATCHED) { store.create() }
+            listingAllowed.countDown()
+            creating.await().also { discardScope.coroutineContext.job.children.toList().joinAll() }
+        }
+
+        assertTrue(File(kept.path).exists())
     }
 
     private fun TestScope.cameraFileStore(

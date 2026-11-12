@@ -51,8 +51,7 @@ internal const val PROFILE_WRITE_TIMEOUT_MILLIS = 10_000L
  * @param photoRepository Uploads a new profile photo when the profile is saved, and deletes it
  *     again if the profile then can't be written.
  * @param accountRepository Who is logged in.
- * @param cameraFileStore Deletes the file of a camera photo once nothing needs it, even after this
- *     ViewModel is cleared.
+ * @param cameraFileStore Deletes the file of a camera photo once it's replaced.
  * @param cameraCapture Takes pictures with the camera app, for the screen to control through this
  *     ViewModel; it's closed with the ViewModel.
  * @param savedStateHandle Keeps the typed name and bio and the photo change.
@@ -203,10 +202,6 @@ class EditProfileViewModel(
         saveFailed = false
         val change = photoChange
         viewModelScope.launch { saveProfile(currentEdits.applyTo(currentProfile), change) }
-    }
-
-    override fun onCleared() {
-        cachedFilePath?.let(cameraFileStore::discard)
     }
 
     private suspend fun loadProfile() {

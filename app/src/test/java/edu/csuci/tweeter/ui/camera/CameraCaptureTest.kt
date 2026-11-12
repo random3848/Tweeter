@@ -138,14 +138,14 @@ class CameraCaptureTest {
     }
 
     @Test
-    fun close_whileTakingPicture_deletesFile() = runTest {
+    fun close_whileCameraOpen_keepsFileForRestoredCapture() = runTest {
         val capture = cameraCapture()
         capture.takePicture()
         capture.cameraOpened()
 
         capture.close()
 
-        assertEquals(emptyList<File>(), filesInDirectory())
+        assertEquals(1, filesInDirectory().size)
     }
 
     @Test

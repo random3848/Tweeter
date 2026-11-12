@@ -102,12 +102,13 @@ class CameraCapture(
     }
 
     /**
-     * Stops taking the picture, for the ViewModel being cleared: stops creating its file, and
-     * discards the file of a picture still being taken, which nothing can keep anymore.
+     * Stops creating a file, for the ViewModel being cleared. The file of a picture being taken
+     * stays: the ViewModel may be cleared only for its activity to be created again, and the one
+     * restored then still waits for the camera app's answer. `CameraFileStore.discardAll`
+     * deletes it when the app next starts afresh.
      */
     override fun close() {
         scope.cancel()
-        discard()
     }
 
     private suspend fun createFile() {

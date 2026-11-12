@@ -6,6 +6,7 @@ import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 // Where camera photos are written, inside the app's cache directory. FileProvider shares this
@@ -37,6 +38,11 @@ class CameraFileStore(
     private val ioDispatcher: CoroutineDispatcher,
     private val contentUriOf: (File) -> String
 ) {
+    // Deleting the files from before, after discardAll(). create() waits for it, so it can't
+    // delete a file made since.
+    @Volatile
+    private var discardingAll: Job? = null
+
     /**
      * Creates an empty file for the camera app to save a picture into. The caller discards it
      * with [discard] once nothing needs it. No file is left behind when this fails or is
@@ -44,11 +50,14 @@ class CameraFileStore(
      *
      * @throws IOException If the file can't be created.
      */
-    suspend fun create(): CameraFile = prepareNewFile(
-        dispatcher = ioDispatcher,
-        create = { createEmptyPhotoFile(findDirectory()) },
-        prepare = { file -> CameraFile(path = file.path, contentUri = contentUriOf(file)) }
-    )
+    suspend fun create(): CameraFile {
+        discardingAll?.join()
+        return prepareNewFile(
+            dispatcher = ioDispatcher,
+            create = { createEmptyPhotoFile(findDirectory()) },
+            prepare = { file -> CameraFile(path = file.path, contentUri = contentUriOf(file)) }
+        )
+    }
 
     /**
      * Deletes the camera file at [path], if it's still there, without waiting for it. Safe to
@@ -56,6 +65,16 @@ class CameraFileStore(
      */
     fun discard(path: String) {
         scope.launch(ioDispatcher) { deleteFile(ioDispatcher, File(path)) }
+    }
+
+    /**
+     * Deletes every camera file, without waiting for it: for when the app starts afresh, so that
+     * no screen it restores can still use one. A file [create] makes after this call is kept.
+     */
+    fun discardAll() {
+        discardingAll = scope.launch(ioDispatcher) {
+            findDirectory().listFiles()?.forEach(File::delete)
+        }
     }
 
     /** Creates [CameraFileStore]s. */

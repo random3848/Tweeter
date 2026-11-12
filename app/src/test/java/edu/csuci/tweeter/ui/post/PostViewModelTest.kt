@@ -167,25 +167,30 @@ class PostViewModelTest {
     }
 
     @Test
-    fun cleared_afterCameraPhoto_deletesCameraFile() {
+    fun cleared_afterCameraPhoto_restoredViewModelKeepsIt() {
         val store = ViewModelStore()
         val viewModel = createViewModelIn(store)
-        openCamera(viewModel)
+        val cameraUri = openCamera(viewModel)
         viewModel.pictureTaken(isSaved = true)
 
         store.clear()
+        val restored = createViewModel()
 
-        assertEquals(emptyList<String>(), contentUrisInDirectory())
+        assertEquals(cameraUri, restored.photoUri)
+        assertEquals(listOf(cameraUri), contentUrisInDirectory())
     }
 
     @Test
-    fun cleared_whileTakingPicture_deletesCameraFile() {
+    fun cleared_whileCameraOpen_restoredViewModelKeepsPicture() {
         val store = ViewModelStore()
-        openCamera(createViewModelIn(store))
+        val cameraUri = openCamera(createViewModelIn(store))
 
         store.clear()
+        val restored = createViewModel()
+        restored.pictureTaken(isSaved = true)
 
-        assertEquals(emptyList<String>(), contentUrisInDirectory())
+        assertEquals(cameraUri, restored.photoUri)
+        assertEquals(listOf(cameraUri), contentUrisInDirectory())
     }
 
     @Test

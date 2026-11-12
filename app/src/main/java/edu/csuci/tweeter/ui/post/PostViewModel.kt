@@ -47,7 +47,7 @@ private const val PHOTO_PATH_KEY = "photoPath"
  * Holds the post's photo, taken with the camera or chosen from the camera roll, finds where it
  * was taken, uploads it, shares it as a post, and holds the state the post screen displays.
  *
- * @param cameraFileStore Deletes the files of camera photos once nothing needs them.
+ * @param cameraFileStore Deletes the file of a camera photo once it's replaced or shared.
  * @param cameraCapture Takes pictures with the camera app, for the screen to control through this
  *     ViewModel; it's closed with the ViewModel.
  */
@@ -235,10 +235,6 @@ class PostViewModel(
         locateJob?.cancel()
         isLocating = false
         location = LocationFix(point, LocationSource.MANUAL)
-    }
-
-    override fun onCleared() {
-        photoPath?.let(cameraFileStore::discard)
     }
 
     private fun newPost(

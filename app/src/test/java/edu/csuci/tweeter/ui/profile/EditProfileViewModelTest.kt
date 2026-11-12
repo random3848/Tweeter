@@ -297,25 +297,29 @@ class EditProfileViewModelTest {
     }
 
     @Test
-    fun cleared_afterCameraPhoto_deletesCameraFile() {
+    fun cleared_afterCameraPhoto_restoredViewModelKeepsIt() {
+        val savedStateHandle = SavedStateHandle()
         val store = ViewModelStore()
-        val factory = viewModelFactory { initializer { createViewModel() } }
-        takeCameraPhoto(ViewModelProvider.create(store, factory)[EditProfileViewModel::class])
+        val cameraUri = takeCameraPhoto(createViewModelIn(store, savedStateHandle))
 
         store.clear()
+        val restored = createViewModel(savedStateHandle = savedStateHandle)
 
-        assertEquals(emptyList<File>(), filesInDirectory())
+        assertEquals(PhotoChange.Replace(cameraUri), restored.photoChange)
+        assertEquals(listOf(cameraUri), contentUrisInDirectory())
     }
 
     @Test
-    fun cleared_whileTakingPicture_deletesCameraFile() {
+    fun cleared_whileCameraOpen_restoredViewModelKeepsPicture() {
+        val savedStateHandle = SavedStateHandle()
         val store = ViewModelStore()
-        val factory = viewModelFactory { initializer { createViewModel() } }
-        openCamera(ViewModelProvider.create(store, factory)[EditProfileViewModel::class])
+        val cameraUri = openCamera(createViewModelIn(store, savedStateHandle))
 
         store.clear()
+        val restored = createViewModel(savedStateHandle = savedStateHandle)
+        restored.pictureTaken(isSaved = true)
 
-        assertEquals(emptyList<File>(), filesInDirectory())
+        assertEquals(PhotoChange.Replace(cameraUri), restored.photoChange)
     }
 
     @Test
@@ -517,6 +521,17 @@ class EditProfileViewModelTest {
 
     private fun contentUrisInDirectory(): List<String> =
         filesInDirectory().map { file -> CAMERA_URI_PREFIX + file.name }
+
+    // A ViewModel that [store] holds, so that clearing [store] clears it.
+    private fun createViewModelIn(
+        store: ViewModelStore,
+        savedStateHandle: SavedStateHandle
+    ): EditProfileViewModel {
+        val factory = viewModelFactory {
+            initializer { createViewModel(savedStateHandle = savedStateHandle) }
+        }
+        return ViewModelProvider.create(store, factory)[EditProfileViewModel::class]
+    }
 
     private fun createViewModel(
         loggedInUid: String? = profile.uid,
