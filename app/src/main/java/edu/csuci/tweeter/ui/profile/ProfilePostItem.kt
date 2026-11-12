@@ -17,7 +17,7 @@ import edu.csuci.tweeter.ui.feed.PhotoCard
  * @param imageUri The post's photo, as [PhotoCard] takes it.
  * @param caption The post's caption; blank when it has none.
  * @param details Where the post was shared and how long ago, as
- *     [edu.csuci.tweeter.ui.feed.postDetailsText] puts it.
+ *     [edu.csuci.tweeter.ui.postDetailsText] puts it.
  * @param modifier Applied to the whole item.
  */
 @Composable

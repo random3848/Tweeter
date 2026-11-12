@@ -1,4 +1,4 @@
-package edu.csuci.tweeter.ui.profile
+package edu.csuci.tweeter.ui
 
 import java.util.concurrent.TimeUnit.DAYS
 import java.util.concurrent.TimeUnit.HOURS

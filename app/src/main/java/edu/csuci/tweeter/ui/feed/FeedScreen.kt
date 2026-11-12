@@ -38,6 +38,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.ui.navigation.TweeterTopBar
+import edu.csuci.tweeter.ui.postDetailsText
 
 // Between a post's animal type and its confidence rating.
 private const val ANIMAL_DETAILS_SEPARATOR = " · "

@@ -28,8 +28,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.data.UserProfile
 import edu.csuci.tweeter.ui.auth.LogInPrompt
-import edu.csuci.tweeter.ui.feed.postDetailsText
 import edu.csuci.tweeter.ui.navigation.BackTopBar
+import edu.csuci.tweeter.ui.postDetailsText
 
 /**
  * The logged-in user's profile: their picture, name and bio, then the posts they shared. While

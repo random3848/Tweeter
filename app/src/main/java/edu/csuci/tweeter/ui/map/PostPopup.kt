@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.ui.feed.PhotoCard
-import edu.csuci.tweeter.ui.profile.timeAgoText
+import edu.csuci.tweeter.ui.timeAgoText
 
 private val POPUP_WIDTH = 200.dp
 private val TAIL_WIDTH = 16.dp
