@@ -72,7 +72,7 @@ private const val CLOSE_UP_ZOOM = 16.0
  * following the user's location, and is left out of the accessibility tree, so that a screen
  * reader doesn't find the map and its top bar under the screen drawn over them.
  *
- * @param isShown Whether the user is on Map, rather than on a screen drawn over the map.
+ * @param isShown Whether the user sees the map: the NavHost draws no screen over it.
  * @param onShowInFeed Opens Home, once the post whose popup the user pressed is requested there.
  * @param modifier Applied to the screen.
  * @param viewModel Supplies the posts, the open popup and where the map moves next.

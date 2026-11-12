@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +35,8 @@ import edu.csuci.tweeter.ui.map.MapRoute
 import edu.csuci.tweeter.ui.map.MapScreen
 import edu.csuci.tweeter.ui.map.addMapScreen
 import edu.csuci.tweeter.ui.navigation.BottomBarItem
+import edu.csuci.tweeter.ui.navigation.LocalMapCover
+import edu.csuci.tweeter.ui.navigation.MapCover
 import edu.csuci.tweeter.ui.navigation.TweeterBottomBar
 import edu.csuci.tweeter.ui.post.PostRoute
 import edu.csuci.tweeter.ui.post.addPostScreen
@@ -94,14 +97,17 @@ internal val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
  * A tab left open keeps its state, but only the open screen is composed, with one exception: the
  * map stays composed under the NavHost, so that it is drawn and ready the moment the user switches
  * to Map. Every other screen hides it with a background of its own (see `opaqueComposable`), and
- * Map's route draws nothing over it. Unless the app opens on Map, the map is composed only once the
- * first frame is drawn, so that creating it doesn't hold back the first screen.
+ * Map's route draws nothing over it. The map counts as shown while the NavHost composes none of
+ * those screens, which follows what the NavHost draws rather than the back stack, which changes a
+ * few frames earlier. Unless the app opens on Map, the map is composed only once the first frame
+ * is drawn, so that creating it doesn't hold back the first screen.
  *
  * @param modifier Applied to the whole app
  */
 @Composable
 fun TweeterApp(modifier: Modifier = Modifier) {
     val navController = rememberNavController()
+    val mapCover = remember { MapCover() }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val destination = backStackEntry?.destination
     val isOnMap = destination?.hasRoute(MapRoute::class) == true
@@ -154,53 +160,73 @@ fun TweeterApp(modifier: Modifier = Modifier) {
                 .padding(innerPadding)
                 .consumeWindowInsets(innerPadding)
         ) {
-            if (hasDrawnFirstFrame || isOnMap) {
-                MapScreen(isShown = isOnMap, onShowInFeed = { navController.navigateToFeed() })
+            CompositionLocalProvider(LocalMapCover provides mapCover) {
+                if (hasDrawnFirstFrame || isOnMap) {
+                    MapScreen(
+                        isShown = !mapCover.hidesMap,
+                        onShowInFeed = { navController.navigateToFeed() }
+                    )
+                }
+                TweeterNavHost(navController, openLogIn, openCreateAccount)
             }
-            NavHost(
-                navController = navController,
-                startDestination = FeedRoute,
-                // Screens switch without fading: a fade keeps the screen being left on view for
-                // its whole length.
-                enterTransition = { EnterTransition.None },
-                exitTransition = { ExitTransition.None }
-            ) {
-                addFeedScreen(
-                    onShowOnMap = { navController.navigateToTopLevel(MapRoute) },
-                    topBarActions = {
-                        ProfileButton(
-                            onClick = {
-                                navController.navigate(ProfileRoute) {
-                                    launchSingleTop = true
-                                }
-                            }
-                        )
-                    }
-                )
-                addPostScreen(onLogIn = openLogIn, onCreateAccount = openCreateAccount)
-                addMapScreen()
-                addProfileScreen(
-                    onBack = { navController.navigateUp() },
-                    onLogIn = openLogIn,
-                    onCreateAccount = openCreateAccount,
-                    onEditProfile = {
-                        navController.navigate(EditProfileRoute) {
+        }
+    }
+}
+
+/**
+ * The NavHost of every screen, which opens to Feed.
+ *
+ * @param openLogIn Opens Log in, for screens that ask guests to log in.
+ * @param openCreateAccount Opens Create account, for those screens too.
+ */
+@Composable
+private fun TweeterNavHost(
+    navController: NavHostController,
+    openLogIn: () -> Unit,
+    openCreateAccount: () -> Unit
+) {
+    NavHost(
+        navController = navController,
+        startDestination = FeedRoute,
+        // Screens switch without fading: a fade keeps the screen being left on view for its whole
+        // length.
+        enterTransition = { EnterTransition.None },
+        exitTransition = { ExitTransition.None }
+    ) {
+        addFeedScreen(
+            onShowOnMap = { navController.navigateToTopLevel(MapRoute) },
+            topBarActions = {
+                ProfileButton(
+                    onClick = {
+                        navController.navigate(ProfileRoute) {
                             launchSingleTop = true
                         }
                     }
                 )
-                addEditProfileScreen(onClose = { navController.navigateUp() })
-                addLogInScreen(
-                    onBack = { navController.navigateUp() },
-                    onAuthenticated = { navController.popBackStack() }
-                )
-
-                addCreateAccountScreen(
-                    onBack = { navController.navigateUp() },
-                    onAuthenticated = { navController.popBackStack() }
-                )
             }
-        }
+        )
+        addPostScreen(onLogIn = openLogIn, onCreateAccount = openCreateAccount)
+        addMapScreen()
+        addProfileScreen(
+            onBack = { navController.navigateUp() },
+            onLogIn = openLogIn,
+            onCreateAccount = openCreateAccount,
+            onEditProfile = {
+                navController.navigate(EditProfileRoute) {
+                    launchSingleTop = true
+                }
+            }
+        )
+        addEditProfileScreen(onClose = { navController.navigateUp() })
+        addLogInScreen(
+            onBack = { navController.navigateUp() },
+            onAuthenticated = { navController.popBackStack() }
+        )
+
+        addCreateAccountScreen(
+            onBack = { navController.navigateUp() },
+            onAuthenticated = { navController.popBackStack() }
+        )
     }
 }
 
