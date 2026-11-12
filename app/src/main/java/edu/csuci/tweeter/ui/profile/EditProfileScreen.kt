@@ -100,11 +100,9 @@ fun EditProfileScreen(
                 ChangePhotoButton(
                     enabled = !editProfileViewModel.isSaving,
                     hasPhoto = editProfileViewModel.hasPhoto,
-                    cameraFailed = editProfileViewModel.cameraFailed,
-                    onTakePicture = editProfileViewModel::takePicture,
+                    camera = editProfileViewModel,
                     onPhotoChosen = editProfileViewModel::choosePhoto,
-                    onRemovePhoto = editProfileViewModel::removePhoto,
-                    onDismissCameraFailure = editProfileViewModel::dismissCameraFailure
+                    onRemovePhoto = editProfileViewModel::removePhoto
                 )
                 DisplayNameField(
                     displayName = edits.displayName,

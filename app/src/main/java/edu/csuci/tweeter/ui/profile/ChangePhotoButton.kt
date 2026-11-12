@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import edu.csuci.tweeter.R
+import edu.csuci.tweeter.ui.camera.CameraControls
 
 /**
  * "Change photo", which opens a bottom sheet to take a picture, choose one from the camera roll,
@@ -35,12 +36,9 @@ import edu.csuci.tweeter.R
  *
  * @param enabled Whether the photo can be changed now; it can't while the profile is saved.
  * @param hasPhoto Whether there's a photo to remove; "Remove photo" is offered only then.
- * @param cameraFailed Whether the latest picture couldn't be taken, which the button says.
- * @param onTakePicture Called when the user takes a picture with the camera app.
+ * @param camera Takes the picture, and says whether the latest one couldn't be taken.
  * @param onPhotoChosen Called with the URI of the photo chosen from the camera roll.
  * @param onRemovePhoto Called when the user removes the photo.
- * @param onDismissCameraFailure Called when the user opens the sheet again, so [cameraFailed]
- *     is no longer reported.
  * @param modifier Applied to the button and the message shown when the camera or camera roll
  *     can't open.
  */
@@ -49,11 +47,9 @@ import edu.csuci.tweeter.R
 fun ChangePhotoButton(
     enabled: Boolean,
     hasPhoto: Boolean,
-    cameraFailed: Boolean,
-    onTakePicture: () -> Unit,
+    camera: CameraControls,
     onPhotoChosen: (photoUri: String) -> Unit,
     onRemovePhoto: () -> Unit,
-    onDismissCameraFailure: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var isSheetOpen by rememberSaveable { mutableStateOf(false) }
@@ -83,13 +79,13 @@ fun ChangePhotoButton(
             enabled = enabled,
             onClick = {
                 pickerFailed = false
-                onDismissCameraFailure()
+                camera.dismissCameraFailure()
                 isSheetOpen = true
             }
         ) {
             Text(text = stringResource(R.string.edit_profile_change_photo))
         }
-        failureMessage(cameraFailed, pickerFailed)?.let { message ->
+        failureMessage(camera.cameraFailed, pickerFailed)?.let { message ->
             Text(
                 text = stringResource(message),
                 style = MaterialTheme.typography.bodyMedium,
@@ -102,7 +98,7 @@ fun ChangePhotoButton(
         ModalBottomSheet(onDismissRequest = { isSheetOpen = false }) {
             SheetOption(R.string.take_picture) {
                 isSheetOpen = false
-                onTakePicture()
+                camera.takePicture()
             }
             SheetOption(R.string.choose_from_camera_roll) {
                 isSheetOpen = false
