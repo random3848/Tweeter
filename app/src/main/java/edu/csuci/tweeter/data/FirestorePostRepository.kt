@@ -1,7 +1,6 @@
 package edu.csuci.tweeter.data
 
 import android.util.Log
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.DocumentSnapshot.ServerTimestampBehavior
 import com.google.firebase.firestore.FirebaseFirestore
@@ -21,8 +20,8 @@ import kotlinx.coroutines.tasks.await
 /**
  * A [PostRepository] that stores posts in Cloud Firestore, so they last and every user sees them.
  *
- * Posts are stored as described by [PostDocument]. Creates an anonymous session when no user is
- * signed in, since the Firestore rules only let signed-in users read and write.
+ * Posts are stored as described by [PostDocument]. Signs guests in with [guestSignIn] when
+ * nobody is signed in, since the Firestore rules only let signed-in users read and write.
  *
  * [getPostTable] returns the same flow to every caller: one snapshot listener, started in
  * [scope] while anyone collects and removed as soon as nobody does, so every screen shares one
@@ -35,7 +34,7 @@ import kotlinx.coroutines.tasks.await
  * again with [retryWithBackoff], while collectors keep the last table.
  */
 class FirestorePostRepository(
-    private val auth: FirebaseAuth,
+    private val guestSignIn: GuestSignIn,
     firestore: FirebaseFirestore,
     scope: CoroutineScope,
     private val dispatcher: CoroutineDispatcher
@@ -53,14 +52,14 @@ class FirestorePostRepository(
     override fun getPostTable(): Flow<PostTable> = postTable
 
     override suspend fun addPost(post: Post) {
-        signIn()
+        guestSignIn.signInIfSignedOut()
         posts.document(post.id).set(PostDocument.fieldsOf(post)).await()
     }
 
     // Each snapshot of [query], delivered on [dispatcher] one at a time. The newest snapshot
     // replaces any that wasn't read yet, so it can't be dropped, and stale ones aren't read.
     private fun snapshotsOf(query: Query): Flow<QuerySnapshot> = callbackFlow {
-        signIn()
+        guestSignIn.signInIfSignedOut()
 
         val executor = dispatcher.serialExecutor()
         val registration = query.addSnapshotListener(executor) { snapshot, error ->
@@ -95,13 +94,6 @@ class FirestorePostRepository(
             }
         }
         return builder.build()
-    }
-
-    private suspend fun signIn() {
-        // Guests browse with an anonymous session; the Firestore rules don't let it post.
-        if (auth.currentUser == null) {
-            auth.signInAnonymously().await()
-        }
     }
 
     private companion object {

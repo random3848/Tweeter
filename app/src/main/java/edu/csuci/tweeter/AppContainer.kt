@@ -10,6 +10,7 @@ import edu.csuci.tweeter.data.FirebaseAccountRepository
 import edu.csuci.tweeter.data.FirebasePhotoRepository
 import edu.csuci.tweeter.data.FirestorePostRepository
 import edu.csuci.tweeter.data.FirestoreProfileRepository
+import edu.csuci.tweeter.data.GuestSignIn
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.ProfileRepository
@@ -58,13 +59,18 @@ class AppContainer(private val context: Context) {
     // creation of the repositories ahead of the first screen.
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    // Signs guests in for the post and account repositories, one sign-in at a time between them.
+    private val guestSignIn: GuestSignIn by lazy {
+        GuestSignIn.to(FirebaseAuth.getInstance(), scope = applicationScope)
+    }
+
     /**
      * Every post in the app, stored in Firestore. Its post table is one listener shared by every
      * screen, parsed on [Dispatchers.Default].
      */
     val postRepository: PostRepository by lazy {
         FirestorePostRepository(
-            auth = FirebaseAuth.getInstance(),
+            guestSignIn = guestSignIn,
             firestore = FirebaseFirestore.getInstance(),
             scope = applicationScope,
             dispatcher = Dispatchers.Default
@@ -80,7 +86,7 @@ class AppContainer(private val context: Context) {
      * Shared authentication operations and the registered user's identity.
      */
     val accountRepository: AccountRepository by lazy {
-        FirebaseAccountRepository(auth = FirebaseAuth.getInstance())
+        FirebaseAccountRepository(auth = FirebaseAuth.getInstance(), guestSignIn = guestSignIn)
     }
 
     /** Uploads post and profile photos to Firebase Storage. */
