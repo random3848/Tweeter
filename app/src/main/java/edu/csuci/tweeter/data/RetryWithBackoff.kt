@@ -25,21 +25,22 @@ internal const val MAX_RETRY_DELAY_MILLIS = 60_000L
  * Collectors keep what they received meanwhile, so a shared flow keeps its latest value.
  * Cancelling the collector stops it, and an [Error] isn't retried but thrown.
  */
-fun <T> Flow<T>.retryWithBackoff(tag: String, resetsBackoff: (T) -> Boolean): Flow<T> = flow {
-    val backoff = Backoff(tag)
-    val retried = onEach { value ->
-        if (resetsBackoff(value)) {
-            backoff.reset()
+internal fun <T> Flow<T>.retryWithBackoff(tag: String, resetsBackoff: (T) -> Boolean): Flow<T> =
+    flow {
+        val backoff = Backoff(tag)
+        val retried = onEach { value ->
+            if (resetsBackoff(value)) {
+                backoff.reset()
+            }
+        }.retryWhen { cause, _ ->
+            val isRetried = cause is Exception
+            if (isRetried) {
+                backoff.waitAfter(cause)
+            }
+            isRetried
         }
-    }.retryWhen { cause, _ ->
-        val isRetried = cause is Exception
-        if (isRetried) {
-            backoff.waitAfter(cause)
-        }
-        isRetried
+        emitAll(retried)
     }
-    emitAll(retried)
-}
 
 // The wait before the next retry, doubled after each failure in a row.
 private class Backoff(private val tag: String) {

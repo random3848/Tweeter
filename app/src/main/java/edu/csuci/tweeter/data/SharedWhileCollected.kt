@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.shareIn
  * A new collector gets the latest value right away. When the last collector stops, this flow is
  * stopped and its value dropped at once, so nothing is kept for later.
  */
-fun <T> Flow<T>.sharedWhileCollected(scope: CoroutineScope): SharedFlow<T> = shareIn(
+internal fun <T> Flow<T>.sharedWhileCollected(scope: CoroutineScope): SharedFlow<T> = shareIn(
     scope,
     SharingStarted.WhileSubscribed(stopTimeoutMillis = 0, replayExpirationMillis = 0),
     replay = 1
