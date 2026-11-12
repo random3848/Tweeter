@@ -15,7 +15,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.firebase.FirebaseException
 import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
-import edu.csuci.tweeter.data.CameraFiles
+import edu.csuci.tweeter.data.CameraFileStore
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PhotoUploadException
 import edu.csuci.tweeter.data.ProfileRepository
@@ -51,7 +51,7 @@ internal const val PROFILE_WRITE_TIMEOUT_MILLIS = 10_000L
  * @param photoRepository Uploads a new profile photo when the profile is saved, and deletes it
  *     again if the profile then can't be written.
  * @param accountRepository Who is logged in.
- * @param cameraFiles Deletes the file of a camera photo once nothing needs it, even after this
+ * @param cameraFileStore Deletes the file of a camera photo once nothing needs it, even after this
  *     ViewModel is cleared.
  * @param cameraCapture Takes pictures with the camera app, for the screen to control through this
  *     ViewModel; it's closed with the ViewModel.
@@ -61,7 +61,7 @@ class EditProfileViewModel(
     private val profileRepository: ProfileRepository,
     private val photoRepository: PhotoRepository,
     private val accountRepository: AccountRepository,
-    private val cameraFiles: CameraFiles,
+    private val cameraFileStore: CameraFileStore,
     private val cameraCapture: CameraCapture,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel(cameraCapture),
@@ -180,7 +180,7 @@ class EditProfileViewModel(
     // and its file, must stay.
     private fun changePhoto(change: PhotoChange, cameraFilePath: String?) {
         if (isSaving) {
-            cameraFilePath?.let(cameraFiles::discard)
+            cameraFilePath?.let(cameraFileStore::discard)
             return
         }
 
@@ -206,7 +206,7 @@ class EditProfileViewModel(
     }
 
     override fun onCleared() {
-        cachedFilePath?.let(cameraFiles::discard)
+        cachedFilePath?.let(cameraFileStore::discard)
     }
 
     private suspend fun loadProfile() {
@@ -308,7 +308,7 @@ class EditProfileViewModel(
         val replacedPath = cachedFilePath
         cachedFilePath = newPath
         savedStateHandle[CACHED_FILE_KEY] = newPath
-        replacedPath?.let(cameraFiles::discard)
+        replacedPath?.let(cameraFileStore::discard)
     }
 
     private fun savedEdits(): ProfileEdits? {
@@ -328,14 +328,14 @@ class EditProfileViewModel(
         val factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as TweeterApplication
-                val cameraFiles = application.container.cameraFiles
+                val cameraFileStore = application.container.cameraFileStore
                 val savedStateHandle = createSavedStateHandle()
                 EditProfileViewModel(
                     profileRepository = application.container.profileRepository,
                     photoRepository = application.container.photoRepository,
                     accountRepository = application.container.accountRepository,
-                    cameraFiles = cameraFiles,
-                    cameraCapture = CameraCapture.onMainThread(cameraFiles, savedStateHandle),
+                    cameraFileStore = cameraFileStore,
+                    cameraCapture = CameraCapture.onMainThread(cameraFileStore, savedStateHandle),
                     savedStateHandle = savedStateHandle
                 )
             }

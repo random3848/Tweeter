@@ -4,8 +4,10 @@ package edu.csuci.tweeter.data
 
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.Executors
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -14,6 +16,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -21,7 +24,7 @@ import org.junit.rules.TemporaryFolder
 
 private const val CONTENT_URI_PREFIX = "content://camera/"
 
-class CameraFilesTest {
+class CameraFileStoreTest {
     @get:Rule
     val temporaryFolder = TemporaryFolder()
 
@@ -30,7 +33,7 @@ class CameraFilesTest {
 
     @Test
     fun create_createsEmptyFileInDirectory() = runTest {
-        val cameraFile = cameraFiles().create()
+        val cameraFile = cameraFileStore().create()
 
         val file = File(cameraFile.path)
         assertTrue(file.isFile)
@@ -40,49 +43,71 @@ class CameraFilesTest {
 
     @Test
     fun create_returnsContentUriOfFile() = runTest {
-        val cameraFile = cameraFiles().create()
+        val cameraFile = cameraFileStore().create()
 
         assertEquals(contentUriOf(File(cameraFile.path)), cameraFile.contentUri)
     }
 
     @Test
     fun create_twice_createsDifferentFiles() = runTest {
-        val files = cameraFiles()
+        val store = cameraFileStore()
 
-        assertNotEquals(files.create().path, files.create().path)
+        assertNotEquals(store.create().path, store.create().path)
     }
 
     @Test
     fun create_directoryCantBeCreated_throwsIoException() = runTest {
         directory.writeText("A file where the directory should be")
 
-        val error = runCatching { cameraFiles().create() }.exceptionOrNull()
+        val error = runCatching { cameraFileStore().create() }.exceptionOrNull()
 
         assertEquals(IOException::class, error?.let { it::class })
     }
 
     @Test
     fun create_noContentUri_deletesFileAndRethrows() = runTest {
-        val files = CameraFiles(
-            directory = directory,
+        val store = CameraFileStore(
+            findDirectory = { directory },
             scope = backgroundScope,
             ioDispatcher = UnconfinedTestDispatcher(testScheduler),
             contentUriOf = { throw IllegalArgumentException("Not a shared folder") }
         )
 
-        val error = runCatching { files.create() }.exceptionOrNull()
+        val error = runCatching { store.create() }.exceptionOrNull()
 
         assertEquals(IllegalArgumentException::class, error?.let { it::class })
         assertEquals(emptyList<File>(), directory.listFiles().orEmpty().toList())
     }
 
     @Test
+    fun create_findsDirectoryOnIoDispatcher() = runTest {
+        var ioThread: Thread? = null
+        var findingThread: Thread? = null
+        val ioDispatcher = Executors.newSingleThreadExecutor { task ->
+            Thread(task).also { ioThread = it }
+        }.asCoroutineDispatcher()
+        val store = CameraFileStore(
+            findDirectory = {
+                findingThread = Thread.currentThread()
+                directory
+            },
+            scope = backgroundScope,
+            ioDispatcher = ioDispatcher,
+            contentUriOf = ::contentUriOf
+        )
+
+        ioDispatcher.use { store.create() }
+
+        assertSame(ioThread, findingThread)
+    }
+
+    @Test
     fun discard_deletesFileOnIoDispatcher() = runTest {
         val ioDispatcher = StandardTestDispatcher(testScheduler)
-        val files = cameraFiles(ioDispatcher)
-        val cameraFile = files.create()
+        val store = cameraFileStore(ioDispatcher)
+        val cameraFile = store.create()
 
-        files.discard(cameraFile.path)
+        store.discard(cameraFile.path)
         val existsUntilIoRuns = File(cameraFile.path).exists()
         runCurrent()
 
@@ -92,20 +117,20 @@ class CameraFilesTest {
 
     @Test
     fun discard_fileAlreadyGone_doesNothing() = runTest {
-        val files = cameraFiles()
-        val cameraFile = files.create()
-        files.discard(cameraFile.path)
+        val store = cameraFileStore()
+        val cameraFile = store.create()
+        store.discard(cameraFile.path)
 
-        files.discard(cameraFile.path)
+        store.discard(cameraFile.path)
         runCurrent()
 
         assertFalse(File(cameraFile.path).exists())
     }
 
-    private fun TestScope.cameraFiles(
+    private fun TestScope.cameraFileStore(
         ioDispatcher: CoroutineDispatcher = UnconfinedTestDispatcher(testScheduler)
-    ): CameraFiles = CameraFiles(
-        directory = directory,
+    ): CameraFileStore = CameraFileStore(
+        findDirectory = { directory },
         scope = backgroundScope,
         ioDispatcher = ioDispatcher,
         contentUriOf = ::contentUriOf

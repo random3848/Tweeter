@@ -15,7 +15,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.firebase.FirebaseException
 import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
-import edu.csuci.tweeter.data.CameraFiles
+import edu.csuci.tweeter.data.CameraFileStore
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PhotoUploadException
 import edu.csuci.tweeter.data.Post
@@ -47,7 +47,7 @@ private const val PHOTO_PATH_KEY = "photoPath"
  * Holds the post's photo, taken with the camera or chosen from the camera roll, finds where it
  * was taken, uploads it, shares it as a post, and holds the state the post screen displays.
  *
- * @param cameraFiles Deletes the files of camera photos once nothing needs them.
+ * @param cameraFileStore Deletes the files of camera photos once nothing needs them.
  * @param cameraCapture Takes pictures with the camera app, for the screen to control through this
  *     ViewModel; it's closed with the ViewModel.
  */
@@ -57,7 +57,7 @@ class PostViewModel(
     private val profileRepository: ProfileRepository,
     private val accountRepository: AccountRepository,
     private val photoLocator: PhotoLocator<Uri>,
-    private val cameraFiles: CameraFiles,
+    private val cameraFileStore: CameraFileStore,
     private val cameraCapture: CameraCapture,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel(cameraCapture),
@@ -130,7 +130,7 @@ class PostViewModel(
         clearUploadResult()
         val replacedPath = photoPath
         updatePhoto(uri, cameraFilePath)
-        replacedPath?.let(cameraFiles::discard)
+        replacedPath?.let(cameraFileStore::discard)
     }
 
     private fun updatePhoto(uri: String?, cameraFilePath: String?) {
@@ -211,7 +211,7 @@ class PostViewModel(
     private fun forgetSharedPhoto() {
         val sharedPath = photoPath
         updatePhoto(uri = null, cameraFilePath = null)
-        sharedPath?.let(cameraFiles::discard)
+        sharedPath?.let(cameraFileStore::discard)
     }
 
     /**
@@ -238,7 +238,7 @@ class PostViewModel(
     }
 
     override fun onCleared() {
-        photoPath?.let(cameraFiles::discard)
+        photoPath?.let(cameraFileStore::discard)
     }
 
     private fun newPost(
@@ -274,7 +274,7 @@ class PostViewModel(
         val factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as TweeterApplication
-                val cameraFiles = application.container.cameraFiles
+                val cameraFileStore = application.container.cameraFileStore
                 val savedStateHandle = createSavedStateHandle()
                 PostViewModel(
                     photoRepository = application.container.photoRepository,
@@ -286,8 +286,8 @@ class PostViewModel(
                         currentDeviceFix = DeviceLocationProvider(application)::currentFix,
                         ioDispatcher = Dispatchers.IO
                     ),
-                    cameraFiles = cameraFiles,
-                    cameraCapture = CameraCapture.onMainThread(cameraFiles, savedStateHandle),
+                    cameraFileStore = cameraFileStore,
+                    cameraCapture = CameraCapture.onMainThread(cameraFileStore, savedStateHandle),
                     savedStateHandle = savedStateHandle
                 )
             }

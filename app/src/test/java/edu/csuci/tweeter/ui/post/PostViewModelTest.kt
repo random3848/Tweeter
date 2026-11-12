@@ -7,7 +7,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import edu.csuci.tweeter.data.CameraFiles
+import edu.csuci.tweeter.data.CameraFileStore
 import edu.csuci.tweeter.data.FakeAccountRepository
 import edu.csuci.tweeter.data.FakePostRepository
 import edu.csuci.tweeter.data.FakeProfileRepository
@@ -218,8 +218,8 @@ class PostViewModelTest {
     private fun createViewModel(
         photoRepository: PhotoRepository = UnusedPhotoRepository()
     ): PostViewModel {
-        val cameraFiles = CameraFiles(
-            directory = directory,
+        val cameraFileStore = CameraFileStore(
+            findDirectory = { directory },
             scope = appScope,
             ioDispatcher = dispatcher,
             contentUriOf = ::contentUriOf
@@ -234,9 +234,9 @@ class PostViewModelTest {
                 currentDeviceFix = { null },
                 ioDispatcher = dispatcher
             ),
-            cameraFiles = cameraFiles,
+            cameraFileStore = cameraFileStore,
             cameraCapture = CameraCapture(
-                cameraFiles = cameraFiles,
+                cameraFileStore = cameraFileStore,
                 savedStateHandle = savedStateHandle,
                 scope = CoroutineScope(dispatcher)
             ),

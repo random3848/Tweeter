@@ -6,7 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.SavedStateHandle
 import edu.csuci.tweeter.data.CameraFile
-import edu.csuci.tweeter.data.CameraFiles
+import edu.csuci.tweeter.data.CameraFileStore
 import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,13 +27,13 @@ private const val FAILED_KEY = "cameraFailed"
  * closed with the ViewModel, and finishes each picture with [keep] or [discard]. The file
  * survives the app being stopped while the camera app is open, through [savedStateHandle].
  *
- * @param cameraFiles Creates and deletes the file, off the main thread.
+ * @param cameraFileStore Creates and deletes the file, off the main thread.
  * @param savedStateHandle The ViewModel's, keeping the file and whether the camera app opened.
  * @param scope Where the file is created, on the main thread. It's this capture's alone:
  *     [close] cancels it.
  */
 class CameraCapture(
-    private val cameraFiles: CameraFiles,
+    private val cameraFileStore: CameraFileStore,
     private val savedStateHandle: SavedStateHandle,
     private val scope: CoroutineScope
 ) : CameraControls,
@@ -80,7 +80,7 @@ class CameraCapture(
 
     /**
      * Finishes taking the picture, which the camera app saved, and returns its file, or null when
-     * no picture was being taken. The caller discards the file with [CameraFiles.discard] once
+     * no picture was being taken. The caller discards the file with [CameraFileStore.discard] once
      * nothing needs it.
      */
     fun keep(): CameraFile? = file.also { updateFile(null) }
@@ -89,7 +89,7 @@ class CameraCapture(
     fun discard() {
         val discarded = file ?: return
         updateFile(null)
-        cameraFiles.discard(discarded.path)
+        cameraFileStore.discard(discarded.path)
     }
 
     override fun cameraUnavailable() {
@@ -112,7 +112,7 @@ class CameraCapture(
 
     private suspend fun createFile() {
         try {
-            updateFile(cameraFiles.create())
+            updateFile(cameraFileStore.create())
         } catch (error: IOException) {
             Log.e("CameraCapture", "Could not create a file for the camera photo", error)
             updateFailed(true)
@@ -145,10 +145,10 @@ class CameraCapture(
          * cancelled when it's closed, as a ViewModel's `viewModelScope` is.
          */
         fun onMainThread(
-            cameraFiles: CameraFiles,
+            cameraFileStore: CameraFileStore,
             savedStateHandle: SavedStateHandle
         ): CameraCapture = CameraCapture(
-            cameraFiles = cameraFiles,
+            cameraFileStore = cameraFileStore,
             savedStateHandle = savedStateHandle,
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         )

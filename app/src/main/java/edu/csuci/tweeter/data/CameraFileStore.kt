@@ -15,7 +15,7 @@ private const val CAMERA_DIRECTORY = "photos"
 /**
  * A file the camera app saves a picture into.
  *
- * @property path Where the file is on the phone, for deleting it with [CameraFiles.discard].
+ * @property path Where the file is on the phone, for deleting it with [CameraFileStore.discard].
  * @property contentUri The `content://` URI the camera app writes the picture through, which the
  *     app reads it back through too.
  */
@@ -25,13 +25,14 @@ data class CameraFile(val path: String, val contentUri: String)
  * Creates the files the camera app saves pictures into, and deletes them again, on [ioDispatcher]
  * rather than the calling thread.
  *
- * @param directory Where the files go; created when it's missing.
+ * @param findDirectory Returns where the files go, which is created when it's missing. Called on
+ *     [ioDispatcher], since finding the directory can touch the disk.
  * @param scope Outlives the screens that use the files, so a file is deleted even when the screen
  *     that discarded it has closed.
- * @param contentUriOf Returns the URI that shares a file in [directory] with the camera app.
+ * @param contentUriOf Returns the URI that shares a file in the directory with the camera app.
  */
-class CameraFiles(
-    private val directory: File,
+class CameraFileStore(
+    private val findDirectory: () -> File,
     private val scope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher,
     private val contentUriOf: (File) -> String
@@ -45,7 +46,7 @@ class CameraFiles(
      */
     suspend fun create(): CameraFile = prepareNewFile(
         dispatcher = ioDispatcher,
-        create = { createEmptyPhotoFile(directory) },
+        create = { createEmptyPhotoFile(findDirectory()) },
         prepare = { file -> CameraFile(path = file.path, contentUri = contentUriOf(file)) }
     )
 
@@ -54,10 +55,10 @@ class CameraFiles(
      * call from the main thread, and from a ViewModel being cleared.
      */
     fun discard(path: String) {
-        scope.launch(ioDispatcher) { File(path).delete() }
+        scope.launch(ioDispatcher) { deleteFile(ioDispatcher, File(path)) }
     }
 
-    /** Creates [CameraFiles]. */
+    /** Creates [CameraFileStore]s. */
     companion object {
         /**
          * Camera files in the cache directory of [context], shared with the camera app through
@@ -67,8 +68,8 @@ class CameraFiles(
             context: Context,
             scope: CoroutineScope,
             ioDispatcher: CoroutineDispatcher
-        ): CameraFiles = CameraFiles(
-            directory = File(context.cacheDir, CAMERA_DIRECTORY),
+        ): CameraFileStore = CameraFileStore(
+            findDirectory = { File(context.cacheDir, CAMERA_DIRECTORY) },
             scope = scope,
             ioDispatcher = ioDispatcher,
             contentUriOf = { file ->

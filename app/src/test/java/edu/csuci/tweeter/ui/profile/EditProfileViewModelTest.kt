@@ -7,7 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.firebase.FirebaseException
 import edu.csuci.tweeter.data.AccountRepository
-import edu.csuci.tweeter.data.CameraFiles
+import edu.csuci.tweeter.data.CameraFileStore
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PhotoUploadException
 import edu.csuci.tweeter.data.ProfileRepository
@@ -522,8 +522,8 @@ class EditProfileViewModelTest {
         loggedInUid: String? = profile.uid,
         savedStateHandle: SavedStateHandle = SavedStateHandle()
     ): EditProfileViewModel {
-        val cameraFiles = CameraFiles(
-            directory = cameraDirectory,
+        val cameraFileStore = CameraFileStore(
+            findDirectory = { cameraDirectory },
             scope = appScope,
             ioDispatcher = dispatcher,
             contentUriOf = { file -> CAMERA_URI_PREFIX + file.name }
@@ -532,9 +532,9 @@ class EditProfileViewModelTest {
             profileRepository = profileRepository,
             photoRepository = photoRepository,
             accountRepository = FakeAccountRepository(loggedInUid),
-            cameraFiles = cameraFiles,
+            cameraFileStore = cameraFileStore,
             cameraCapture = CameraCapture(
-                cameraFiles = cameraFiles,
+                cameraFileStore = cameraFileStore,
                 savedStateHandle = savedStateHandle,
                 scope = CoroutineScope(dispatcher)
             ),

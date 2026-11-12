@@ -3,7 +3,7 @@
 package edu.csuci.tweeter.ui.camera
 
 import androidx.lifecycle.SavedStateHandle
-import edu.csuci.tweeter.data.CameraFiles
+import edu.csuci.tweeter.data.CameraFileStore
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -171,8 +171,8 @@ class CameraCaptureTest {
     }
 
     private fun TestScope.cameraCapture(): CameraCapture = CameraCapture(
-        cameraFiles = CameraFiles(
-            directory = directory,
+        cameraFileStore = CameraFileStore(
+            findDirectory = { directory },
             scope = backgroundScope,
             ioDispatcher = UnconfinedTestDispatcher(testScheduler),
             contentUriOf = ::contentUriOf
