@@ -53,7 +53,13 @@ internal class PostMap(camera: CameraPosition, onPinClick: (postId: String) -> U
 
 /**
  * Starts the map engine that every [PostMap] shares, unless it has started: loads its native
- * libraries and opens its tile cache. Any thread may call it, once [configureMapTiles] has run.
+ * libraries and opens its tile cache.
+ *
+ * Any thread may call it, at the same time as others, once [configureMapTiles] has run. In
+ * maplibre-compose 0.20, `DefaultMapRuntime.instance` creates the runtime under a lock, the
+ * native libraries are initialized under another, and the runtime then works on a thread of its
+ * own, handing map state to the main dispatcher. `MapLibre.getInstance`, which must run on the
+ * main thread, belongs to the MapLibre Android SDK, which the app doesn't use.
  */
 internal fun startMapEngine() {
     DefaultMapRuntime.instance

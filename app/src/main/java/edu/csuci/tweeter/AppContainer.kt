@@ -131,9 +131,10 @@ class AppContainer(private val context: Context) {
 
     /**
      * Gets ready, on background threads, what the first screens use: the repositories they read,
-     * and the map engine. Their first use loads classes, settings and native libraries. Started
-     * from `Application.onCreate`, that work runs on other cores while the activity starts,
-     * instead of on the main thread while the first frames wait.
+     * and the map engine, so that opening Map doesn't load it on the main thread. Their first use
+     * loads classes, settings and native libraries. Started from `Application.onCreate`, that
+     * work runs on other cores while the activity starts, instead of on the main thread while the
+     * first frames wait.
      */
     fun prepareFirstScreens() {
         applicationScope.launch {
