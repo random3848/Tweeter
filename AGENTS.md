@@ -440,8 +440,9 @@ Threads:
   computation, started by a ViewModel or repository, never by a composable or a click handler.
 - Derived data is computed once per change of its input, where the change arrives: drop inputs
   equal to the last with `distinctUntilChanged()` first, and never recompute on every
-  recomposition. Firestore snapshots are parsed one at a time, in order, on the post repository's
-  serial executor.
+  recomposition. The post repository drops tables holding the same posts as the last, once for
+  every screen, so screens and their UI state compare tables by identity. Firestore snapshots are
+  parsed one at a time, in order, and only the newest of those that arrive during a parse.
 - Spread work over more threads only when it is slow enough to gain from it. A pass over the posts
   takes milliseconds; splitting it costs more than it saves, and can reorder results.
 
