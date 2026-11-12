@@ -16,11 +16,13 @@ import edu.csuci.tweeter.data.PhotoUploadException
 import edu.csuci.tweeter.location.GeoPoint
 import edu.csuci.tweeter.location.PhotoLocator
 import edu.csuci.tweeter.ui.camera.CameraCapture
+import edu.csuci.tweeter.ui.camera.ChosenPhoto
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.TestScope
@@ -39,6 +41,8 @@ import org.junit.rules.TemporaryFolder
 
 private const val CONTENT_URI_PREFIX = "content://camera/"
 private const val CAMERA_ROLL_URI = "content://media/1"
+private const val OTHER_CAMERA_ROLL_URI = "content://media/2"
+private const val UPLOADED_URL = "https://example.com/uploaded.jpg"
 private val PICKED_POINT = GeoPoint(latitude = 34.16, longitude = -119.04)
 
 class PostViewModelTest {
@@ -74,41 +78,39 @@ class PostViewModelTest {
         viewModel.takePicture()
 
         assertEquals(listOf(viewModel.cameraUriToOpen), contentUrisInDirectory())
-        assertTrue(viewModel.isTakingPicture)
+        assertTrue(viewModel.isOpeningCamera)
     }
 
     @Test
-    fun pictureTaken_saved_makesItThePhoto() {
+    fun pictureSaved_makesItThePhoto() {
         val viewModel = createViewModel()
         val cameraUri = openCamera(viewModel)
 
-        viewModel.pictureTaken(isSaved = true)
+        viewModel.pictureSaved()
 
         assertEquals(cameraUri, viewModel.photoUri)
         assertTrue(viewModel.isPhotoFromCamera)
-        assertFalse(viewModel.isTakingPicture)
     }
 
     @Test
-    fun pictureTaken_notSaved_deletesFileAndKeepsPhoto() {
+    fun pictureCancelled_deletesFileAndKeepsPhoto() {
         val viewModel = createViewModel()
         viewModel.choosePhoto(CAMERA_ROLL_URI)
         openCamera(viewModel)
 
-        viewModel.pictureTaken(isSaved = false)
+        viewModel.pictureCancelled()
 
         assertEquals(CAMERA_ROLL_URI, viewModel.photoUri)
         assertEquals(emptyList<String>(), contentUrisInDirectory())
     }
 
     @Test
-    fun pictureTaken_replacingCameraPhoto_deletesItsFile() {
+    fun pictureSaved_replacingCameraPhoto_deletesItsFile() {
         val viewModel = createViewModel()
-        openCamera(viewModel)
-        viewModel.pictureTaken(isSaved = true)
+        takeCameraPhoto(viewModel)
         val secondUri = openCamera(viewModel)
 
-        viewModel.pictureTaken(isSaved = true)
+        viewModel.pictureSaved()
 
         assertEquals(listOf(secondUri), contentUrisInDirectory())
     }
@@ -116,8 +118,7 @@ class PostViewModelTest {
     @Test
     fun choosePhoto_replacingCameraPhoto_deletesItsFile() {
         val viewModel = createViewModel()
-        openCamera(viewModel)
-        viewModel.pictureTaken(isSaved = true)
+        takeCameraPhoto(viewModel)
 
         viewModel.choosePhoto(CAMERA_ROLL_URI)
 
@@ -134,7 +135,7 @@ class PostViewModelTest {
         viewModel.cameraUnavailable()
 
         assertTrue(viewModel.cameraFailed)
-        assertFalse(viewModel.isTakingPicture)
+        assertFalse(viewModel.isOpeningCamera)
         assertEquals(emptyList<String>(), contentUrisInDirectory())
     }
 
@@ -151,9 +152,7 @@ class PostViewModelTest {
 
     @Test
     fun init_savedPhoto_restoresIt() {
-        val viewModel = createViewModel()
-        val cameraUri = openCamera(viewModel)
-        viewModel.pictureTaken(isSaved = true)
+        val cameraUri = takeCameraPhoto(createViewModel())
 
         val restored = createViewModel()
 
@@ -169,9 +168,7 @@ class PostViewModelTest {
     @Test
     fun cleared_afterCameraPhoto_restoredViewModelKeepsIt() {
         val store = ViewModelStore()
-        val viewModel = createViewModelIn(store)
-        val cameraUri = openCamera(viewModel)
-        viewModel.pictureTaken(isSaved = true)
+        val cameraUri = takeCameraPhoto(createViewModelIn(store))
 
         store.clear()
         val restored = createViewModel()
@@ -187,9 +184,65 @@ class PostViewModelTest {
 
         store.clear()
         val restored = createViewModel()
-        restored.pictureTaken(isSaved = true)
+        restored.pictureSaved()
 
         assertEquals(cameraUri, restored.photoUri)
+        assertEquals(listOf(cameraUri), contentUrisInDirectory())
+    }
+
+    @Test
+    fun photoToLocate_newPhoto_isIt() {
+        val viewModel = createViewModel()
+
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+
+        assertEquals(CAMERA_ROLL_URI, viewModel.photoToLocate)
+    }
+
+    @Test
+    fun photoToLocate_permissionsRequested_isNull() {
+        val viewModel = createViewModel()
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+
+        viewModel.locationPermissionsRequested()
+
+        assertNull(viewModel.photoToLocate)
+    }
+
+    @Test
+    fun photoToLocate_cameraAnswersWithoutPicture_staysNull() {
+        val viewModel = createViewModel()
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+        viewModel.locationPermissionsRequested()
+
+        viewModel.pictureSaved()
+
+        assertNull(viewModel.photoToLocate)
+    }
+
+    @Test
+    fun choosePhoto_whileUploading_keepsPhotoBeingUploaded() {
+        val viewModel = createViewModel(photoRepository = SlowPhotoRepository())
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+        viewModel.pickLocation(PICKED_POINT)
+        viewModel.uploadPhoto(caption = "", animalType = "", confidence = null)
+
+        viewModel.choosePhoto(OTHER_CAMERA_ROLL_URI)
+
+        assertEquals(CAMERA_ROLL_URI, viewModel.photoUri)
+    }
+
+    @Test
+    fun pictureSaved_whileUploading_keepsPhotoBeingUploadedAndDeletesNewFile() {
+        val viewModel = createViewModel(photoRepository = SlowPhotoRepository())
+        val cameraUri = takeCameraPhoto(viewModel)
+        viewModel.pickLocation(PICKED_POINT)
+        openCamera(viewModel)
+        viewModel.uploadPhoto(caption = "", animalType = "", confidence = null)
+
+        viewModel.pictureSaved()
+
+        assertEquals(cameraUri, viewModel.photoUri)
         assertEquals(listOf(cameraUri), contentUrisInDirectory())
     }
 
@@ -206,6 +259,31 @@ class PostViewModelTest {
         assertEquals(0, postCount())
     }
 
+    @Test
+    fun uploadFailed_newPhotoChosen_isFalse() {
+        val viewModel = createViewModel(photoRepository = FailingPhotoRepository())
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+        viewModel.pickLocation(PICKED_POINT)
+        viewModel.uploadPhoto(caption = "", animalType = "", confidence = null)
+
+        viewModel.choosePhoto(OTHER_CAMERA_ROLL_URI)
+
+        assertFalse(viewModel.uploadFailed)
+    }
+
+    @Test
+    fun uploadPhoto_shared_forgetsCameraPhotoAndKeepsItsUrl() {
+        val viewModel = createViewModel(photoRepository = UploadingPhotoRepository())
+        takeCameraPhoto(viewModel)
+        viewModel.pickLocation(PICKED_POINT)
+
+        viewModel.uploadPhoto(caption = "", animalType = "", confidence = null)
+
+        assertNull(viewModel.photoUri)
+        assertEquals(UPLOADED_URL, viewModel.uploadedPhotoUrl)
+        assertEquals(emptyList<String>(), contentUrisInDirectory())
+    }
+
     // Takes a picture up to the camera app opening, and returns the URI it saves into.
     private fun openCamera(viewModel: PostViewModel): String {
         viewModel.takePicture()
@@ -213,6 +291,10 @@ class PostViewModelTest {
         viewModel.cameraOpened()
         return cameraUri
     }
+
+    // Takes a picture that the camera app saves, and returns its URI.
+    private fun takeCameraPhoto(viewModel: PostViewModel): String =
+        openCamera(viewModel).also { viewModel.pictureSaved() }
 
     // A ViewModel that [store] holds, so that clearing [store] clears it.
     private fun createViewModelIn(store: ViewModelStore): PostViewModel {
@@ -229,6 +311,7 @@ class PostViewModelTest {
             ioDispatcher = dispatcher,
             contentUriOf = ::contentUriOf
         )
+        val photo = ChosenPhoto(cameraFileStore, savedStateHandle)
         return PostViewModel(
             photoRepository = photoRepository,
             postRepository = postRepository,
@@ -239,9 +322,10 @@ class PostViewModelTest {
                 currentDeviceFix = { null },
                 ioDispatcher = dispatcher
             ),
-            cameraFileStore = cameraFileStore,
+            photo = photo,
             cameraCapture = CameraCapture(
                 cameraFileStore = cameraFileStore,
+                photo = photo,
                 savedStateHandle = savedStateHandle,
                 scope = CoroutineScope(dispatcher)
             ),
@@ -270,5 +354,14 @@ class PostViewModelTest {
     private class FailingPhotoRepository : UnusedPhotoRepository() {
         override suspend fun uploadPhoto(photoUri: String): String =
             throw PhotoUploadException(IOException("Could not read the photo"))
+    }
+
+    private class UploadingPhotoRepository : UnusedPhotoRepository() {
+        override suspend fun uploadPhoto(photoUri: String): String = UPLOADED_URL
+    }
+
+    // An upload that doesn't finish while the test runs, like a slow one.
+    private class SlowPhotoRepository : UnusedPhotoRepository() {
+        override suspend fun uploadPhoto(photoUri: String): String = awaitCancellation()
     }
 }

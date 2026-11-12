@@ -7,28 +7,36 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 
 /**
- * Opens the camera app whenever [camera] asks for it with [CameraControls.cameraUriToOpen], and
- * tells [camera] whether it opened.
- *
- * @param onResult Called with whether the camera app saved a picture, once it closes. This also
- *     works after Android stopped the app while the camera app was open.
+ * Opens the camera app whenever [camera] asks for it with [CameraControls.cameraUriToOpen] while
+ * this is composed, and tells [camera] whether it opened and, once it closes, whether it saved
+ * the picture. That answer also arrives after Android stopped the app while the camera app was
+ * open. Leaving composition gives up on a picture the camera app hasn't been opened for yet.
  */
 @Composable
-fun CameraOpener(camera: CameraControls, onResult: (isSaved: Boolean) -> Unit) {
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture(),
-        onResult = onResult
-    )
+fun CameraOpener(camera: CameraControls) {
     val currentCamera by rememberUpdatedState(camera)
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { isSaved ->
+        if (isSaved) {
+            currentCamera.pictureSaved()
+        } else {
+            currentCamera.pictureCancelled()
+        }
+    }
     val uriToOpen = camera.cameraUriToOpen
 
     LaunchedEffect(uriToOpen) {
         uriToOpen?.let { uri -> cameraLauncher.openCamera(uri, currentCamera) }
+    }
+    DisposableEffect(camera) {
+        onDispose { camera.stopOpeningCamera() }
     }
 }
 

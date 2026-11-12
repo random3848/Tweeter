@@ -15,7 +15,6 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.firebase.FirebaseException
 import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
-import edu.csuci.tweeter.data.CameraFileStore
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PhotoUploadException
 import edu.csuci.tweeter.data.ProfileRepository
@@ -24,15 +23,14 @@ import edu.csuci.tweeter.data.deleteUnusedPhoto
 import edu.csuci.tweeter.data.getLoggedInProfile
 import edu.csuci.tweeter.ui.camera.CameraCapture
 import edu.csuci.tweeter.ui.camera.CameraControls
+import edu.csuci.tweeter.ui.camera.ChosenPhoto
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 private const val DISPLAY_NAME_KEY = "displayName"
 private const val BIO_KEY = "bio"
-private const val PHOTO_URI_KEY = "photoUri"
 private const val PHOTO_REMOVED_KEY = "photoRemoved"
-private const val CACHED_FILE_KEY = "cachedFile"
 
 /**
  * How long saving waits for the server to confirm the profile write. Firestore applies the write
@@ -51,16 +49,17 @@ internal const val PROFILE_WRITE_TIMEOUT_MILLIS = 10_000L
  * @param photoRepository Uploads a new profile photo when the profile is saved, and deletes it
  *     again if the profile then can't be written.
  * @param accountRepository Who is logged in.
- * @param cameraFileStore Deletes the file of a camera photo once it's replaced.
- * @param cameraCapture Takes pictures with the camera app, for the screen to control through this
- *     ViewModel; it's closed with the ViewModel.
- * @param savedStateHandle Keeps the typed name and bio and the photo change.
+ * @param photo The new profile photo, chosen with the camera or from the camera roll. It isn't
+ *     replaced while the profile saves.
+ * @param cameraCapture Takes pictures with the camera app into [photo], for the screen to control
+ *     through this ViewModel; it's closed with the ViewModel.
+ * @param savedStateHandle Keeps the typed name and bio, and whether the photo was removed.
  */
 class EditProfileViewModel(
     private val profileRepository: ProfileRepository,
     private val photoRepository: PhotoRepository,
     private val accountRepository: AccountRepository,
-    private val cameraFileStore: CameraFileStore,
+    private val photo: ChosenPhoto,
     private val cameraCapture: CameraCapture,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel(cameraCapture),
@@ -72,12 +71,21 @@ class EditProfileViewModel(
     var edits by mutableStateOf<ProfileEdits?>(null)
         private set
 
-    /** What saving does with the profile photo. */
-    var photoChange by mutableStateOf(savedPhotoChange())
-        private set
+    // Whether the user removed the photo; a photo chosen since replaces it all the same.
+    private var isPhotoRemoved by mutableStateOf(
+        savedStateHandle.get<Boolean>(PHOTO_REMOVED_KEY) ?: false
+    )
 
-    // The app's own file holding a camera photo in [photoChange], deleted once nothing needs it.
-    private var cachedFilePath: String? = savedStateHandle[CACHED_FILE_KEY]
+    /** What saving does with the profile photo. */
+    val photoChange: PhotoChange
+        get() {
+            val chosenUri = photo.uri
+            return when {
+                chosenUri != null -> PhotoChange.Replace(chosenUri)
+                isPhotoRemoved -> PhotoChange.Remove
+                else -> PhotoChange.Unchanged
+            }
+        }
 
     /** Whether the edits are being saved. */
     var isSaving by mutableStateOf(false)
@@ -146,45 +154,23 @@ class EditProfileViewModel(
     }
 
     /**
-     * Makes the picture the camera app took the new profile photo when [isSaved], and otherwise
-     * deletes its file. While [isSaving] the picture is ignored, as [choosePhoto] is, and its file
-     * deleted.
-     */
-    fun pictureTaken(isSaved: Boolean) {
-        if (isSaved) {
-            cameraCapture.keep()?.let { picture ->
-                changePhoto(PhotoChange.Replace(picture.contentUri), cameraFilePath = picture.path)
-            }
-        } else {
-            cameraCapture.discard()
-        }
-    }
-
-    /**
      * Makes the photo at [photoUri], chosen from the camera roll, the new profile photo, uploaded
      * when the profile is saved. Ignored while [isSaving], since saving reads the photo it
      * started with.
      */
     fun choosePhoto(photoUri: String) {
-        changePhoto(PhotoChange.Replace(photoUri), cameraFilePath = null)
+        photo.chooseFromCameraRoll(photoUri)
     }
 
     /** Removes the profile photo when the profile is saved. Ignored while [isSaving]. */
     fun removePhoto() {
-        changePhoto(PhotoChange.Remove, cameraFilePath = null)
-    }
-
-    // Makes [change], whose photo is in the camera file at [cameraFilePath] if it has one. While
-    // saving, the change is dropped and its own file deleted instead: the photo being uploaded,
-    // and its file, must stay.
-    private fun changePhoto(change: PhotoChange, cameraFilePath: String?) {
         if (isSaving) {
-            cameraFilePath?.let(cameraFileStore::discard)
             return
         }
 
-        replaceCachedFile(cameraFilePath)
-        updatePhotoChange(change)
+        photo.clear()
+        isPhotoRemoved = true
+        savedStateHandle[PHOTO_REMOVED_KEY] = true
     }
 
     /**
@@ -199,6 +185,7 @@ class EditProfileViewModel(
         }
 
         isSaving = true
+        photo.lock()
         saveFailed = false
         val change = photoChange
         viewModelScope.launch { saveProfile(currentEdits.applyTo(currentProfile), change) }
@@ -237,6 +224,7 @@ class EditProfileViewModel(
         } finally {
             isWritingProfile = false
             isSaving = false
+            photo.unlock()
         }
     }
 
@@ -284,28 +272,6 @@ class EditProfileViewModel(
             PhotoChange.Remove -> ""
         }
 
-    private fun savedPhotoChange(): PhotoChange {
-        val photoUri = savedStateHandle.get<String>(PHOTO_URI_KEY)
-        return when {
-            photoUri != null -> PhotoChange.Replace(photoUri)
-            savedStateHandle.get<Boolean>(PHOTO_REMOVED_KEY) == true -> PhotoChange.Remove
-            else -> PhotoChange.Unchanged
-        }
-    }
-
-    private fun updatePhotoChange(change: PhotoChange) {
-        photoChange = change
-        savedStateHandle[PHOTO_URI_KEY] = (change as? PhotoChange.Replace)?.photoUri
-        savedStateHandle[PHOTO_REMOVED_KEY] = change == PhotoChange.Remove
-    }
-
-    private fun replaceCachedFile(newPath: String?) {
-        val replacedPath = cachedFilePath
-        cachedFilePath = newPath
-        savedStateHandle[CACHED_FILE_KEY] = newPath
-        replacedPath?.let(cameraFileStore::discard)
-    }
-
     private fun savedEdits(): ProfileEdits? {
         val displayName = savedStateHandle.get<String>(DISPLAY_NAME_KEY) ?: return null
         val bio = savedStateHandle.get<String>(BIO_KEY) ?: return null
@@ -325,12 +291,17 @@ class EditProfileViewModel(
                 val application = this[APPLICATION_KEY] as TweeterApplication
                 val cameraFileStore = application.container.cameraFileStore
                 val savedStateHandle = createSavedStateHandle()
+                val photo = ChosenPhoto(cameraFileStore, savedStateHandle)
                 EditProfileViewModel(
                     profileRepository = application.container.profileRepository,
                     photoRepository = application.container.photoRepository,
                     accountRepository = application.container.accountRepository,
-                    cameraFileStore = cameraFileStore,
-                    cameraCapture = CameraCapture.onMainThread(cameraFileStore, savedStateHandle),
+                    photo = photo,
+                    cameraCapture = CameraCapture.onMainThread(
+                        cameraFileStore,
+                        photo,
+                        savedStateHandle
+                    ),
                     savedStateHandle = savedStateHandle
                 )
             }

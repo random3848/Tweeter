@@ -10,91 +10,102 @@ import edu.csuci.tweeter.data.CameraFileStore
 import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
-private const val FILE_PATH_KEY = "cameraFilePath"
-private const val FILE_URI_KEY = "cameraFileUri"
-private const val IS_OPENED_KEY = "isCameraOpened"
+private const val OPENED_FILE_PATH_KEY = "cameraFilePath"
+private const val OPENED_FILE_URI_KEY = "cameraFileUri"
 private const val FAILED_KEY = "cameraFailed"
 
 /**
  * A picture being taken with the camera app for a ViewModel, from creating the file the camera
- * app saves it into until the camera app answers.
+ * app saves it into until the camera app answers, when the picture becomes [photo].
  *
- * The ViewModel exposes it as [CameraControls], passes it to its `ViewModel` constructor so it's
- * closed with the ViewModel, and finishes each picture with [keep] or [discard]. The file
- * survives the app being stopped while the camera app is open, through [savedStateHandle].
+ * The ViewModel exposes it as [CameraControls] and passes it to its `ViewModel` constructor, so
+ * it's closed with the ViewModel. A file the camera app was opened with survives the app being
+ * stopped meanwhile, through [savedStateHandle]; one it wasn't opened with yet doesn't, since the
+ * screen restored later shouldn't open the camera app by itself.
  *
  * @param cameraFileStore Creates and deletes the file, off the main thread.
- * @param savedStateHandle The ViewModel's, keeping the file and whether the camera app opened.
+ * @param photo Where a picture the camera app saved goes.
+ * @param savedStateHandle The ViewModel's, keeping the file the camera app was opened with.
  * @param scope Where the file is created, on the main thread. It's this capture's alone:
  *     [close] cancels it.
  */
 class CameraCapture(
     private val cameraFileStore: CameraFileStore,
+    private val photo: ChosenPhoto,
     private val savedStateHandle: SavedStateHandle,
     private val scope: CoroutineScope
 ) : CameraControls,
     AutoCloseable {
     private var isCreatingFile by mutableStateOf(false)
 
-    // The file the picture is being taken into, from its creation until the camera app answers.
-    private var file by mutableStateOf(savedFile())
+    private var creation: Job? = null
 
-    private var isCameraOpened by mutableStateOf(savedStateHandle[IS_OPENED_KEY] ?: false)
+    // Created for the picture, until the screen opens the camera app with it.
+    private var fileToOpen by mutableStateOf<CameraFile?>(null)
+
+    // The camera app was opened with it, and hasn't answered yet.
+    private var openedFile: CameraFile? = savedOpenedFile()
 
     override val cameraUriToOpen: String?
-        get() = file?.contentUri?.takeUnless { isCameraOpened }
+        get() = fileToOpen?.contentUri
 
-    override val isTakingPicture: Boolean
-        get() = isCreatingFile || file != null
+    override val isOpeningCamera: Boolean
+        get() = isCreatingFile || fileToOpen != null
 
     override var cameraFailed by mutableStateOf(savedStateHandle[FAILED_KEY] ?: false)
         private set
 
     override fun takePicture() {
-        if (isTakingPicture) {
+        if (isOpeningCamera) {
             return
         }
 
         updateFailed(false)
-        scope.launch { createFileWhileTaking() }
+        discardOpenedFile()
+        isCreatingFile = true
+        creation = scope.launch { createFileToOpen() }
     }
 
-    // Creates the file, counting as taking a picture meanwhile so a second start is ignored.
-    private suspend fun createFileWhileTaking() {
-        isCreatingFile = true
+    private suspend fun createFileToOpen() {
         try {
-            createFile()
+            fileToOpen = cameraFileStore.create()
+        } catch (error: IOException) {
+            Log.e("CameraCapture", "Could not create a file for the camera photo", error)
+            updateFailed(true)
         } finally {
             isCreatingFile = false
         }
     }
 
     override fun cameraOpened() {
-        isCameraOpened = true
-        savedStateHandle[IS_OPENED_KEY] = true
-    }
-
-    /**
-     * Finishes taking the picture, which the camera app saved, and returns its file, or null when
-     * no picture was being taken. The caller discards the file with [CameraFileStore.discard] once
-     * nothing needs it.
-     */
-    fun keep(): CameraFile? = file.also { updateFile(null) }
-
-    /** Finishes taking the picture, which the camera app didn't save, and discards its file. */
-    fun discard() {
-        val discarded = file ?: return
-        updateFile(null)
-        cameraFileStore.discard(discarded.path)
+        val opened = fileToOpen ?: return
+        fileToOpen = null
+        updateOpenedFile(opened)
     }
 
     override fun cameraUnavailable() {
         updateFailed(true)
-        discard()
+        discardFileToOpen()
+    }
+
+    override fun stopOpeningCamera() {
+        creation?.cancel()
+        discardFileToOpen()
+    }
+
+    override fun pictureSaved() {
+        val saved = openedFile ?: return
+        updateOpenedFile(null)
+        photo.chooseCameraPicture(saved)
+    }
+
+    override fun pictureCancelled() {
+        discardOpenedFile()
     }
 
     override fun dismissCameraFailure() {
@@ -102,36 +113,39 @@ class CameraCapture(
     }
 
     /**
-     * Stops creating a file, for the ViewModel being cleared. The file of a picture being taken
+     * Stops creating a file, for the ViewModel being cleared, and deletes one the camera app
+     * wasn't opened with, which nothing can restore. The file the camera app was opened with
      * stays: the ViewModel may be cleared only for its activity to be created again, and the one
      * restored then still waits for the camera app's answer. `CameraFileStore.discardAll`
      * deletes it when the app next starts afresh.
      */
     override fun close() {
         scope.cancel()
+        discardFileToOpen()
     }
 
-    private suspend fun createFile() {
-        try {
-            updateFile(cameraFileStore.create())
-        } catch (error: IOException) {
-            Log.e("CameraCapture", "Could not create a file for the camera photo", error)
-            updateFailed(true)
-        }
+    private fun discardFileToOpen() {
+        val discarded = fileToOpen ?: return
+        fileToOpen = null
+        cameraFileStore.discard(discarded.path)
     }
 
-    private fun savedFile(): CameraFile? {
-        val path = savedStateHandle.get<String>(FILE_PATH_KEY) ?: return null
-        val contentUri = savedStateHandle.get<String>(FILE_URI_KEY) ?: return null
+    private fun discardOpenedFile() {
+        val discarded = openedFile ?: return
+        updateOpenedFile(null)
+        cameraFileStore.discard(discarded.path)
+    }
+
+    private fun savedOpenedFile(): CameraFile? {
+        val path = savedStateHandle.get<String>(OPENED_FILE_PATH_KEY) ?: return null
+        val contentUri = savedStateHandle.get<String>(OPENED_FILE_URI_KEY) ?: return null
         return CameraFile(path = path, contentUri = contentUri)
     }
 
-    private fun updateFile(newFile: CameraFile?) {
-        file = newFile
-        isCameraOpened = false
-        savedStateHandle[FILE_PATH_KEY] = newFile?.path
-        savedStateHandle[FILE_URI_KEY] = newFile?.contentUri
-        savedStateHandle[IS_OPENED_KEY] = false
+    private fun updateOpenedFile(newFile: CameraFile?) {
+        openedFile = newFile
+        savedStateHandle[OPENED_FILE_PATH_KEY] = newFile?.path
+        savedStateHandle[OPENED_FILE_URI_KEY] = newFile?.contentUri
     }
 
     private fun updateFailed(hasFailed: Boolean) {
@@ -147,9 +161,11 @@ class CameraCapture(
          */
         fun onMainThread(
             cameraFileStore: CameraFileStore,
+            photo: ChosenPhoto,
             savedStateHandle: SavedStateHandle
         ): CameraCapture = CameraCapture(
             cameraFileStore = cameraFileStore,
+            photo = photo,
             savedStateHandle = savedStateHandle,
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         )

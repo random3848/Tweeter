@@ -15,7 +15,6 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.firebase.FirebaseException
 import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
-import edu.csuci.tweeter.data.CameraFileStore
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PhotoUploadException
 import edu.csuci.tweeter.data.Post
@@ -32,6 +31,7 @@ import edu.csuci.tweeter.location.LocationSource
 import edu.csuci.tweeter.location.PhotoLocator
 import edu.csuci.tweeter.ui.camera.CameraCapture
 import edu.csuci.tweeter.ui.camera.CameraControls
+import edu.csuci.tweeter.ui.camera.ChosenPhoto
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
@@ -40,16 +40,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-private const val PHOTO_URI_KEY = "photoUri"
-private const val PHOTO_PATH_KEY = "photoPath"
+private const val UPLOADED_PHOTO_URL_KEY = "uploadedPhotoUrl"
 
 /**
  * Holds the post's photo, taken with the camera or chosen from the camera roll, finds where it
  * was taken, uploads it, shares it as a post, and holds the state the post screen displays.
  *
- * @param cameraFileStore Deletes the file of a camera photo once it's replaced or shared.
- * @param cameraCapture Takes pictures with the camera app, for the screen to control through this
- *     ViewModel; it's closed with the ViewModel.
+ * @param photo The post's photo. It isn't replaced while it uploads.
+ * @param cameraCapture Takes pictures with the camera app into [photo], for the screen to control
+ *     through this ViewModel; it's closed with the ViewModel.
  */
 class PostViewModel(
     private val photoRepository: PhotoRepository,
@@ -57,12 +56,18 @@ class PostViewModel(
     private val profileRepository: ProfileRepository,
     private val accountRepository: AccountRepository,
     private val photoLocator: PhotoLocator<Uri>,
-    private val cameraFileStore: CameraFileStore,
+    private val photo: ChosenPhoto,
     private val cameraCapture: CameraCapture,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel(cameraCapture),
     CameraControls by cameraCapture {
     private var locateJob: Job? = null
+
+    // The photo whose latest upload failed, or null.
+    private var failedPhotoUri by mutableStateOf<String?>(null)
+
+    // The photo the screen asked location permissions for last, so that it asks once per photo.
+    private var photoAskedToLocate by mutableStateOf<String?>(null)
 
     /** The logged-in user's ID, or null while nobody is logged in and posting isn't allowed. */
     val loggedInUid: StateFlow<String?> = accountRepository.loggedInUid
@@ -71,15 +76,13 @@ class PostViewModel(
     var isUploading by mutableStateOf(false)
         private set
 
-    /** The shared photo's URL, or null until the post has been shared. */
-    var uploadedPhotoUrl by mutableStateOf(
-        savedStateHandle.get<String>("uploadedPhotoUrl")
-    )
+    /** The URL of the photo of the post shared last, or null until a post has been shared. */
+    var uploadedPhotoUrl by mutableStateOf(savedStateHandle.get<String>(UPLOADED_PHOTO_URL_KEY))
         private set
 
-    /** Whether the latest attempt to share the post failed. */
-    var uploadFailed by mutableStateOf(false)
-        private set
+    /** Whether sharing the photo at [photoUri] failed the last time it was tried. */
+    val uploadFailed: Boolean
+        get() = failedPhotoUri != null && failedPhotoUri == photo.uri
 
     /**
      * Where the post's photo was taken: found by [locatePhoto], or picked by the user with
@@ -97,64 +100,73 @@ class PostViewModel(
      * The URI of the photo to share: a `content://` URI on the phone, or null until the user
      * takes or chooses one, and again once it is shared.
      */
-    var photoUri by mutableStateOf(savedStateHandle.get<String>(PHOTO_URI_KEY))
-        private set
-
-    // The app's own file holding a camera photo in [photoUri], deleted once nothing needs it.
-    private var photoPath by mutableStateOf(savedStateHandle.get<String>(PHOTO_PATH_KEY))
+    val photoUri: String?
+        get() = photo.uri
 
     /** Whether the photo was just taken with the camera, not chosen from the camera roll. */
     val isPhotoFromCamera: Boolean
-        get() = photoPath != null
+        get() = photo.isFromCamera
 
     /**
-     * Makes the picture the camera app took the post's photo when [isSaved], and otherwise
-     * deletes its file.
+     * The photo whose location the screen should find next, or null: a new photo, until the
+     * screen calls [locationPermissionsRequested]. Finding it takes permissions the screen asks
+     * for first; whatever the user answers, it then calls [locatePhoto].
      */
-    fun pictureTaken(isSaved: Boolean) {
-        if (isSaved) {
-            cameraCapture.keep()?.let { picture -> replacePhoto(picture.contentUri, picture.path) }
-        } else {
-            cameraCapture.discard()
+    val photoToLocate: String?
+        get() = photo.uri.takeIf { it != photoAskedToLocate }
+
+    /**
+     * Makes the photo at [uri], chosen from the camera roll, the post's photo. Ignored while it
+     * uploads.
+     */
+    fun choosePhoto(uri: String) {
+        photo.chooseFromCameraRoll(uri)
+    }
+
+    /** Stops asking to find [photoToLocate], whose permissions the screen has asked for. */
+    fun locationPermissionsRequested() {
+        photoAskedToLocate = photo.uri
+    }
+
+    /**
+     * Forgets the previous location and looks for where the photo at [photoUri] was taken: where
+     * the device is for a photo just taken with the camera, or what the photo's own GPS tags
+     * say. Ignored while there's no photo.
+     */
+    fun locatePhoto() {
+        val uri = photo.uri ?: return
+        val capturedInApp = photo.isFromCamera
+        locateJob?.cancel()
+        location = null
+        isLocating = true
+        locateJob = viewModelScope.launch {
+            location = photoLocator.locate(Uri.parse(uri), capturedInApp)
+            isLocating = false
         }
     }
 
-    /** Makes the photo at [uri], chosen from the camera roll, the post's photo. */
-    fun choosePhoto(uri: String) {
-        replacePhoto(uri, cameraFilePath = null)
-    }
-
-    // Replaces the photo, deleting the previous camera photo's file, and clears the result of
-    // sharing the previous one.
-    private fun replacePhoto(uri: String, cameraFilePath: String?) {
-        clearUploadResult()
-        val replacedPath = photoPath
-        updatePhoto(uri, cameraFilePath)
-        replacedPath?.let(cameraFileStore::discard)
-    }
-
-    private fun updatePhoto(uri: String?, cameraFilePath: String?) {
-        photoUri = uri
-        photoPath = cameraFilePath
-        savedStateHandle[PHOTO_URI_KEY] = uri
-        savedStateHandle[PHOTO_PATH_KEY] = cameraFilePath
+    /** Sets the post's location to [point], which the user picked on the map. */
+    fun pickLocation(point: GeoPoint) {
+        locateJob?.cancel()
+        isLocating = false
+        location = LocationFix(point, LocationSource.MANUAL)
     }
 
     /**
      * Uploads the photo at [photoUri] without its location tags and shares it as a post at
-     * [location] by the logged-in user. Ignored while one runs, after the post is shared, or while
+     * [location] by the logged-in user, then forgets the photo. Ignored while one runs, or while
      * [photoUri] or [location] is null. Fails if nobody is logged in.
      */
     fun uploadPhoto(caption: String, animalType: String, confidence: Int?) {
-        val uri = photoUri
+        val uri = photo.uri
         val point = location?.point
-        if (isUploading || uploadedPhotoUrl != null || uri == null || point == null) {
+        if (isUploading || uri == null || point == null) {
             return
         }
 
         isUploading = true
-        uploadFailed = false
-        uploadedPhotoUrl = null
+        failedPhotoUri = null
+        photo.lock()
 
         viewModelScope.launch {
             try {
@@ -169,20 +181,19 @@ class PostViewModel(
                         )
                     }
                 )
-                uploadedPhotoUrl = photoUrl
-                savedStateHandle["uploadedPhotoUrl"] = uploadedPhotoUrl
-                forgetSharedPhoto()
+                forgetSharedPhoto(photoUrl)
             } catch (error: NobodyLoggedInException) {
                 Log.e("PostViewModel", "Nobody is logged in, so the post can't be shared", error)
-                uploadFailed = true
+                failedPhotoUri = uri
             } catch (error: PhotoUploadException) {
                 Log.e("PostViewModel", "Photo upload failed", error)
-                uploadFailed = true
+                failedPhotoUri = uri
             } catch (error: FirebaseException) {
                 Log.e("PostViewModel", "Could not save the post", error)
-                uploadFailed = true
+                failedPhotoUri = uri
             } finally {
                 isUploading = false
+                photo.unlock()
             }
         }
     }
@@ -196,45 +207,13 @@ class PostViewModel(
         }
     }
 
-    // Clears the previous upload result when a new photo is selected.
-    private fun clearUploadResult() {
-        if (isUploading) {
-            return
-        }
-
-        uploadedPhotoUrl = null
-        savedStateHandle["uploadedPhotoUrl"] = null
-        uploadFailed = false
-    }
-
-    // Forgets the photo once it's shared, deleting its file if it was a camera photo.
-    private fun forgetSharedPhoto() {
-        val sharedPath = photoPath
-        updatePhoto(uri = null, cameraFilePath = null)
-        sharedPath?.let(cameraFileStore::discard)
-    }
-
-    /**
-     * Forgets the previous photo's location and looks for where the photo at [uri] was taken.
-     *
-     * @param capturedInApp Whether the photo was just taken with the camera, which makes the
-     *     device's current location a good guess.
-     */
-    fun locatePhoto(uri: Uri, capturedInApp: Boolean) {
-        locateJob?.cancel()
-        location = null
-        isLocating = true
-        locateJob = viewModelScope.launch {
-            location = photoLocator.locate(uri, capturedInApp)
-            isLocating = false
-        }
-    }
-
-    /** Sets the post's location to [point], which the user picked on the map. */
-    fun pickLocation(point: GeoPoint) {
-        locateJob?.cancel()
-        isLocating = false
-        location = LocationFix(point, LocationSource.MANUAL)
+    // Forgets the photo, shared as [photoUrl]. The photo chosen next is located afresh, even if
+    // it's the same one.
+    private fun forgetSharedPhoto(photoUrl: String) {
+        uploadedPhotoUrl = photoUrl
+        savedStateHandle[UPLOADED_PHOTO_URL_KEY] = photoUrl
+        photo.clear()
+        photoAskedToLocate = null
     }
 
     private fun newPost(
@@ -272,6 +251,7 @@ class PostViewModel(
                 val application = this[APPLICATION_KEY] as TweeterApplication
                 val cameraFileStore = application.container.cameraFileStore
                 val savedStateHandle = createSavedStateHandle()
+                val photo = ChosenPhoto(cameraFileStore, savedStateHandle)
                 PostViewModel(
                     photoRepository = application.container.photoRepository,
                     postRepository = application.container.postRepository,
@@ -282,8 +262,12 @@ class PostViewModel(
                         currentDeviceFix = DeviceLocationProvider(application)::currentFix,
                         ioDispatcher = Dispatchers.IO
                     ),
-                    cameraFileStore = cameraFileStore,
-                    cameraCapture = CameraCapture.onMainThread(cameraFileStore, savedStateHandle),
+                    photo = photo,
+                    cameraCapture = CameraCapture.onMainThread(
+                        cameraFileStore,
+                        photo,
+                        savedStateHandle
+                    ),
                     savedStateHandle = savedStateHandle
                 )
             }

@@ -2,7 +2,6 @@ package edu.csuci.tweeter.ui.post
 
 import android.Manifest
 import android.content.ActivityNotFoundException
-import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -19,6 +18,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -82,14 +82,19 @@ private fun PostForm(postViewModel: PostViewModel, modifier: Modifier = Modifier
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) {
-        postViewModel.photoUri?.let { uri ->
-            postViewModel.locatePhoto(Uri.parse(uri), postViewModel.isPhotoFromCamera)
-        }
+        postViewModel.locatePhoto()
     }
 
     // A new photo's location: where the device is for one just taken, the photo's own GPS tags
-    // for one from the camera roll, which Android hides without ACCESS_MEDIA_LOCATION.
-    fun locateNewPhoto() {
+    // for one from the camera roll, which Android hides without ACCESS_MEDIA_LOCATION. Asked
+    // for once per photo.
+    val photoToLocate = postViewModel.photoToLocate
+    LaunchedEffect(photoToLocate) {
+        if (photoToLocate == null) {
+            return@LaunchedEffect
+        }
+
+        postViewModel.locationPermissionsRequested()
         locationPermissionLauncher.launch(
             if (postViewModel.isPhotoFromCamera) {
                 arrayOf(
@@ -102,15 +107,7 @@ private fun PostForm(postViewModel: PostViewModel, modifier: Modifier = Modifier
         )
     }
 
-    CameraOpener(
-        camera = postViewModel,
-        onResult = { isSaved ->
-            postViewModel.pictureTaken(isSaved)
-            if (isSaved) {
-                locateNewPhoto()
-            }
-        }
-    )
+    CameraOpener(camera = postViewModel)
 
     // The Files picker, not the Photo Picker: the Photo Picker strips a photo's GPS tags, which
     // the post's location is read from.
@@ -119,7 +116,6 @@ private fun PostForm(postViewModel: PostViewModel, modifier: Modifier = Modifier
     ) { uri ->
         if (uri != null) {
             postViewModel.choosePhoto(uri.toString())
-            locateNewPhoto()
         }
     }
 
@@ -134,7 +130,7 @@ private fun PostForm(postViewModel: PostViewModel, modifier: Modifier = Modifier
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Button(
-            enabled = !postViewModel.isUploading && !postViewModel.isTakingPicture,
+            enabled = !postViewModel.isUploading && !postViewModel.isOpeningCamera,
             onClick = {
                 pickerFailed = false
                 postViewModel.takePicture()
@@ -144,7 +140,7 @@ private fun PostForm(postViewModel: PostViewModel, modifier: Modifier = Modifier
         }
 
         Button(
-            enabled = !postViewModel.isUploading && !postViewModel.isTakingPicture,
+            enabled = !postViewModel.isUploading && !postViewModel.isOpeningCamera,
             onClick = {
                 postViewModel.dismissCameraFailure()
                 pickerFailed = false
@@ -163,9 +159,8 @@ private fun PostForm(postViewModel: PostViewModel, modifier: Modifier = Modifier
         Button(
             enabled = photoUri != null &&
                 !postViewModel.isUploading &&
-                !postViewModel.isTakingPicture &&
-                postViewModel.location != null &&
-                postViewModel.uploadedPhotoUrl == null,
+                !postViewModel.isOpeningCamera &&
+                postViewModel.location != null,
             onClick = { showPostDialog = true }
         ) {
             Text(stringResource(R.string.upload_photo))
@@ -201,12 +196,12 @@ private fun PostForm(postViewModel: PostViewModel, modifier: Modifier = Modifier
                 R.string.photo_upload_failed
             }
 
-            postViewModel.uploadedPhotoUrl != null -> {
-                R.string.photo_uploaded
-            }
-
             photoUri != null -> {
                 R.string.photo_ready
+            }
+
+            postViewModel.uploadedPhotoUrl != null -> {
+                R.string.photo_uploaded
             }
 
             else -> {

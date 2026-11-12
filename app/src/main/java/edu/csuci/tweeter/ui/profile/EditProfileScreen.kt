@@ -70,7 +70,7 @@ fun EditProfileScreen(
     // Consumes Back until the write is done; leaving couldn't undo it.
     BackHandler(enabled = isWritingProfile) {}
 
-    CameraOpener(camera = editProfileViewModel, onResult = editProfileViewModel::pictureTaken)
+    CameraOpener(camera = editProfileViewModel)
 
     val avatarProfile = editProfileViewModel.avatarProfile
     val edits = editProfileViewModel.edits

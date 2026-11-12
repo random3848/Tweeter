@@ -13,6 +13,7 @@ import edu.csuci.tweeter.data.PhotoUploadException
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.UserProfile
 import edu.csuci.tweeter.ui.camera.CameraCapture
+import edu.csuci.tweeter.ui.camera.ChosenPhoto
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
@@ -234,21 +235,21 @@ class EditProfileViewModelTest {
     }
 
     @Test
-    fun pictureTaken_saved_avatarShowsIt() {
+    fun pictureSaved_avatarShowsIt() {
         val viewModel = createViewModel()
 
         val cameraUri = takeCameraPhoto(viewModel)
 
         assertEquals(cameraUri, viewModel.avatarProfile?.photoUrl)
-        assertFalse(viewModel.isTakingPicture)
+        assertFalse(viewModel.isOpeningCamera)
     }
 
     @Test
-    fun pictureTaken_notSaved_deletesFileAndKeepsPhoto() {
+    fun pictureCancelled_deletesFileAndKeepsPhoto() {
         val viewModel = createViewModel()
         openCamera(viewModel)
 
-        viewModel.pictureTaken(isSaved = false)
+        viewModel.pictureCancelled()
 
         assertEquals(PhotoChange.Unchanged, viewModel.photoChange)
         assertEquals(emptyList<File>(), filesInDirectory())
@@ -297,6 +298,26 @@ class EditProfileViewModelTest {
     }
 
     @Test
+    fun choosePhoto_afterRemovingPhoto_replacesIt() {
+        val viewModel = createViewModel()
+        viewModel.removePhoto()
+
+        viewModel.choosePhoto(CHOSEN_PHOTO_URI)
+
+        assertEquals(PhotoChange.Replace(CHOSEN_PHOTO_URI), viewModel.photoChange)
+    }
+
+    @Test
+    fun init_photoRemoved_restoresRemoval() {
+        val savedStateHandle = SavedStateHandle()
+        createViewModel(savedStateHandle = savedStateHandle).removePhoto()
+
+        val restored = createViewModel(savedStateHandle = savedStateHandle)
+
+        assertEquals(PhotoChange.Remove, restored.photoChange)
+    }
+
+    @Test
     fun cleared_afterCameraPhoto_restoredViewModelKeepsIt() {
         val savedStateHandle = SavedStateHandle()
         val store = ViewModelStore()
@@ -317,7 +338,7 @@ class EditProfileViewModelTest {
 
         store.clear()
         val restored = createViewModel(savedStateHandle = savedStateHandle)
-        restored.pictureTaken(isSaved = true)
+        restored.pictureSaved()
 
         assertEquals(PhotoChange.Replace(cameraUri), restored.photoChange)
     }
@@ -442,14 +463,14 @@ class EditProfileViewModelTest {
     }
 
     @Test
-    fun pictureTaken_whileSaving_keepsPhotoBeingUploadedAndDeletesNewFile() {
+    fun pictureSaved_whileSaving_keepsPhotoBeingUploadedAndDeletesNewFile() {
         photoRepository.uploadFinished = CompletableDeferred()
         val viewModel = createViewModel()
         val cameraUri = takeCameraPhoto(viewModel)
         openCamera(viewModel)
         viewModel.save()
 
-        viewModel.pictureTaken(isSaved = true)
+        viewModel.pictureSaved()
 
         assertEquals(PhotoChange.Replace(cameraUri), viewModel.photoChange)
         assertEquals(listOf(cameraUri), contentUrisInDirectory())
@@ -515,7 +536,7 @@ class EditProfileViewModelTest {
 
     // Takes a picture that the camera app saves, and returns its URI.
     private fun takeCameraPhoto(viewModel: EditProfileViewModel): String =
-        openCamera(viewModel).also { viewModel.pictureTaken(isSaved = true) }
+        openCamera(viewModel).also { viewModel.pictureSaved() }
 
     private fun filesInDirectory(): List<File> = cameraDirectory.listFiles().orEmpty().toList()
 
@@ -543,13 +564,15 @@ class EditProfileViewModelTest {
             ioDispatcher = dispatcher,
             contentUriOf = { file -> CAMERA_URI_PREFIX + file.name }
         )
+        val photo = ChosenPhoto(cameraFileStore, savedStateHandle)
         return EditProfileViewModel(
             profileRepository = profileRepository,
             photoRepository = photoRepository,
             accountRepository = FakeAccountRepository(loggedInUid),
-            cameraFileStore = cameraFileStore,
+            photo = photo,
             cameraCapture = CameraCapture(
                 cameraFileStore = cameraFileStore,
+                photo = photo,
                 savedStateHandle = savedStateHandle,
                 scope = CoroutineScope(dispatcher)
             ),

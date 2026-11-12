@@ -4,7 +4,7 @@ package edu.csuci.tweeter.ui.camera
  * What a screen reads and calls to take a picture with the camera app, through [CameraOpener].
  *
  * [CameraCapture] implements it, and a ViewModel that takes pictures exposes its capture as this
- * interface. What happens to a picture the camera app saved is up to the ViewModel.
+ * interface. A picture the camera app saves becomes the ViewModel's [ChosenPhoto].
  */
 interface CameraControls {
     /**
@@ -13,8 +13,13 @@ interface CameraControls {
      */
     val cameraUriToOpen: String?
 
-    /** Whether a picture is being taken: from [takePicture] until the camera app answers. */
-    val isTakingPicture: Boolean
+    /**
+     * Whether the camera app is being opened: from [takePicture] until the screen has opened it
+     * or couldn't, or has closed first. Waiting for the camera app's answer doesn't count, since
+     * the answer can be lost, such as when Android blocks opening the camera app from the
+     * background.
+     */
+    val isOpeningCamera: Boolean
 
     /**
      * Whether the latest picture couldn't be taken, because its file couldn't be created or no
@@ -24,7 +29,8 @@ interface CameraControls {
 
     /**
      * Starts taking a picture: creates its file, then asks to open the camera app with
-     * [cameraUriToOpen]. Ignored while a picture is being taken.
+     * [cameraUriToOpen]. Ignored while [isOpeningCamera]. It replaces a picture the camera app
+     * was opened for but never answered.
      */
     fun takePicture()
 
@@ -33,6 +39,18 @@ interface CameraControls {
 
     /** Gives up on the picture, since no camera app could open, and reports [cameraFailed]. */
     fun cameraUnavailable()
+
+    /**
+     * Gives up on a picture the camera app hasn't been opened for yet, since the screen that
+     * would open it has closed: otherwise it would open the next time the screen is shown.
+     */
+    fun stopOpeningCamera()
+
+    /** Makes the picture the camera app saved the ViewModel's photo. */
+    fun pictureSaved()
+
+    /** Gives up on the picture, which the camera app closed without saving. */
+    fun pictureCancelled()
 
     /** Stops reporting [cameraFailed], once the user moves on. */
     fun dismissCameraFailure()
