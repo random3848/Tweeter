@@ -1,5 +1,6 @@
 package edu.csuci.tweeter.data
 
+import com.google.firebase.FirebaseException
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.channels.awaitClose
@@ -42,7 +43,11 @@ class FirestoreProfileRepository(firestore: FirebaseFirestore) : ProfileReposito
     }
 
     override suspend fun saveProfile(profile: UserProfile) {
-        profiles.document(profile.uid).set(ProfileDocument.fieldsOf(profile)).await()
+        try {
+            profiles.document(profile.uid).set(ProfileDocument.fieldsOf(profile)).await()
+        } catch (error: FirebaseException) {
+            throw ProfileSaveException(error)
+        }
     }
 
     private companion object {

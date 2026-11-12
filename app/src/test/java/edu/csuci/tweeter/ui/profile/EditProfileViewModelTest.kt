@@ -8,18 +8,19 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.firebase.FirebaseException
 import edu.csuci.tweeter.data.AccountRepository
 import edu.csuci.tweeter.data.CameraFileStore
-import edu.csuci.tweeter.data.PhotoRepository
-import edu.csuci.tweeter.data.PhotoUploadException
+import edu.csuci.tweeter.data.FakePhotoRepository
 import edu.csuci.tweeter.data.ProfileRepository
+import edu.csuci.tweeter.data.ProfileSaveException
+import edu.csuci.tweeter.data.ProfileSaver
 import edu.csuci.tweeter.data.UserProfile
 import edu.csuci.tweeter.ui.camera.CameraCapture
 import edu.csuci.tweeter.ui.camera.ChosenPhoto
 import java.io.File
-import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -57,6 +58,9 @@ class EditProfileViewModelTest {
 
     // Outlives the ViewModels, as the app's scope does, to delete camera photos they discard.
     private val appScope = TestScope(dispatcher)
+
+    // Where profiles finish saving, as in the app's scope, which a failed save doesn't cancel.
+    private val saveScope = CoroutineScope(SupervisorJob() + dispatcher)
 
     private val cameraDirectory: File
         get() = File(temporaryFolder.root, "photos")
@@ -392,36 +396,29 @@ class EditProfileViewModelTest {
     }
 
     @Test
-    fun save_writeFailsAfterPhotoUploaded_deletesUploadedPhoto() {
-        profileRepository.failsToSave = true
+    fun save_photoReplaced_deletesPreviousPhoto() {
+        profileRepository.profile = profile.copy(photoUrl = PHOTO_URL)
         val viewModel = createViewModel()
         viewModel.choosePhoto(CHOSEN_PHOTO_URI)
 
         viewModel.save()
+
+        assertEquals(listOf(PHOTO_URL), photoRepository.deletedPhotoUrls)
+    }
+
+    @Test
+    fun save_writeRejectedAfterTimeout_deletesUploadedPhoto() {
+        val saveFinished = CompletableDeferred<Unit>()
+        profileRepository.saveFinished = saveFinished
+        profileRepository.failsToSave = true
+        val viewModel = createViewModel()
+        viewModel.choosePhoto(CHOSEN_PHOTO_URI)
+        viewModel.save()
+        dispatcher.scheduler.advanceTimeBy(PROFILE_WRITE_TIMEOUT_MILLIS + 1)
+
+        saveFinished.complete(Unit)
 
         assertEquals(listOf(FakePhotoRepository.UPLOADED_URL), photoRepository.deletedPhotoUrls)
-        assertTrue(viewModel.saveFailed)
-    }
-
-    @Test
-    fun save_writeFailsWithPhotoUnchanged_deletesNothing() {
-        profileRepository.profile = profile.copy(photoUrl = PHOTO_URL)
-        profileRepository.failsToSave = true
-        val viewModel = createViewModel()
-
-        viewModel.save()
-
-        assertEquals(emptyList<String>(), photoRepository.deletedPhotoUrls)
-    }
-
-    @Test
-    fun save_photoUploadedAndSaved_deletesNothing() {
-        val viewModel = createViewModel()
-        viewModel.choosePhoto(CHOSEN_PHOTO_URI)
-
-        viewModel.save()
-
-        assertEquals(emptyList<String>(), photoRepository.deletedPhotoUrls)
     }
 
     @Test
@@ -568,6 +565,7 @@ class EditProfileViewModelTest {
         return EditProfileViewModel(
             profileRepository = profileRepository,
             photoRepository = photoRepository,
+            profileSaver = ProfileSaver(profileRepository, photoRepository, saveScope),
             accountRepository = FakeAccountRepository(loggedInUid),
             photo = photo,
             cameraCapture = CameraCapture(
@@ -597,38 +595,9 @@ class EditProfileViewModelTest {
         override suspend fun saveProfile(profile: UserProfile) {
             saveFinished?.await()
             if (failsToSave) {
-                throw FirebaseException("Could not save the profile")
+                throw ProfileSaveException(IllegalStateException("The server rejected it"))
             }
             savedProfile = profile
-        }
-    }
-
-    private class FakePhotoRepository : PhotoRepository {
-        var failsToUpload = false
-        var uploadedPhotoUri: String? = null
-        val deletedPhotoUrls = mutableListOf<String>()
-
-        // When set, uploading waits for it, like a slow upload.
-        var uploadFinished: CompletableDeferred<Unit>? = null
-
-        override suspend fun uploadPhoto(photoUri: String): String =
-            error("Posts aren't edited here")
-
-        override suspend fun uploadProfilePhoto(photoUri: String): String {
-            uploadFinished?.await()
-            if (failsToUpload) {
-                throw PhotoUploadException(IOException("Could not upload the photo"))
-            }
-            uploadedPhotoUri = photoUri
-            return UPLOADED_URL
-        }
-
-        override suspend fun deletePhoto(photoUrl: String) {
-            deletedPhotoUrls += photoUrl
-        }
-
-        companion object {
-            const val UPLOADED_URL = "https://example.com/uploaded.jpg"
         }
     }
 

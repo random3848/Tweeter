@@ -18,8 +18,9 @@ import edu.csuci.tweeter.data.AccountRepository
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PhotoUploadException
 import edu.csuci.tweeter.data.ProfileRepository
+import edu.csuci.tweeter.data.ProfileSaveException
+import edu.csuci.tweeter.data.ProfileSaver
 import edu.csuci.tweeter.data.UserProfile
-import edu.csuci.tweeter.data.deleteUnusedPhoto
 import edu.csuci.tweeter.data.getLoggedInProfile
 import edu.csuci.tweeter.ui.camera.CameraCapture
 import edu.csuci.tweeter.ui.camera.CameraControls
@@ -35,7 +36,7 @@ private const val PHOTO_REMOVED_KEY = "photoRemoved"
 /**
  * How long saving waits for the server to confirm the profile write. Firestore applies the write
  * on the phone at once and sends it when it can, so a write still unconfirmed after this, usually
- * because the phone is offline, counts as saved.
+ * because the phone is offline, counts as saved. [ProfileSaver] still waits for it.
  */
 internal const val PROFILE_WRITE_TIMEOUT_MILLIS = 10_000L
 
@@ -45,9 +46,10 @@ internal const val PROFILE_WRITE_TIMEOUT_MILLIS = 10_000L
  *
  * What they choose survives the app being stopped in the background, through [savedStateHandle].
  *
- * @param profileRepository Where the profile is read from and saved to.
- * @param photoRepository Uploads a new profile photo when the profile is saved, and deletes it
- *     again if the profile then can't be written.
+ * @param profileRepository Where the profile is read from.
+ * @param photoRepository Uploads a new profile photo when the profile is saved.
+ * @param profileSaver Saves the profile, deleting the photo the save leaves unused, even once
+ *     this ViewModel has stopped waiting for it.
  * @param accountRepository Who is logged in.
  * @param photo The new profile photo, chosen with the camera or from the camera roll. It isn't
  *     replaced while the profile saves.
@@ -58,6 +60,7 @@ internal const val PROFILE_WRITE_TIMEOUT_MILLIS = 10_000L
 class EditProfileViewModel(
     private val profileRepository: ProfileRepository,
     private val photoRepository: PhotoRepository,
+    private val profileSaver: ProfileSaver,
     private val accountRepository: AccountRepository,
     private val photo: ChosenPhoto,
     private val cameraCapture: CameraCapture,
@@ -218,7 +221,7 @@ class EditProfileViewModel(
         } catch (error: PhotoUploadException) {
             Log.e("EditProfileViewModel", "Could not upload the profile photo", error)
             saveFailed = true
-        } catch (error: FirebaseException) {
+        } catch (error: ProfileSaveException) {
             Log.e("EditProfileViewModel", "Could not save the profile", error)
             saveFailed = true
         } finally {
@@ -231,36 +234,16 @@ class EditProfileViewModel(
     // Writes [editedProfile] with the photo [change] leaves it, uploading a new photo first.
     private suspend fun saveWithPhoto(editedProfile: UserProfile, change: PhotoChange) {
         val photoUrl = photoUrlToSave(editedProfile.photoUrl, change)
-        writeOrDeleteUploadedPhoto(editedProfile.copy(photoUrl = photoUrl), change)
+        writeProfile(editedProfile.copy(photoUrl = photoUrl), editedProfile.photoUrl)
     }
 
-    // Writes [profileToWrite]. A photo [change] uploaded for it is deleted again if it can't be
-    // written, since nothing would use the photo.
-    private suspend fun writeOrDeleteUploadedPhoto(
-        profileToWrite: UserProfile,
-        change: PhotoChange
-    ) {
-        try {
-            writeProfile(profileToWrite)
-        } catch (error: FirebaseException) {
-            deleteIfUploaded(profileToWrite.photoUrl, change)
-            throw error
-        }
-    }
-
-    private suspend fun writeProfile(editedProfile: UserProfile) {
+    // Writes [profileToWrite], whose photo replaces [previousPhotoUrl].
+    private suspend fun writeProfile(profileToWrite: UserProfile, previousPhotoUrl: String) {
         isWritingProfile = true
-        val confirmed = withTimeoutOrNull(PROFILE_WRITE_TIMEOUT_MILLIS) {
-            profileRepository.saveProfile(editedProfile)
-        }
+        val saving = profileSaver.save(profileToWrite, previousPhotoUrl)
+        val confirmed = withTimeoutOrNull(PROFILE_WRITE_TIMEOUT_MILLIS) { saving.await() }
         if (confirmed == null) {
             Log.w("EditProfileViewModel", "Profile saved on the phone; it syncs when back online")
-        }
-    }
-
-    private suspend fun deleteIfUploaded(photoUrl: String, change: PhotoChange) {
-        if (change is PhotoChange.Replace) {
-            photoRepository.deleteUnusedPhoto(photoUrl)
         }
     }
 
@@ -295,6 +278,7 @@ class EditProfileViewModel(
                 EditProfileViewModel(
                     profileRepository = application.container.profileRepository,
                     photoRepository = application.container.photoRepository,
+                    profileSaver = application.container.profileSaver,
                     accountRepository = application.container.accountRepository,
                     photo = photo,
                     cameraCapture = CameraCapture.onMainThread(

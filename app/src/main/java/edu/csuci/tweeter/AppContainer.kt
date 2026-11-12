@@ -13,6 +13,7 @@ import edu.csuci.tweeter.data.FirestoreProfileRepository
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.ProfileRepository
+import edu.csuci.tweeter.data.ProfileSaver
 import edu.csuci.tweeter.location.LocationTagRemover
 import edu.csuci.tweeter.ui.map.startMapEngine
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
@@ -90,6 +91,14 @@ class AppContainer(private val context: Context) {
             storage = FirebaseStorage.getInstance(),
             locationTagRemover = LocationTagRemover(context, ioDispatcher = Dispatchers.IO)
         )
+    }
+
+    /**
+     * Saves profiles and deletes the photos the saves leave unused, waiting for the server in
+     * the app's scope, so leaving Edit profile doesn't stop that.
+     */
+    val profileSaver: ProfileSaver by lazy {
+        ProfileSaver(profileRepository, photoRepository, scope = applicationScope)
     }
 
     /**
