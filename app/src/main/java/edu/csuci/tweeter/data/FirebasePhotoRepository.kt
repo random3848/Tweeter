@@ -45,13 +45,15 @@ class FirebasePhotoRepository(
     }
 
     // Uploads a copy of the photo at [photoUri] without its location tags into [folder], and
-    // deletes the copy once the upload is over.
+    // discards the copy once the upload is over. Discarding doesn't suspend: a delete that did
+    // would throw on resuming in a caller cancelled meanwhile, and the URL of a finished upload,
+    // which the caller needs to use or delete the photo, would be lost.
     private suspend fun uploadWithoutLocation(photoUri: String, folder: String): String {
         val copy = copyWithoutLocation(photoUri)
         try {
             return upload(Uri.fromFile(copy), folder)
         } finally {
-            locationTagRemover.deleteCopy(copy)
+            locationTagRemover.discardCopy(copy)
         }
     }
 

@@ -4,11 +4,12 @@ import android.content.Context
 import android.net.Uri
 import androidx.exifinterface.media.ExifInterface
 import edu.csuci.tweeter.data.createEmptyPhotoFile
-import edu.csuci.tweeter.data.deleteFile
+import edu.csuci.tweeter.data.discardFile
 import edu.csuci.tweeter.data.writeNewFile
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 
 // Where the copies are written, inside the app's cache directory.
 private const val COPY_DIRECTORY = "uploads"
@@ -59,14 +60,20 @@ private val LOCATION_TAGS = listOf(
  * moved the pin away from it.
  *
  * @param context Any context; only its application context is kept.
- * @param ioDispatcher Where photos are read and copies written.
+ * @param scope Outlives the uploads, so a copy is deleted even once the upload that made it has
+ *     stopped.
+ * @param ioDispatcher Where photos are read, and copies written and deleted.
  */
-class LocationTagRemover(context: Context, private val ioDispatcher: CoroutineDispatcher) {
+class LocationTagRemover(
+    context: Context,
+    private val scope: CoroutineScope,
+    private val ioDispatcher: CoroutineDispatcher
+) {
     private val appContext = context.applicationContext
 
     /**
      * Copies the photo at [uri] into the app's cache and removes the copy's location tags. The
-     * caller deletes the copy with [deleteCopy] when it is done with it.
+     * caller deletes the copy with [discardCopy] when it is done with it.
      *
      * @throws IOException If the photo can't be read, or its format can't have tags removed
      *     (ExifInterface writes JPEG, PNG and WebP). No copy is left behind then, nor when the
@@ -79,11 +86,12 @@ class LocationTagRemover(context: Context, private val ioDispatcher: CoroutineDi
     )
 
     /**
-     * Deletes [copy], made by [copyWithoutLocation], off the calling thread. It is deleted even
-     * when the calling coroutine is cancelled, so it can be called from a `finally` block.
+     * Deletes [copy], made by [copyWithoutLocation], on the IO dispatcher, without waiting for
+     * it. It doesn't suspend, so it can run in the `finally` block of an upload that has its URL:
+     * see [discardFile].
      */
-    suspend fun deleteCopy(copy: File) {
-        deleteFile(ioDispatcher, copy)
+    fun discardCopy(copy: File) {
+        discardFile(scope, ioDispatcher, copy)
     }
 
     private fun writeWithoutLocation(uri: Uri, copy: File) {

@@ -3,7 +3,9 @@ package edu.csuci.tweeter.data
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -58,6 +60,20 @@ private class FileInPreparation(private val dispatcher: CoroutineDispatcher) {
  */
 internal suspend fun deleteFile(dispatcher: CoroutineDispatcher, file: File) {
     withContext(NonCancellable + dispatcher) { file.delete() }
+}
+
+/**
+ * Deletes [file] on [dispatcher] in [scope], without waiting for it.
+ *
+ * Unlike [deleteFile], this doesn't suspend, so a `finally` block can discard a file after its
+ * `try` returned a result. A suspending delete on another dispatcher would resume in the caller
+ * through a cancellable dispatch, and if the caller was cancelled meanwhile, it would throw
+ * `CancellationException` in place of the result.
+ *
+ * @param scope Outlives the caller, so the file is deleted even once the caller has stopped.
+ */
+internal fun discardFile(scope: CoroutineScope, dispatcher: CoroutineDispatcher, file: File) {
+    scope.launch(dispatcher) { file.delete() }
 }
 
 /**

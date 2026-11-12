@@ -6,9 +6,11 @@ import java.io.File
 import java.io.IOException
 import java.util.concurrent.Executors
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.job
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -147,6 +149,40 @@ class NewFileTest {
         testScheduler.advanceUntilIdle()
 
         assertFalse(file.exists())
+    }
+
+    @Test
+    fun discardFile_deletesOnDispatcher() = runBlocking {
+        val file = ThreadRecordingFile(createFile())
+
+        discardFile(this, singleThreadDispatcher, file)
+        coroutineContext.job.children.toList().joinAll()
+
+        assertFalse(file.exists())
+        assertSame(ioThread, file.deletingThread)
+    }
+
+    @Test
+    fun discardFile_inFinallyOfCallerCancelledAsItReturns_callerKeepsItsResult() = runTest {
+        val file = createFile()
+        var result: String? = null
+
+        launch { result = returnThenDiscard(file, caller = currentCoroutineContext().job) }
+        testScheduler.runCurrent()
+
+        assertEquals(CONTENT, result)
+        assertFalse(file.exists())
+    }
+
+    // Returns [CONTENT] once [caller] is cancelled, discarding [file] in a finally block, as an
+    // upload returns its URL and discards the copy it uploaded.
+    private suspend fun TestScope.returnThenDiscard(file: File, caller: Job): String {
+        try {
+            caller.cancel()
+            return CONTENT
+        } finally {
+            discardFile(backgroundScope, ioDispatcher(), file)
+        }
     }
 
     private fun TestScope.ioDispatcher() = StandardTestDispatcher(testScheduler)

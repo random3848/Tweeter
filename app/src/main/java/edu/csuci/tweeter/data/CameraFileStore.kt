@@ -64,7 +64,7 @@ class CameraFileStore(
      * call from the main thread, and from a ViewModel being cleared.
      */
     fun discard(path: String) {
-        scope.launch(ioDispatcher) { deleteFile(ioDispatcher, File(path)) }
+        discardFile(scope, ioDispatcher, File(path))
     }
 
     /**

@@ -94,7 +94,11 @@ class AppContainer(private val context: Context) {
         FirebasePhotoRepository(
             auth = FirebaseAuth.getInstance(),
             storage = FirebaseStorage.getInstance(),
-            locationTagRemover = LocationTagRemover(context, ioDispatcher = Dispatchers.IO)
+            locationTagRemover = LocationTagRemover(
+                context,
+                scope = applicationScope,
+                ioDispatcher = Dispatchers.IO
+            )
         )
     }
 
