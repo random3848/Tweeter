@@ -32,26 +32,31 @@ import edu.csuci.tweeter.ui.map.MAP_STYLE_URI
 import edu.csuci.tweeter.ui.map.MapControls
 import edu.csuci.tweeter.ui.map.PIN_OUTLINE_WIDTH
 import edu.csuci.tweeter.ui.map.PIN_RADIUS
+import edu.csuci.tweeter.ui.map.pinJsonAt
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.JsonObject
 import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.camera.CameraUpdate
 import org.maplibre.compose.expressions.dsl.const
 import org.maplibre.compose.interaction.ClickResult
 import org.maplibre.compose.interaction.MapInteractions
 import org.maplibre.compose.layers.CircleLayer
+import org.maplibre.compose.map.AndroidRenderMode
+import org.maplibre.compose.map.MapUiOptions
 import org.maplibre.compose.map.MaplibreMap
 import org.maplibre.compose.map.rememberMapState
 import org.maplibre.compose.sources.GeoJsonData
 import org.maplibre.compose.sources.rememberGeoJsonSource
 import org.maplibre.compose.style.BaseStyle
-import org.maplibre.spatialk.geojson.Feature
-import org.maplibre.spatialk.geojson.FeatureCollection
-import org.maplibre.spatialk.geojson.Point
 import org.maplibre.spatialk.geojson.Position
 
 // How close the map zooms in on a picked point it moves to.
 private const val FOCUS_ZOOM = 17.0
+
+// Once Map has been opened, the posts map stays composed under every screen, drawn by a
+// SurfaceView behind the window. A second SurfaceView here would sit behind the window too,
+// transparent until its style loads, and let the posts map show through. A TextureView draws
+// inside the window instead, over the Post screen's opaque background.
+private val TEXTURE_MAP_UI_OPTIONS = MapUiOptions { renderMode = AndroidRenderMode.Texture }
 
 /**
  * A map for choosing where a photo was taken, with a "Use my location" button below it.
@@ -160,7 +165,8 @@ private fun PinMap(
     val currentOnMapClick by rememberUpdatedState(onMapClick)
     val pinColor = MaterialTheme.colorScheme.primary
     val pinOutlineColor = MaterialTheme.colorScheme.surface
-    val pinData = remember(pin) { GeoJsonData.Features(pin.toPins()) }
+    // Written once per pin, not on every recomposition.
+    val pinData = remember(pin) { GeoJsonData.JsonString(pinJsonAt(pin)) }
     val mapState = rememberMapState(
         baseStyle = BaseStyle.Uri(MAP_STYLE_URI),
         initialCameraPosition = cameraTarget?.let {
@@ -206,14 +212,10 @@ private fun PinMap(
         modifier = modifier,
         state = mapState,
         interactions = interactions,
+        uiOptions = TEXTURE_MAP_UI_OPTIONS,
         overlay = { MapControls(mapState) }
     )
 }
-
-/** Converts this point to a GeoJSON collection of one point, or of none if it is null. */
-private fun GeoPoint?.toPins(): FeatureCollection<Point, JsonObject?> = FeatureCollection(
-    listOfNotNull(this).map { Feature(geometry = Point(it.toPosition()), properties = null) }
-)
 
 private fun GeoPoint.toPosition() = Position(longitude = longitude, latitude = latitude)
 

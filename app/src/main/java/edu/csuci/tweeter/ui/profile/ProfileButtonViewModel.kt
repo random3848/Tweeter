@@ -22,10 +22,13 @@ import kotlinx.coroutines.flow.stateIn
  *
  * @param profileRepository Where the logged-in user's profile is read from.
  * @param accountRepository Who is logged in.
+ * @param sharing When [profile] follows the profile: while the button collects it, in the
+ *     app.
  */
 class ProfileButtonViewModel(
     profileRepository: ProfileRepository,
-    accountRepository: AccountRepository
+    accountRepository: AccountRepository,
+    sharing: SharingStarted
 ) : ViewModel() {
     /** The logged-in user's profile, or null while nobody is logged in. */
     val profile: StateFlow<UserProfile?> = profileRepository.getLoggedInProfile(accountRepository)
@@ -35,7 +38,7 @@ class ProfileButtonViewModel(
         }
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
+            started = sharing,
             initialValue = null
         )
 
@@ -46,7 +49,8 @@ class ProfileButtonViewModel(
                 val application = this[APPLICATION_KEY] as TweeterApplication
                 ProfileButtonViewModel(
                     profileRepository = application.container.profileRepository,
-                    accountRepository = application.container.accountRepository
+                    accountRepository = application.container.accountRepository,
+                    sharing = application.container.whileScreenCollects
                 )
             }
         }

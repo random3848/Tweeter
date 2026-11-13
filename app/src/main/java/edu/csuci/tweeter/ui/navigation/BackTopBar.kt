@@ -28,7 +28,8 @@ import edu.csuci.tweeter.ui.theme.TweeterTheme
  * The top bar of a screen opened from another one, used in place of [TweeterTopBar]: a back
  * arrow and the screen's title.
  *
- * Like [TweeterTopBar], it draws under the status bar and pads itself below it.
+ * Like [TweeterTopBar], it pads itself below the status bar, unless the screen around it already
+ * starts below it.
  *
  * @param title The screen's name, such as "Profile".
  * @param onBack Goes back to the screen this one was opened from.

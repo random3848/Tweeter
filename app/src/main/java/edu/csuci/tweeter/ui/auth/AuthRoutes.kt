@@ -1,7 +1,7 @@
 package edu.csuci.tweeter.ui.auth
 
 import androidx.navigation.NavGraphBuilder
-import androidx.navigation.compose.composable
+import edu.csuci.tweeter.ui.navigation.opaqueComposable
 import kotlinx.serialization.Serializable
 
 /** The route to the email/password login form. */
@@ -19,7 +19,7 @@ object CreateAccountRoute
  * @param onAuthenticated Returns to Profile after successful login.
  */
 fun NavGraphBuilder.addLogInScreen(onBack: () -> Unit, onAuthenticated: () -> Unit) {
-    composable<LogInRoute> {
+    opaqueComposable<LogInRoute> {
         AuthScreen(
             creatingAccount = false,
             onBack = onBack,
@@ -35,7 +35,7 @@ fun NavGraphBuilder.addLogInScreen(onBack: () -> Unit, onAuthenticated: () -> Un
  * @param onAuthenticated Returns to Profile after successful registration.
  */
 fun NavGraphBuilder.addCreateAccountScreen(onBack: () -> Unit, onAuthenticated: () -> Unit) {
-    composable<CreateAccountRoute> {
+    opaqueComposable<CreateAccountRoute> {
         AuthScreen(
             creatingAccount = true,
             onBack = onBack,

@@ -25,9 +25,10 @@ import edu.csuci.tweeter.ui.theme.TweeterTheme
 
 /**
  * The bar at the top of the tabs' screens: the app name on white, with optional actions on the
- * right. Screens opened from a tab use [BackTopBar] instead.
+ * right. Each screen draws its own, so the bar comes and goes with it. Screens opened from a tab
+ * use [BackTopBar] instead.
  *
- * It draws under the status bar and pads itself below it, since the app is edge to edge.
+ * It pads itself below the status bar, unless the screen around it already starts below it.
  *
  * @param modifier Applied to the whole bar.
  * @param actions Buttons shown on the right, such as Feed's profile button.

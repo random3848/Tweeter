@@ -23,12 +23,12 @@ class DeviceLocationProvider(context: Context) {
     private val client = LocationServices.getFusedLocationProviderClient(appContext)
 
     /** Returns whether the app may request a location fix (fine or coarse). */
-    fun hasPermission(): Boolean = listOf(
-        Manifest.permission.ACCESS_FINE_LOCATION,
-        Manifest.permission.ACCESS_COARSE_LOCATION
-    ).any {
-        ContextCompat.checkSelfPermission(appContext, it) == PackageManager.PERMISSION_GRANTED
-    }
+    fun hasPermission(): Boolean = isGranted(Manifest.permission.ACCESS_FINE_LOCATION) ||
+        isGranted(Manifest.permission.ACCESS_COARSE_LOCATION)
+
+    private fun isGranted(permission: String): Boolean =
+        ContextCompat.checkSelfPermission(appContext, permission) ==
+            PackageManager.PERMISSION_GRANTED
 
     /**
      * Requests a fresh high-accuracy fix. Returns null if permission is missing, location is off,

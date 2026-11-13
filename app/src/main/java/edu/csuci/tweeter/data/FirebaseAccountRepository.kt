@@ -16,8 +16,13 @@ import kotlinx.coroutines.tasks.await
  * Created once by AppContainer for the application's lifetime.
  *
  * @param auth The app's shared Firebase Authentication instance.
+ * @param guestSignIn Signs a guest in again once the user logs out, sharing a sign-in that's
+ *     already running instead of creating a second anonymous account.
  */
-class FirebaseAccountRepository(private val auth: FirebaseAuth) : AccountRepository {
+class FirebaseAccountRepository(
+    private val auth: FirebaseAuth,
+    private val guestSignIn: GuestSignIn
+) : AccountRepository {
     private val _loggedInUid = MutableStateFlow(registeredUid())
 
     override val loggedInUid: StateFlow<String?> = _loggedInUid.asStateFlow()
@@ -67,7 +72,7 @@ class FirebaseAccountRepository(private val auth: FirebaseAuth) : AccountReposit
         updateLoggedInUser()
 
         // Feed and Map need a Firebase session even while browsing as a guest.
-        auth.signInAnonymously().await()
+        guestSignIn.signInIfSignedOut()
 
         updateLoggedInUser()
     }
