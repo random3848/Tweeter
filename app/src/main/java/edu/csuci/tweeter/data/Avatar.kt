@@ -12,20 +12,34 @@ data class Avatar(val initials: String)
  * uppercased, such as "MK" for "Maya Kim" and "M" for "Maya". Returns "?" when the name is blank.
  */
 fun initialsOf(displayName: String): String {
-    val words = displayName.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
-    if (words.isEmpty()) {
+    var first = NOT_FOUND
+    var last = NOT_FOUND
+    for (index in displayName.indices) {
+        if (startsWord(displayName, index)) {
+            if (first == NOT_FOUND) {
+                first = index
+            }
+            last = index
+        }
+    }
+    if (first == NOT_FOUND) {
         return "?"
     }
 
-    val letters = if (words.size ==
-        1
-    ) {
-        listOf(words.first())
-    } else {
-        listOf(words.first(), words.last())
+    val letters = StringBuilder(MAX_INITIALS_CHARS)
+    letters.appendCodePoint(displayName.codePointAt(first))
+    if (last != first) {
+        letters.appendCodePoint(displayName.codePointAt(last))
     }
-    return letters.joinToString("") { firstLetterOf(it).uppercase() }
+    return letters.toString().uppercase()
 }
 
-// The first character, keeping both halves of a character outside the BMP, such as an emoji.
-private fun firstLetterOf(word: String): String = word.substring(0, word.offsetByCodePoints(0, 1))
+// Whether a word starts at [index]: its character isn't whitespace and the one before it is.
+// The second half of a surrogate pair follows the first, which isn't whitespace either.
+private fun startsWord(text: String, index: Int): Boolean =
+    !text[index].isWhitespace() && (index == 0 || text[index - 1].isWhitespace())
+
+private const val NOT_FOUND = -1
+
+// Two characters outside the BMP take two chars each.
+private const val MAX_INITIALS_CHARS = 4

@@ -1,74 +1,113 @@
 package edu.csuci.tweeter.data
 
 import android.util.Log
-import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.DocumentSnapshot.ServerTimestampBehavior
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.QuerySnapshot
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 
 /**
  * A [PostRepository] that stores posts in Cloud Firestore, so they last and every user sees them.
  *
- * Posts are stored as described by [PostDocument]. Creates an anonymous session when no user is
- * signed in, since the Firestore rules only let signed-in users read and write.
+ * Posts are stored as described by [PostDocument]. Signs guests in with [guestSignIn] when
+ * nobody is signed in, since the Firestore rules only let signed-in users read and write.
+ *
+ * [getPostTable] returns the same flow to every caller: one snapshot listener, started in
+ * [scope] while anyone collects and removed as soon as nobody does, so every screen shares one
+ * listener and one parse per snapshot. Snapshots are delivered and parsed on [dispatcher], off
+ * the main thread, one at a time in the order they arrive, so an older snapshot can never replace
+ * a newer one. Of the snapshots that arrive while one is parsed, only the newest is kept. Only
+ * [PostDocument]'s fields are read, into one array reused for every document. A table holding
+ * the same posts as the last, as Firestore sends when only a post's write status changes, is
+ * dropped there, once for every screen. When signing in or the listener fails, both are set up
+ * again with [retryWithBackoff], while collectors keep the last table.
  */
 class FirestorePostRepository(
-    private val auth: FirebaseAuth,
-    private val firestore: FirebaseFirestore
+    private val guestSignIn: GuestSignIn,
+    firestore: FirebaseFirestore,
+    scope: CoroutineScope,
+    private val dispatcher: CoroutineDispatcher
 ) : PostRepository {
     private val posts = firestore.collection(PostDocument.COLLECTION)
+    private val newestFirst =
+        posts.orderBy(PostDocument.Field.TIMESTAMP.key, Query.Direction.DESCENDING)
+    private val postTable = snapshotsOf(newestFirst)
+        .retryWithBackoff(TAG, resetsBackoff = ::isFromServer)
+        .map(::tableOf)
+        .flowOn(dispatcher)
+        .distinctUntilChanged(PostTable::holdsSamePosts)
+        .sharedWhileCollected(scope)
 
-    override fun getPosts(): Flow<List<Post>> =
-        postsIn(posts.orderBy(PostDocument.TIMESTAMP, Query.Direction.DESCENDING))
-
-    // Sorted here rather than with orderBy, which together with whereEqualTo would need a
-    // composite index in Firestore.
-    override fun getPostsBy(authorUid: String): Flow<List<Post>> =
-        postsIn(posts.whereEqualTo(PostDocument.AUTHOR_UID, authorUid))
-            .map { postList -> postList.sortedByDescending { it.timestamp } }
+    override fun getPostTable(): Flow<PostTable> = postTable
 
     override suspend fun addPost(post: Post) {
-        signIn()
+        guestSignIn.signInIfSignedOut()
         posts.document(post.id).set(PostDocument.fieldsOf(post)).await()
     }
 
-    // The posts [query] matches, emitted again whenever they change.
-    private fun postsIn(query: Query): Flow<List<Post>> = callbackFlow {
-        signIn()
+    // Each snapshot of [query], delivered on [dispatcher] one at a time. The newest snapshot
+    // replaces any that wasn't read yet, so it can't be dropped, and stale ones aren't read.
+    private fun snapshotsOf(query: Query): Flow<QuerySnapshot> = callbackFlow {
+        guestSignIn.signInIfSignedOut()
 
-        val registration = query.addSnapshotListener { snapshot, error ->
+        val executor = dispatcher.serialExecutor()
+        val registration = query.addSnapshotListener(executor) { snapshot, error ->
             if (error != null) {
-                // Keep showing the last posts; the listener stops after an error.
-                Log.e("FirestorePostRepo", "Could not read posts", error)
+                // The listener stops after an error; retrying sets up a new one.
+                close(error)
                 return@addSnapshotListener
             }
-
-            val documents = snapshot?.documents ?: return@addSnapshotListener
-            val postList = documents.mapNotNull { document ->
-                // A post this phone just added has no server time yet; until Firestore
-                // sets it, use Firestore's estimate so the post shows up right away.
-                val fields = document.getData(ServerTimestampBehavior.ESTIMATE).orEmpty()
-                val post = PostDocument.toPost(document.id, fields)
-                if (post == null) {
-                    Log.w("FirestorePostRepo", "Skipping malformed post ${document.id}")
-                }
-                post
+            if (snapshot != null) {
+                trySend(snapshot)
             }
-            trySend(postList)
         }
 
         awaitClose { registration.remove() }
+    }.conflate()
+
+    // Whether [snapshot] came from the server. One from the phone's cache can come first even
+    // when the server then rejects the listener, so it doesn't show the listener works again.
+    private fun isFromServer(snapshot: QuerySnapshot): Boolean = !snapshot.metadata.isFromCache
+
+    // The well-formed posts of [snapshot], in order; the others are logged and left out.
+    private fun tableOf(snapshot: QuerySnapshot): PostTable {
+        val builder = PostTable.Builder(capacity = snapshot.size())
+        val fields = arrayOfNulls<Any>(fieldPaths.size)
+        for (document in snapshot.documents) {
+            fields.fillFrom(document)
+            val post = PostDocument.toPost(document.id, fields)
+            if (post == null) {
+                Log.w(TAG, "Skipping malformed post ${document.id}")
+            } else {
+                builder.add(post)
+            }
+        }
+        return builder.build()
     }
 
-    private suspend fun signIn() {
-        // Guests browse with an anonymous session; the Firestore rules don't let it post.
-        if (auth.currentUser == null) {
-            auth.signInAnonymously().await()
+    private companion object {
+        const val TAG = "FirestorePostRepo"
+
+        val fieldPaths = fieldPathsOf(PostDocument.Field.entries)
+
+        // Overwrites this array with [document]'s fields, in PostDocument.Field order. A post this
+        // phone just added has no server time yet; until Firestore sets it, use Firestore's
+        // estimate so the post shows up right away.
+        fun Array<Any?>.fillFrom(document: DocumentSnapshot) {
+            for (index in fieldPaths.indices) {
+                this[index] = document.get(fieldPaths[index], ServerTimestampBehavior.ESTIMATE)
+            }
         }
     }
 }
