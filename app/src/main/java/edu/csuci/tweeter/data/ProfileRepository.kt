@@ -26,8 +26,8 @@ interface ProfileRepository {
      * The new profile shows on the phone at once, but this returns only when the server has it.
      * While the phone is offline the change waits on the phone and is sent once it's back online.
      *
-     * @throws com.google.firebase.FirebaseException If it can't be stored, such as when
-     *     [profile] isn't the logged-in user's.
+     * @throws ProfileSaveException If it can't be stored, such as when [profile] isn't the
+     *     logged-in user's.
      */
     suspend fun saveProfile(profile: UserProfile)
 }

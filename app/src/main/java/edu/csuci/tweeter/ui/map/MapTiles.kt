@@ -17,6 +17,7 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -79,7 +80,7 @@ private val NO_CACHE_DIRECTIVES = Regex("no-cache|no-store", RegexOption.IGNORE_
 fun configureMapTiles() {
     val userAgent = "Tweeter/${BuildConfig.VERSION_NAME} (+$PROJECT_URL)"
     DefaultMapRuntime.configure {
-        resourceProvider = TileProvider(userAgent)
+        resourceProvider = TileProvider(userAgent = userAgent, ioDispatcher = Dispatchers.IO)
     }
 }
 
@@ -95,8 +96,15 @@ fun configureMapTiles() {
  * the tile, up to [MAX_DOWNLOAD_ATTEMPTS] attempts in all. Without this, a tile that failed while
  * the connection dropped for a moment would stay missing. A tile whose last attempt fails stays
  * missing until the map asks for it again, such as when it scrolls back into view.
+ *
+ * @param ioDispatcher Where requests block while they are sent and their responses read. It
+ *     needs more than one thread: a cancelled download is stopped from another thread than the
+ *     one it blocks.
  */
-internal class TileProvider(private val userAgent: String) : MapResourceProvider {
+internal class TileProvider(
+    private val userAgent: String,
+    private val ioDispatcher: CoroutineDispatcher
+) : MapResourceProvider {
     private val downloads = Semaphore(MAX_PARALLEL_DOWNLOADS)
 
     override fun accepts(request: MapResourceRequest): Boolean =
@@ -138,7 +146,7 @@ internal class TileProvider(private val userAgent: String) : MapResourceProvider
         priorEtag: String?,
         priorModified: Instant?
     ): MapResourceLoad = downloads.withPermit {
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             val connection = try {
                 URL(url).openConnection() as HttpURLConnection
             } catch (error: IOException) {

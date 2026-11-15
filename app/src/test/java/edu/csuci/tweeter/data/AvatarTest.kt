@@ -33,4 +33,34 @@ class AvatarTest {
     fun initialsOf_emoji_keepsWholeCharacter() {
         assertEquals("🌿M", initialsOf("🌿leaf Maya"))
     }
+
+    @Test
+    fun initialsOf_tabsAndNewlinesBetweenWords_firstLetterOfEach() {
+        assertEquals("MK", initialsOf("Maya\t\nRose\n\tKim"))
+    }
+
+    @Test
+    fun initialsOf_oneCharacter_thatCharacterUppercased() {
+        assertEquals("M", initialsOf("m"))
+    }
+
+    @Test
+    fun initialsOf_leadingAndTrailingWhitespace_ignored() {
+        assertEquals("M", initialsOf("\n\t maya \t\n"))
+    }
+
+    @Test
+    fun initialsOf_emojiLastWord_keepsWholeCharacter() {
+        assertEquals("M🌿", initialsOf("Maya 🌿"))
+    }
+
+    @Test
+    fun initialsOf_letterWithLongerUppercase_fullUppercase() {
+        assertEquals("SSK", initialsOf("ßabine Kim"))
+    }
+
+    @Test
+    fun initialsOf_empty_questionMark() {
+        assertEquals("?", initialsOf(""))
+    }
 }
