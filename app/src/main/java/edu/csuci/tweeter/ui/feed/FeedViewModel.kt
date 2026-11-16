@@ -1,5 +1,6 @@
 package edu.csuci.tweeter.ui.feed
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
@@ -7,6 +8,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import edu.csuci.tweeter.TweeterApplication
+import edu.csuci.tweeter.data.AccountRepository
+import edu.csuci.tweeter.data.LikeException
+import edu.csuci.tweeter.data.LikeRepository
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
@@ -17,6 +21,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+
+private const val TAG = "FeedViewModel"
 
 /**
  * The UI state of the home feed screen.
@@ -27,17 +34,23 @@ import kotlinx.coroutines.flow.stateIn
  *     as Map's popup, which the feed scrolls to, then calls [FeedViewModel.clearPostToShow]. Null
  *     if none was asked for, or [posts] doesn't hold it yet, as while the feed shows the posts it
  *     had before that one was shared.
+ * @property likedPostIds The IDs of the posts the user liked, whose hearts are filled.
+ * @property canLike Whether the user can like posts: they're logged in, not a guest.
  */
 data class FeedUiState(
     val posts: PostTable = PostTable.EMPTY,
     val isLoading: Boolean = true,
-    val rowToShow: Int? = null
+    val rowToShow: Int? = null,
+    val likedPostIds: Set<String> = emptySet(),
+    val canLike: Boolean = false
 )
 
 /**
- * Holds posts for [FeedScreen].
+ * Holds posts for [FeedScreen], and the user's likes of them.
  *
  * @param postRepository Where post data is read from.
+ * @param likeRepository Which posts the user liked, and where [toggleLike] saves likes.
+ * @param accountRepository Who is logged in: guests can't like posts.
  * @param showInFeedRequest The post another screen asks the feed to show, which it scrolls to.
  * @param showOnMapRequest Where [showOnMap] asks Map to show a post.
  * @param postsDispatcher Where the row of the post to show is found: off the main thread, since
@@ -46,18 +59,31 @@ data class FeedUiState(
  */
 class FeedViewModel(
     postRepository: PostRepository,
+    private val likeRepository: LikeRepository,
+    accountRepository: AccountRepository,
     private val showInFeedRequest: ShowPostRequest,
     private val showOnMapRequest: ShowPostRequest,
     postsDispatcher: CoroutineDispatcher,
     sharing: SharingStarted
 ) : ViewModel() {
     /**
-     * The current state of the feed, updated whenever posts change or another screen asks the
-     * feed to show a post.
+     * The current state of the feed, updated whenever posts change, another screen asks the feed
+     * to show a post, or the user likes a post or logs in or out.
      */
     val uiState: StateFlow<FeedUiState> =
-        combine(postRepository.getPostTable(), showInFeedRequest.postId) { posts, postToShow ->
-            FeedUiState(posts = posts, isLoading = false, rowToShow = postToShow?.let(posts::rowOf))
+        combine(
+            postRepository.getPostTable(),
+            showInFeedRequest.postId,
+            likeRepository.getLikedPostIds(),
+            accountRepository.loggedInUid
+        ) { posts, postToShow, likedPostIds, loggedInUid ->
+            FeedUiState(
+                posts = posts,
+                isLoading = false,
+                rowToShow = postToShow?.let(posts::rowOf),
+                likedPostIds = likedPostIds,
+                canLike = loggedInUid != null
+            )
         }
             .flowOn(postsDispatcher)
             .stateIn(
@@ -71,18 +97,35 @@ class FeedViewModel(
         showInFeedRequest.clear()
     }
 
+    /**
+     * Likes the post with [postId], or takes the like back if the user liked it. A change that
+     * can't be saved is logged; the heart then shows the like as it was.
+     */
+    fun toggleLike(postId: String) {
+        val isLiked = postId in uiState.value.likedPostIds
+        viewModelScope.launch {
+            try {
+                if (isLiked) likeRepository.unlike(postId) else likeRepository.like(postId)
+            } catch (error: LikeException) {
+                Log.e(TAG, "Could not change the like of post $postId", error)
+            }
+        }
+    }
+
     /** Asks Map to show the post with [postId], which opens its popup when Map opens. */
     fun showOnMap(postId: String) {
         showOnMapRequest.send(postId)
     }
 
     companion object {
-        /** Creates a [FeedViewModel] that reads the app's shared posts and requests. */
+        /** Creates a [FeedViewModel] that reads the app's shared posts, likes and requests. */
         val factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as TweeterApplication
                 FeedViewModel(
                     postRepository = application.container.postRepository,
+                    likeRepository = application.container.likeRepository,
+                    accountRepository = application.container.accountRepository,
                     showInFeedRequest = application.container.showInFeedRequest,
                     showOnMapRequest = application.container.showOnMapRequest,
                     postsDispatcher = Dispatchers.Default,

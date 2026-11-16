@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
@@ -36,7 +38,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
-import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.ui.navigation.TweeterTopBar
 import edu.csuci.tweeter.ui.postDetailsText
 
@@ -47,10 +48,12 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
  * The home feed, the screen the app opens to, under the app's top bar.
  *
  * Displays posts from [FeedViewModel], newest first, in a clean scrolling layout. A label
- * on each post's photo shows the post on Map. When another screen asks the feed to show a post,
- * as Map's popup does, the feed scrolls to it.
+ * on each post's photo shows the post on Map, and a heart under it likes the post, or opens Log in
+ * for guests, who can't. When another screen asks the feed to show a post, as Map's popup does,
+ * the feed scrolls to it.
  *
  * @param onShowOnMap Opens Map, once the post the user chose is requested there.
+ * @param onLogIn Opens Log in, for a guest who tries to like a post.
  * @param modifier Applied to the whole screen.
  * @param topBarActions Buttons on the right of the top bar, such as the profile button.
  * @param feedViewModel Supplies posts and UI state for the feed.
@@ -58,6 +61,7 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
 @Composable
 fun FeedScreen(
     onShowOnMap: () -> Unit,
+    onLogIn: () -> Unit,
     modifier: Modifier = Modifier,
     topBarActions: @Composable RowScope.() -> Unit = {},
     feedViewModel: FeedViewModel = viewModel(factory = FeedViewModel.factory)
@@ -78,6 +82,7 @@ fun FeedScreen(
         feedViewModel.showOnMap(postId)
         onShowOnMap()
     }
+    val likePost = if (uiState.canLike) feedViewModel::toggleLike else { _: String -> onLogIn() }
     Column(modifier = modifier.fillMaxSize()) {
         TweeterTopBar(actions = topBarActions)
         val bodyModifier = Modifier.weight(1f).fillMaxWidth()
@@ -100,9 +105,9 @@ fun FeedScreen(
 
             else -> {
                 FeedList(
-                    posts = uiState.posts,
+                    uiState = uiState,
                     listState = listState,
-                    onShowOnMap = showPostOnMap,
+                    controls = PostControls(onShowOnMap = showPostOnMap, onLike = likePost),
                     modifier = bodyModifier
                 )
             }
@@ -111,24 +116,33 @@ fun FeedScreen(
 }
 
 /**
- * The posts of [posts] as a scrolling list, newest first, with a divider between posts.
+ * What pressing a feed post's controls does, each called with the post's ID. They take the ID
+ * rather than capturing the table, so they stay the same as new tables arrive.
+ *
+ * @property onShowOnMap Shows the post on Map.
+ * @property onLike Likes the post or takes the like back, or opens Log in for guests.
+ */
+private data class PostControls(val onShowOnMap: (String) -> Unit, val onLike: (String) -> Unit)
+
+/**
+ * The posts of [uiState] as a scrolling list, newest first, with a divider between posts.
  *
  * This is where a feed item reads its post's row: the parts it's made of get the values they
  * show, so a part whose values didn't change is skipped when a new table arrives.
  *
- * @param posts The posts to list, in table order.
+ * @param uiState The posts to list, in table order, and which of them the user liked.
  * @param listState The list's scroll position.
- * @param onShowOnMap Shows the post with the given ID on Map. It takes the ID rather than
- *     capturing the table, so it stays the same as new tables arrive.
+ * @param controls What pressing each post's controls does.
  * @param modifier Applied to the list.
  */
 @Composable
 private fun FeedList(
-    posts: PostTable,
+    uiState: FeedUiState,
     listState: LazyListState,
-    onShowOnMap: (String) -> Unit,
+    controls: PostControls,
     modifier: Modifier = Modifier
 ) {
+    val posts = uiState.posts
     val lastRow = posts.size - 1
     LazyColumn(
         state = listState,
@@ -141,10 +155,16 @@ private fun FeedList(
                 username = posts.username(row),
                 details = postDetailsText(posts.locationName(row), posts.timestampMillis(row))
             )
+            val postId = posts.id(row)
             PhotoWithMapLabel(
-                postId = posts.id(row),
+                postId = postId,
                 imageUri = posts.imageUri(row),
-                onShowOnMap = onShowOnMap
+                onShowOnMap = controls.onShowOnMap
+            )
+            LikeButton(
+                likeCount = posts.likeCount(row),
+                isLiked = postId in uiState.likedPostIds,
+                onClick = { controls.onLike(postId) }
             )
             PostCaption(caption = posts.caption(row))
             AnimalDetails(text = animalDetailsOf(posts.animalType(row), posts.confidence(row)))
@@ -222,6 +242,40 @@ private fun PhotoWithMapLabel(postId: String, imageUri: String, onShowOnMap: (St
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(8.dp)
+        )
+    }
+}
+
+/**
+ * A heart that likes a feed post, filled once the user liked it, and how many users did.
+ *
+ * @param likeCount How many users liked the post.
+ * @param isLiked Whether the user liked the post.
+ * @param onClick Likes the post or takes the like back, or opens Log in for guests.
+ */
+@Composable
+private fun LikeButton(likeCount: Int, isLiked: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.padding(start = 4.dp, top = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconToggleButton(checked = isLiked, onCheckedChange = { onClick() }) {
+            Icon(
+                painter = painterResource(
+                    if (isLiked) R.drawable.ic_favorite else R.drawable.ic_favorite_border
+                ),
+                contentDescription = stringResource(R.string.feed_like),
+                tint = if (isLiked) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                }
+            )
+        }
+        Text(
+            text = pluralStringResource(R.plurals.feed_like_count, likeCount, likeCount),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }

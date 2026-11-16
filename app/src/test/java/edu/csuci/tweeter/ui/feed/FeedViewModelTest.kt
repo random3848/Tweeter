@@ -2,7 +2,12 @@
 
 package edu.csuci.tweeter.ui.feed
 
+import edu.csuci.tweeter.data.AccountRepository
+import edu.csuci.tweeter.data.FakeAccountRepository
+import edu.csuci.tweeter.data.FakeLikeRepository
 import edu.csuci.tweeter.data.FakePostRepository
+import edu.csuci.tweeter.data.LikeException
+import edu.csuci.tweeter.data.LikeRepository
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.SAMPLE_POSTS
@@ -32,10 +37,13 @@ import org.junit.Before
 import org.junit.Test
 
 private const val NEW_POST_ID = "new"
+private const val MAYA = "maya"
 
 class FeedViewModelTest {
     private val showInFeedRequest = ShowPostRequest()
     private val showOnMapRequest = ShowPostRequest()
+    private val likedPostId = SAMPLE_POSTS[0].id
+    private val unlikedPostId = SAMPLE_POSTS[1].id
 
     @Before
     fun useTestMainDispatcher() {
@@ -109,6 +117,54 @@ class FeedViewModelTest {
     }
 
     @Test
+    fun uiState_holdsPostsUserLiked() = runTest {
+        val viewModel = collectedFeedViewModel(likes = FakeLikeRepository(setOf(likedPostId)))
+
+        assertEquals(setOf(likedPostId), viewModel.uiState.value.likedPostIds)
+    }
+
+    @Test
+    fun uiState_userLoggedIn_canLike() = runTest {
+        val viewModel = collectedFeedViewModel(account = FakeAccountRepository(MAYA))
+
+        assertTrue(viewModel.uiState.value.canLike)
+    }
+
+    @Test
+    fun uiState_guest_cannotLike() = runTest {
+        val viewModel = collectedFeedViewModel(account = FakeAccountRepository(initialUid = null))
+
+        assertFalse(viewModel.uiState.value.canLike)
+    }
+
+    @Test
+    fun toggleLike_postNotLiked_likesIt() = runTest {
+        val viewModel = collectedFeedViewModel(likes = FakeLikeRepository(setOf(likedPostId)))
+
+        viewModel.toggleLike(unlikedPostId)
+
+        assertEquals(setOf(likedPostId, unlikedPostId), viewModel.uiState.value.likedPostIds)
+    }
+
+    @Test
+    fun toggleLike_likedPost_unlikesIt() = runTest {
+        val viewModel = collectedFeedViewModel(likes = FakeLikeRepository(setOf(likedPostId)))
+
+        viewModel.toggleLike(likedPostId)
+
+        assertEquals(emptySet<String>(), viewModel.uiState.value.likedPostIds)
+    }
+
+    @Test
+    fun toggleLike_likeNotSaved_keepsPostUnliked() = runTest {
+        val viewModel = collectedFeedViewModel(likes = UnsavableLikeRepository())
+
+        viewModel.toggleLike(unlikedPostId)
+
+        assertEquals(emptySet<String>(), viewModel.uiState.value.likedPostIds)
+    }
+
+    @Test
     fun showOnMap_asksMapToShowPost() {
         val viewModel = feedViewModel()
         val post = SAMPLE_POSTS[1]
@@ -130,9 +186,13 @@ class FeedViewModelTest {
 
     private fun feedViewModel(
         repository: PostRepository = FakePostRepository(),
+        likes: LikeRepository = FakeLikeRepository(),
+        account: AccountRepository = FakeAccountRepository(MAYA),
         postsDispatcher: CoroutineDispatcher = UnconfinedTestDispatcher()
     ) = FeedViewModel(
         postRepository = repository,
+        likeRepository = likes,
+        accountRepository = account,
         showInFeedRequest = showInFeedRequest,
         showOnMapRequest = showOnMapRequest,
         postsDispatcher = postsDispatcher,
@@ -142,13 +202,26 @@ class FeedViewModelTest {
     // The feed's state follows the repository while the test collects it, as it does in the app
     // while Feed collects it.
     private fun TestScope.collectedFeedViewModel(
-        repository: PostRepository = FakePostRepository()
+        repository: PostRepository = FakePostRepository(),
+        likes: LikeRepository = FakeLikeRepository(),
+        account: AccountRepository = FakeAccountRepository(MAYA)
     ): FeedViewModel {
-        val viewModel = feedViewModel(repository, UnconfinedTestDispatcher(testScheduler))
+        val viewModel = feedViewModel(
+            repository,
+            likes,
+            account,
+            postsDispatcher = UnconfinedTestDispatcher(testScheduler)
+        )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect()
         }
         return viewModel
+    }
+
+    // Likes that can't be saved, as when the Firestore rules refuse them.
+    private class UnsavableLikeRepository : LikeRepository by FakeLikeRepository() {
+        override suspend fun like(postId: String): Unit =
+            throw LikeException(IllegalStateException("Refused"))
     }
 
     // A repository whose first table never arrives, as while Firestore is still answering.

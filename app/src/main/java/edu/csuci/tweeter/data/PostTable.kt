@@ -31,6 +31,7 @@ class PostTable private constructor(
     private val longitudes: DoubleArray,
     private val imageUris: Array<String>,
     private val captions: Array<String>,
+    private val likeCounts: IntArray,
     private val timestampsMillis: LongArray,
     private val animalTypes: Array<String>,
     private val confidences: ByteArray
@@ -58,6 +59,9 @@ class PostTable private constructor(
 
     /** The [Post.caption] of the post in [row]. */
     fun caption(row: Int): String = captions[row]
+
+    /** The [Post.likeCount] of the post in [row]. */
+    fun likeCount(row: Int): Int = likeCounts[row]
 
     /** The [Post.timestamp] of the post in [row], in milliseconds since the epoch. */
     fun timestampMillis(row: Int): Long = timestampsMillis[row]
@@ -120,6 +124,7 @@ class PostTable private constructor(
 
     private fun hasSameNumbers(other: PostTable): Boolean =
         haveSameRows(latitudes, other.latitudes) && haveSameRows(longitudes, other.longitudes) &&
+            haveSameRows(likeCounts, other.likeCounts) &&
             haveSameRows(timestampsMillis, other.timestampsMillis) &&
             haveSameRows(confidences, other.confidences)
 
@@ -128,6 +133,9 @@ class PostTable private constructor(
         Arrays.equals(column, 0, size, otherColumn, 0, size)
 
     private fun haveSameRows(column: DoubleArray, otherColumn: DoubleArray): Boolean =
+        Arrays.equals(column, 0, size, otherColumn, 0, size)
+
+    private fun haveSameRows(column: IntArray, otherColumn: IntArray): Boolean =
         Arrays.equals(column, 0, size, otherColumn, 0, size)
 
     private fun haveSameRows(column: LongArray, otherColumn: LongArray): Boolean =
@@ -152,6 +160,7 @@ class PostTable private constructor(
         private val longitudes = DoubleArray(capacity)
         private val imageUris = Array(capacity) { "" }
         private val captions = Array(capacity) { "" }
+        private val likeCounts = IntArray(capacity)
         private val timestampsMillis = LongArray(capacity)
         private val animalTypes = Array(capacity) { "" }
         private val confidences = ByteArray(capacity)
@@ -183,6 +192,7 @@ class PostTable private constructor(
             longitudes = longitudes,
             imageUris = imageUris,
             captions = captions,
+            likeCounts = likeCounts,
             timestampsMillis = timestampsMillis,
             animalTypes = animalTypes,
             confidences = confidences
@@ -202,6 +212,7 @@ class PostTable private constructor(
         private fun addNumbers(row: Int, post: Post) {
             latitudes[row] = post.latitude
             longitudes[row] = post.longitude
+            likeCounts[row] = post.likeCount
             timestampsMillis[row] = post.timestamp.toEpochMilli()
             // Post keeps confidences from 1 to 5, which a Byte holds, and 0 means none.
             confidences[row] = post.confidence?.toByte() ?: NO_CONFIDENCE

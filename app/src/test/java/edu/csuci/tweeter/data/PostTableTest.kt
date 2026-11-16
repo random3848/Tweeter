@@ -14,6 +14,7 @@ private const val MAYA = "maya"
 private const val JORDAN = "jordan"
 
 private const val MOST_CONFIDENT = 5
+private const val LIKE_COUNT = 12
 
 class PostTableTest {
     // The table keeps a post's time to the millisecond.
@@ -53,6 +54,13 @@ class PostTableTest {
         val table = PostTable.of(listOf(SAMPLE_POSTS.first().copy(confidence = MOST_CONFIDENT)))
 
         assertEquals(MOST_CONFIDENT, table.confidence(0))
+    }
+
+    @Test
+    fun likeCount_isPostsLikeCount() {
+        val table = PostTable.of(listOf(SAMPLE_POSTS.first().copy(likeCount = LIKE_COUNT)))
+
+        assertEquals(LIKE_COUNT, table.likeCount(0))
     }
 
     @Test
@@ -118,6 +126,13 @@ class PostTableTest {
     }
 
     @Test
+    fun holdsSamePosts_postLiked_false() {
+        val liked = SAMPLE_POSTS.map { it.copy(likeCount = it.likeCount + 1) }
+
+        assertFalse(PostTable.of(SAMPLE_POSTS).holdsSamePosts(PostTable.of(liked)))
+    }
+
+    @Test
     fun holdsSamePosts_postRemoved_false() {
         val fewer = PostTable.of(SAMPLE_POSTS.drop(1))
 
@@ -168,7 +183,7 @@ class PostTableTest {
         longitude = longitude(row),
         imageUri = imageUri(row),
         caption = caption(row),
-        likeCount = 0,
+        likeCount = likeCount(row),
         commentCount = 0,
         isLiked = false,
         isBookmarked = false,
@@ -177,11 +192,11 @@ class PostTableTest {
         confidence = confidence(row)
     )
 
-    // No screen shows likes, comments or bookmarks yet, so the table doesn't keep them. It keeps
-    // authors only to find their rows with rowsBy, which the tests of rowsBy cover.
+    // No screen shows comments or bookmarks yet, and whether the user liked a post depends on who
+    // is looking, so the table doesn't keep them. It keeps authors only to find their rows with
+    // rowsBy, which the tests of rowsBy cover.
     private fun Post.withFieldsNotReadBackCleared(): Post = copy(
         authorUid = "",
-        likeCount = 0,
         commentCount = 0,
         isLiked = false,
         isBookmarked = false
