@@ -176,11 +176,12 @@ private fun FeedList(
  * @param authorUid The Firebase UID of the post's author.
  */
 @Composable
-private fun PostHeader(avatarInitials: String,
-                       username: String,
-                       details: String,
-                       authorUid: String,
-                       onOpenProfile: (String) -> Unit
+private fun PostHeader(
+    avatarInitials: String,
+    username: String,
+    details: String,
+    authorUid: String,
+    onOpenProfile: (String) -> Unit
 ) {
     Row(
         modifier = Modifier

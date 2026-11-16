@@ -3,6 +3,7 @@ package edu.csuci.tweeter.ui.profile
 import edu.csuci.tweeter.data.AccountRepository
 import edu.csuci.tweeter.data.Post
 import edu.csuci.tweeter.data.PostRepository
+import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.UserProfile
 import kotlinx.coroutines.Dispatchers
@@ -53,7 +54,8 @@ class UserProfileViewModelTest {
         val state = viewModel.uiState.value as UserProfileUiState.Loaded
 
         assertEquals(profile, state.profile)
-        assertEquals(AUTHOR_UID, postRepository.requestedUid)
+        assertTrue(postRepository.wasRead)
+        assertTrue(state.rows.isEmpty())
         assertFalse(state.isOwnProfile)
     }
 
@@ -99,13 +101,11 @@ class UserProfileViewModelTest {
     }
 
     private class FakePostRepository : PostRepository {
-        var requestedUid: String? = null
+        var wasRead: Boolean = false
 
-        override fun getPosts(): Flow<List<Post>> = flowOf(emptyList())
-
-        override fun getPostsBy(authorUid: String): Flow<List<Post>> {
-            requestedUid = authorUid
-            return flowOf(emptyList())
+        override fun getPostTable(): Flow<PostTable> {
+            wasRead = true
+            return flowOf(PostTable.EMPTY)
         }
 
         override suspend fun addPost(post: Post) = Unit

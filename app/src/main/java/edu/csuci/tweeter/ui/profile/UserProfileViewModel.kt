@@ -9,8 +9,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
-import edu.csuci.tweeter.data.Post
 import edu.csuci.tweeter.data.PostRepository
+import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.UserProfile
 import kotlinx.coroutines.flow.SharingStarted
@@ -31,13 +31,15 @@ sealed interface UserProfileUiState {
      * The profile and posts available to display.
      *
      * @property profile The user whose profile was opened.
-     * @property posts That user's posts.
+     * @property table The table containing the posts.
+     * @property rows That user's post rows, in display order.
      * @property isOwnProfile Whether the viewer owns this profile.
      * @property isLoggedIn Whether the viewer has a registered account session.
      */
     data class Loaded(
         val profile: UserProfile,
-        val posts: List<Post>,
+        val table: PostTable,
+        val rows: IntArray,
         val isOwnProfile: Boolean,
         val isLoggedIn: Boolean
     ) : UserProfileUiState
@@ -59,14 +61,15 @@ class UserProfileViewModel(
 ) : ViewModel() {
     /** The requested profile, its posts and the viewer's ownership status. */
     val uiState: StateFlow<UserProfileUiState> =
-        combine<UserProfile, List<Post>, String?, UserProfileUiState>(
+        combine<UserProfile, PostTable, String?, UserProfileUiState>(
             profileRepository.getProfile(userUid),
-            postRepository.getPostsBy(userUid),
+            postRepository.getPostTable(),
             accountRepository.loggedInUid
-        ) { profile, posts, viewerUid ->
+        ) { profile, table, viewerUid ->
             UserProfileUiState.Loaded(
                 profile = profile,
-                posts = posts,
+                table = table,
+                rows = table.rowsBy(userUid),
                 isOwnProfile = viewerUid != null && viewerUid == userUid,
                 isLoggedIn = viewerUid != null
             )

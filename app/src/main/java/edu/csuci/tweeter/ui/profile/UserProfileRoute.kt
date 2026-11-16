@@ -1,8 +1,8 @@
 package edu.csuci.tweeter.ui.profile
 
 import androidx.navigation.NavGraphBuilder
-import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
+import edu.csuci.tweeter.ui.navigation.opaqueComposable
 import kotlinx.serialization.Serializable
 
 /**
@@ -27,7 +27,7 @@ fun NavGraphBuilder.addUserProfileScreen(
     onCreateAccount: () -> Unit,
     onEditProfile: () -> Unit
 ) {
-    composable<UserProfileRoute> { backStackEntry ->
+    opaqueComposable<UserProfileRoute> { backStackEntry ->
         val route = backStackEntry.toRoute<UserProfileRoute>()
         UserProfileScreen(
             userUid = route.userUid,

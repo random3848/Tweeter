@@ -44,9 +44,9 @@ import edu.csuci.tweeter.ui.post.addPostScreen
 import edu.csuci.tweeter.ui.profile.EditProfileRoute
 import edu.csuci.tweeter.ui.profile.ProfileButton
 import edu.csuci.tweeter.ui.profile.ProfileRoute
+import edu.csuci.tweeter.ui.profile.UserProfileRoute
 import edu.csuci.tweeter.ui.profile.addEditProfileScreen
 import edu.csuci.tweeter.ui.profile.addProfileScreen
-import edu.csuci.tweeter.ui.profile.UserProfileRoute
 import edu.csuci.tweeter.ui.profile.addUserProfileScreen
 
 /**

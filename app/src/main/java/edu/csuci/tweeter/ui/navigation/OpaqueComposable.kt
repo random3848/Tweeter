@@ -14,6 +14,7 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 
@@ -81,9 +82,13 @@ val LocalMapCover = staticCompositionLocalOf<MapCover> {
  * being left keeps the map hidden until it is gone.
  */
 inline fun <reified T : Any> NavGraphBuilder.opaqueComposable(
-    noinline content: @Composable () -> Unit
+    noinline content: @Composable (NavBackStackEntry) -> Unit
 ) {
-    composable<T> { OpaqueScreen(content) }
+    composable<T> { backStackEntry ->
+        OpaqueScreen {
+            content(backStackEntry)
+        }
+    }
 }
 
 /** [content] on the app's background, counted in [LocalMapCover] while it's composed. */

@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -20,21 +19,24 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import edu.csuci.tweeter.R
-import edu.csuci.tweeter.data.Post
+import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.UserProfile
+import edu.csuci.tweeter.ui.postDetailsText
 
 /**
  * The shared profile layout: avatar, name, bio, actions and posts.
  *
  * @param profile The user whose profile is displayed.
- * @param posts The user's posts, in display order.
+ * @param table The table containing the posts.
+ * @param rows The user's post rows, in display order.
  * @param modifier Applied to the scrolling content.
  * @param actions Controls displayed below the bio.
  */
 @Composable
 internal fun ProfileContent(
     profile: UserProfile,
-    posts: List<Post>,
+    table: PostTable,
+    rows: IntArray,
     modifier: Modifier = Modifier,
     actions: @Composable () -> Unit
 ) {
@@ -46,7 +48,7 @@ internal fun ProfileContent(
         item {
             ProfileHeader(
                 profile = profile,
-                postCount = posts.size,
+                postCount = rows.size,
                 modifier = Modifier.padding(horizontal = 16.dp),
                 actions = actions
             )
@@ -54,14 +56,17 @@ internal fun ProfileContent(
         item {
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
-        if (posts.isEmpty()) {
+        if (rows.isEmpty()) {
             item {
                 NoPostsMessage(modifier = Modifier.padding(16.dp))
             }
         } else {
-            items(items = posts, key = { post -> post.id }) { post ->
+            items(count = rows.size, key = { i -> table.id(rows[i]) }) { i ->
+                val row = rows[i]
                 ProfilePostItem(
-                    post = post,
+                    imageUri = table.imageUri(row),
+                    caption = table.caption(row),
+                    details = postDetailsText(table.locationName(row), table.timestampMillis(row)),
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }

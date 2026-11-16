@@ -10,8 +10,10 @@ import edu.csuci.tweeter.data.CameraFileStore
 import edu.csuci.tweeter.data.FakeAnimalRepository
 import edu.csuci.tweeter.data.FirebaseAccountRepository
 import edu.csuci.tweeter.data.FirebasePhotoRepository
+import edu.csuci.tweeter.data.FirestoreFollowRepository
 import edu.csuci.tweeter.data.FirestorePostRepository
 import edu.csuci.tweeter.data.FirestoreProfileRepository
+import edu.csuci.tweeter.data.FollowRepository
 import edu.csuci.tweeter.data.GuestSignIn
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PostRepository
@@ -25,8 +27,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
-import edu.csuci.tweeter.data.FirestoreFollowRepository
-import edu.csuci.tweeter.data.FollowRepository
 
 // How long a ViewModel keeps sharing after its screen stops collecting: longer than an activity
 // takes to be recreated for a rotation.

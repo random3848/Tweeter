@@ -94,7 +94,8 @@ fun UserProfileScreen(
             is UserProfileUiState.Loaded -> {
                 ProfileContent(
                     profile = state.profile,
-                    posts = state.posts
+                    table = state.table,
+                    rows = state.rows
                 ) {
                     ProfileFollowControls(
                         userUid = userUid,
