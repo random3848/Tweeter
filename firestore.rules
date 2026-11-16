@@ -24,6 +24,23 @@ service cloud.firestore {
                             && request.resource.data.photoUrl is string
                             && (request.resource.data.photoUrl == ''
                                 || request.resource.data.photoUrl.matches('https://.*'));
+
+      // A follower document identifies who follows this user.
+      match /followers/{followerUid} {
+                           allow read: if request.auth != null;
+
+      // Registered users can follow others only as themselves.
+      allow create, update: if request.auth != null
+                             && request.auth.token.firebase.sign_in_provider != 'anonymous'
+                             && request.auth.uid == followerUid
+                             && followerUid != uid
+                             && request.resource.data.keys().hasOnly([]);
+
+      // Users can remove only their own following relationship.
+       allow delete: if request.auth != null
+                             && request.auth.token.firebase.sign_in_provider != 'anonymous'
+                              && request.auth.uid == followerUid;
+                                  }
     }
 
     // The fields match PostDocument in the app.

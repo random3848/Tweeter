@@ -61,10 +61,12 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
  * @param modifier Applied to the whole screen.
  * @param topBarActions Buttons on the right of the top bar, such as the profile button.
  * @param feedViewModel Supplies posts and UI state for the feed.
+ * @param onOpenProfile Opens the selected author's profile.
  */
 @Composable
 fun FeedScreen(
     onShowOnMap: () -> Unit,
+    onOpenProfile: (String) -> Unit,
     modifier: Modifier = Modifier,
     topBarActions: @Composable RowScope.() -> Unit = {},
     feedViewModel: FeedViewModel = viewModel(factory = FeedViewModel.factory)
@@ -117,6 +119,7 @@ fun FeedScreen(
                     loggedInUid = loggedInUid,
                     onShowOnMap = showPostOnMap,
                     onDelete = deletePost,
+                    onOpenProfile = onOpenProfile,
                     modifier = bodyModifier
                 )
             }
@@ -137,6 +140,7 @@ fun FeedScreen(
  *     capturing the table, so it stays the same as new tables arrive.
  * @param onDelete Deletes the post with the given ID. It takes the ID for the same reason.
  * @param modifier Applied to the list.
+ * @param onOpenProfile Opens the selected author's profile.
  */
 @Composable
 private fun FeedList(
@@ -145,6 +149,7 @@ private fun FeedList(
     loggedInUid: String?,
     onShowOnMap: (String) -> Unit,
     onDelete: (String) -> Unit,
+    onOpenProfile: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val lastRow = posts.size - 1
@@ -162,7 +167,9 @@ private fun FeedList(
                 // A guest's ID is null, and a post shared while logged out has no author, so
                 // neither matches.
                 isMine = loggedInUid != null && posts.authorUid(row) == loggedInUid,
-                onDelete = onDelete
+                onDelete = onDelete,
+                authorUid = posts.authorUid(row),
+                onOpenProfile = onOpenProfile
             )
             PhotoWithMapLabel(
                 postId = posts.id(row),
@@ -184,15 +191,17 @@ private fun FeedList(
 
 /**
  * The top of a feed post: the poster's avatar and name, where the post was shared and how long
- * ago, and, on the logged-in user's own posts, a delete button that asks before deleting. It takes
- * the values it shows rather than the post's row, so it's skipped when the feed recomposes with
- * the same values.
+ * ago. Pressing it opens the author's profile. On the logged-in user's own posts it also has a
+ * delete button, which asks before deleting. It receives the displayed texts and author UID
+ * separately from the post table.
  *
  * @param postId The post's ID, which [onDelete] is called with.
  * @param avatarInitials The initials in the poster's avatar.
  * @param username The poster's name.
  * @param details Where the post was shared and how long ago, as [postDetailsText] puts it.
+ * @param authorUid The Firebase UID of the post's author.
  * @param isMine Whether the logged-in user wrote the post, which shows the delete button.
+ * @param onOpenProfile Opens the profile of the author with the given UID.
  * @param onDelete Deletes the post with the given ID, once the user confirms.
  */
 @Composable
@@ -209,6 +218,12 @@ private fun PostHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(
+                enabled = authorUid.isNotBlank(),
+                onClickLabel = stringResource(R.string.feed_open_author_profile),
+                role = Role.Button,
+                onClick = { onOpenProfile(authorUid) }
+            )
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
