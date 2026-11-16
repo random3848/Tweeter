@@ -17,14 +17,20 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,7 +54,8 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
  *
  * Displays posts from [FeedViewModel], newest first, in a clean scrolling layout. A label
  * on each post's photo shows the post on Map. When another screen asks the feed to show a post,
- * as Map's popup does, the feed scrolls to it.
+ * as Map's popup does, the feed scrolls to it. The logged-in user's own posts have a delete
+ * button, which asks before deleting.
  *
  * @param onShowOnMap Opens Map, once the post the user chose is requested there.
  * @param modifier Applied to the whole screen.
@@ -63,6 +70,7 @@ fun FeedScreen(
     feedViewModel: FeedViewModel = viewModel(factory = FeedViewModel.factory)
 ) {
     val uiState by feedViewModel.uiState.collectAsStateWithLifecycle()
+    val loggedInUid by feedViewModel.loggedInUid.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
 
     val rowToShow = uiState.rowToShow
@@ -77,6 +85,10 @@ fun FeedScreen(
     val showPostOnMap = { postId: String ->
         feedViewModel.showOnMap(postId)
         onShowOnMap()
+    }
+    // Takes the post's ID for the same reason.
+    val deletePost = { postId: String ->
+        feedViewModel.deletePost(postId)
     }
     Column(modifier = modifier.fillMaxSize()) {
         TweeterTopBar(actions = topBarActions)
@@ -102,7 +114,9 @@ fun FeedScreen(
                 FeedList(
                     posts = uiState.posts,
                     listState = listState,
+                    loggedInUid = loggedInUid,
                     onShowOnMap = showPostOnMap,
+                    onDelete = deletePost,
                     modifier = bodyModifier
                 )
             }
@@ -118,15 +132,19 @@ fun FeedScreen(
  *
  * @param posts The posts to list, in table order.
  * @param listState The list's scroll position.
+ * @param loggedInUid The logged-in user's ID, whose posts get a delete button, or null for guests.
  * @param onShowOnMap Shows the post with the given ID on Map. It takes the ID rather than
  *     capturing the table, so it stays the same as new tables arrive.
+ * @param onDelete Deletes the post with the given ID. It takes the ID for the same reason.
  * @param modifier Applied to the list.
  */
 @Composable
 private fun FeedList(
     posts: PostTable,
     listState: LazyListState,
+    loggedInUid: String?,
     onShowOnMap: (String) -> Unit,
+    onDelete: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val lastRow = posts.size - 1
@@ -137,9 +155,14 @@ private fun FeedList(
     ) {
         items(count = posts.size, key = { row -> posts.id(row) }) { row ->
             PostHeader(
+                postId = posts.id(row),
                 avatarInitials = posts.avatarInitials(row),
                 username = posts.username(row),
-                details = postDetailsText(posts.locationName(row), posts.timestampMillis(row))
+                details = postDetailsText(posts.locationName(row), posts.timestampMillis(row)),
+                // A guest's ID is null, and a post shared while logged out has no author, so
+                // neither matches.
+                isMine = loggedInUid != null && posts.authorUid(row) == loggedInUid,
+                onDelete = onDelete
             )
             PhotoWithMapLabel(
                 postId = posts.id(row),
@@ -161,15 +184,28 @@ private fun FeedList(
 
 /**
  * The top of a feed post: the poster's avatar and name, where the post was shared and how long
- * ago. It takes the three texts it shows rather than the post's row, so it's skipped when the feed
- * recomposes with the same texts.
+ * ago, and, on the logged-in user's own posts, a delete button that asks before deleting. It takes
+ * the values it shows rather than the post's row, so it's skipped when the feed recomposes with
+ * the same values.
  *
+ * @param postId The post's ID, which [onDelete] is called with.
  * @param avatarInitials The initials in the poster's avatar.
  * @param username The poster's name.
  * @param details Where the post was shared and how long ago, as [postDetailsText] puts it.
+ * @param isMine Whether the logged-in user wrote the post, which shows the delete button.
+ * @param onDelete Deletes the post with the given ID, once the user confirms.
  */
 @Composable
-private fun PostHeader(avatarInitials: String, username: String, details: String) {
+private fun PostHeader(
+    postId: String,
+    avatarInitials: String,
+    username: String,
+    details: String,
+    isMine: Boolean,
+    onDelete: (String) -> Unit
+) {
+    var showDeleteConfirm by rememberSaveable { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -191,7 +227,11 @@ private fun PostHeader(avatarInitials: String, username: String, details: String
             )
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        // Takes the leftover width, which puts the delete button at the right edge.
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
             Text(
                 text = username,
                 style = MaterialTheme.typography.titleMedium,
@@ -203,6 +243,37 @@ private fun PostHeader(avatarInitials: String, username: String, details: String
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+
+        if (isMine) {
+            IconButton(onClick = { showDeleteConfirm = true }) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_delete),
+                    contentDescription = stringResource(R.string.feed_delete_post),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text(stringResource(R.string.feed_delete_title)) },
+            text = { Text(stringResource(R.string.feed_delete_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteConfirm = false
+                    onDelete(postId)
+                }) {
+                    Text(stringResource(R.string.feed_delete_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text(stringResource(R.string.feed_delete_cancel))
+                }
+            }
+        )
     }
 }
 

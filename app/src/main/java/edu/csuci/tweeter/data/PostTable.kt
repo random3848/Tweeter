@@ -38,6 +38,9 @@ class PostTable private constructor(
     /** The [Post.id] of the post in [row]. */
     fun id(row: Int): String = ids[row]
 
+    /** The [Post.authorUid] of the post in [row]: empty for a post shared while logged out. */
+    fun authorUid(row: Int): String = authorUids[row]
+
     /** The [Post.username] of the post in [row]. */
     fun username(row: Int): String = usernames[row]
 
