@@ -10,6 +10,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -161,5 +162,10 @@ private fun ProfileFollowControls(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.error
         )
+        if (!state.canFollow) {
+            TextButton(onClick = followViewModel::retry) {
+                Text(text = stringResource(R.string.profile_follow_retry))
+            }
+        }
     }
 }

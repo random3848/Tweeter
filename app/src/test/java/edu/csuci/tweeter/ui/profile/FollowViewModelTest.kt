@@ -1,11 +1,14 @@
 package edu.csuci.tweeter.ui.profile
 
 import edu.csuci.tweeter.data.AccountRepository
+import edu.csuci.tweeter.data.FollowException
 import edu.csuci.tweeter.data.FollowRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -73,6 +76,42 @@ class FollowViewModelTest {
         assertEquals(null, followRepository.followedUid)
     }
 
+    @Test
+    fun observeFollowing_failure_showsErrorAndBlocksChanges() {
+        followRepository.failRead = true
+        val viewModel = createViewModel()
+
+        assertTrue(viewModel.uiState.value.hasFailed)
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertFalse(viewModel.uiState.value.canFollow)
+
+        viewModel.follow()
+
+        assertEquals(null, followRepository.followedUid)
+    }
+
+    @Test
+    fun retry_afterReadFailure_loadsRelationshipAndKeepsListening() {
+        followRepository.failRead = true
+        val viewModel = createViewModel()
+
+        assertTrue(viewModel.uiState.value.hasFailed)
+
+        followRepository.failRead = false
+        followRepository.following.value = true
+        viewModel.retry()
+
+        assertEquals(2, followRepository.observeCount)
+        assertFalse(viewModel.uiState.value.hasFailed)
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertTrue(viewModel.uiState.value.canFollow)
+        assertTrue(viewModel.uiState.value.isFollowing)
+
+        followRepository.following.value = false
+
+        assertFalse(viewModel.uiState.value.isFollowing)
+    }
+
     private fun createViewModel(userUid: String = OTHER_UID): FollowViewModel = FollowViewModel(
         userUid = userUid,
         accountRepository = accountRepository,
@@ -83,9 +122,17 @@ class FollowViewModelTest {
         val following = MutableStateFlow(false)
         var followedUid: String? = null
         var unfollowedUid: String? = null
+        var failRead: Boolean = false
+        var observeCount: Int = 0
 
         override fun observeFollowing(followerUid: String, followedUid: String): Flow<Boolean> =
-            following
+            flow {
+                observeCount++
+                if (failRead) {
+                    throw FollowException(IllegalStateException("Could not read following"))
+                }
+                emitAll(following)
+            }
 
         override suspend fun follow(userUid: String) {
             followedUid = userUid

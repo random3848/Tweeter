@@ -50,6 +50,7 @@ class FollowViewModel(
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(FollowUiState())
     private var changeJob: Job? = null
+    private var relationshipJob: Job? = null
 
     /** The relationship and loading state displayed by the screen. */
     val uiState: StateFlow<FollowUiState> = _uiState.asStateFlow()
@@ -78,8 +79,23 @@ class FollowViewModel(
         changeRelationship(followRepository::unfollow)
     }
 
-    private suspend fun observeRelationship(viewerUid: String?) {
+    /** Retries reading the relationship after a failed attempt. */
+    fun retry() {
+        val state = uiState.value
+        val viewerUid = accountRepository.loggedInUid.value
+        if (!state.hasFailed || state.canFollow ||
+            viewerUid == null || viewerUid == userUid
+        ) {
+            return
+        }
+
+        observeRelationship(viewerUid)
+    }
+
+    private fun observeRelationship(viewerUid: String?) {
+        relationshipJob?.cancel()
         changeJob?.cancel()
+
         val canFollow = viewerUid != null && viewerUid != userUid
         _uiState.value = FollowUiState(
             canFollow = canFollow,
@@ -87,7 +103,9 @@ class FollowViewModel(
         )
 
         if (viewerUid != null && canFollow) {
-            readRelationship(viewerUid)
+            relationshipJob = viewModelScope.launch {
+                readRelationship(viewerUid)
+            }
         }
     }
 

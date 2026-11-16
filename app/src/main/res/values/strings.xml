@@ -107,6 +107,7 @@
     <string name="profile_log_in_to_follow">Log in to follow</string>
     <string name="profile_follow_failed">Could not load or update following. Please try again.</string>
     <string name="profile_load_failed">Could not load this profile. Go back and try again.</string>
+    <string name="profile_follow_retry">Retry</string>
 
     <string name="feed_open_author_profile">View profile</string>
 </resources>

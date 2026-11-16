@@ -1,6 +1,5 @@
 package edu.csuci.tweeter.data
 
-import android.util.Log
 import com.google.firebase.FirebaseException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentReference
@@ -35,7 +34,6 @@ class FirestoreFollowRepository(
                 }
 
                 if (snapshot != null) {
-                    Log.d("FollowDebug", "Following observed: ${snapshot.exists()}")
                     trySend(snapshot.exists())
                 }
             }
@@ -53,14 +51,9 @@ class FirestoreFollowRepository(
 
     private suspend fun createRelationship(userUid: String) {
         val followerUid = registeredFollowerUid(userUid)
-        val reference = relationship(followerUid, userUid)
-
-        firestore.runTransaction { transaction ->
-            if (!transaction.get(reference).exists()) {
-                transaction.set(reference, emptyMap<String, Any>())
-            }
-            Unit
-        }.await()
+        relationship(followerUid, userUid)
+            .set(emptyMap<String, Any>())
+            .await()
     }
 
     override suspend fun unfollow(userUid: String) {
