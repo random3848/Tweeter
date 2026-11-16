@@ -9,6 +9,7 @@ import edu.csuci.tweeter.data.FakePostRepository
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.SAMPLE_POSTS
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
@@ -23,6 +24,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -392,6 +394,56 @@ class MapViewModelTest {
     }
 
     @Test
+    fun retryFriends_untilFriendsAreRead_saysNothingFailed() = runTest {
+        followRepository.failsReads = true
+        val viewModel = mapViewModelOfPostsByEach()
+        viewModel.choosePinFilter(PinFilter.FRIENDS)
+        followRepository.readsAnswered = CompletableDeferred()
+
+        viewModel.retryFriends()
+
+        assertFalse(viewModel.uiState.value.friendsUnknown)
+    }
+
+    @Test
+    fun choosePinFilter_friendsNotReadYet_pinsNoPostsUnderFriends() = runTest {
+        followEachOther(USER, FRIEND)
+        followRepository.readsAnswered = CompletableDeferred()
+        val viewModel = mapViewModelOfPostsByEach()
+
+        viewModel.choosePinFilter(PinFilter.FRIENDS)
+
+        assertEquals(
+            PinFilter.FRIENDS to emptyList<String>(),
+            viewModel.uiState.value.filterAndPinnedPostIds()
+        )
+    }
+
+    @Test
+    fun uiState_mapShownAgainUnderFriends_keepsTheirPinsWhileReadingThem() = runTest {
+        followEachOther(USER, FRIEND)
+        val viewModel = mapViewModelOfPostsByEach()
+        viewModel.choosePinFilter(PinFilter.FRIENDS)
+        val pinnedPosts = viewModel.uiState.value.pinnedPosts
+        viewModel.setMapShown(false)
+        followRepository.readsAnswered = CompletableDeferred()
+
+        viewModel.setMapShown(true)
+
+        assertSame(pinnedPosts, viewModel.uiState.value.pinnedPosts)
+    }
+
+    @Test
+    fun uiState_mapHidden_stopsReadingFriends() = runTest {
+        val viewModel = mapViewModelOfPostsByEach()
+        viewModel.choosePinFilter(PinFilter.FRIENDS)
+
+        viewModel.setMapShown(false)
+
+        assertEquals(0, followRepository.openReadCount)
+    }
+
+    @Test
     fun uiState_loggedOutWhileMineIsChosen_offersNoFilterAndPinsEveryPost() = runTest {
         val viewModel = mapViewModelOfPostsByEach()
         viewModel.choosePinFilter(PinFilter.MINE)
@@ -421,8 +473,7 @@ class MapViewModelTest {
     ): MapViewModel {
         val viewModel = MapViewModel(
             postRepository = repository,
-            accountRepository = accountRepository,
-            followRepository = followRepository,
+            pinFilterChoice = PinFilterChoice(accountRepository, followRepository),
             showOnMapRequest = showOnMapRequest,
             showInFeedRequest = showInFeedRequest,
             savedStateHandle = SavedStateHandle(),

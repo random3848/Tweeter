@@ -9,6 +9,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.tasks.await
 
 private const val FOLLOWERS = "followers"
@@ -51,7 +52,8 @@ class FirestoreFollowRepository(
     override fun observeFollowerUids(followedUid: String): Flow<Set<String>> =
         observeDocumentIds(userCollection(followedUid, FOLLOWERS))
 
-    // The IDs of the documents in [collection], which name the users it lists.
+    // The IDs of the documents in [collection], which name the users it lists. Each snapshot holds
+    // the whole list, so only the newest of those not collected yet is kept.
     private fun observeDocumentIds(collection: CollectionReference): Flow<Set<String>> =
         callbackFlow {
             val registration = collection.addSnapshotListener { snapshot, error ->
@@ -66,7 +68,7 @@ class FirestoreFollowRepository(
             }
 
             awaitClose { registration.remove() }
-        }
+        }.conflate()
 
     override suspend fun follow(userUid: String) {
         try {

@@ -118,7 +118,13 @@ fun MapScreen(
                 if (isShown) {
                     MapControls(
                         mapState = mapState,
-                        header = { OfferedPinFilter(uiState, viewModel) }
+                        header = {
+                            OfferedPinFilter(
+                                uiState = uiState,
+                                onChoose = viewModel::choosePinFilter,
+                                onRetryFriends = viewModel::retryFriends
+                            )
+                        }
                     ) {
                         MyLocationButton(
                             locationState = locationState,
@@ -139,15 +145,25 @@ fun MapScreen(
     }
 }
 
-/** [PinFilterBar] for the filter [uiState] offers, or nothing while nobody is logged in. */
+/**
+ * [PinFilterBar] for the filter [uiState] offers, or nothing while nobody is logged in.
+ *
+ * @param uiState The filter offered, and whether the map could read the user's friends.
+ * @param onChoose Called with the filter the user presses.
+ * @param onRetryFriends Called when the user asks to read their friends again.
+ */
 @Composable
-private fun OfferedPinFilter(uiState: MapUiState, viewModel: MapViewModel) {
+private fun OfferedPinFilter(
+    uiState: MapUiState,
+    onChoose: (PinFilter) -> Unit,
+    onRetryFriends: () -> Unit
+) {
     val pinFilter = uiState.pinFilter ?: return
     PinFilterBar(
         chosen = pinFilter,
         friendsUnknown = uiState.friendsUnknown,
-        onChoose = viewModel::choosePinFilter,
-        onRetryFriends = viewModel::retryFriends,
+        onChoose = onChoose,
+        onRetryFriends = onRetryFriends,
         modifier = Modifier.padding(
             start = MapOverlay.Spacing,
             top = MapOverlay.Spacing,

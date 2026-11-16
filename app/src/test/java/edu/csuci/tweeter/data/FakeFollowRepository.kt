@@ -1,11 +1,14 @@
 package edu.csuci.tweeter.data
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.update
 
 /**
@@ -18,6 +21,13 @@ class FakeFollowRepository : FollowRepository {
 
     /** Whether reads fail, as when the server refuses them. */
     var failsReads = false
+
+    /** When set, reads wait for it before answering, like reads the server hasn't answered yet. */
+    var readsAnswered: CompletableDeferred<Unit>? = null
+
+    /** How many reads are being collected, each of them listening for changes. */
+    var openReadCount = 0
+        private set
 
     /** Makes [followerUid] a follower of [followedUid]. */
     fun addFollow(followerUid: String, followedUid: String) {
@@ -50,11 +60,14 @@ class FakeFollowRepository : FollowRepository {
 
     // [answer] for the relationships, read again each time they change, unless reads fail.
     private fun <T> read(answer: (Set<Follow>) -> T): Flow<T> = flow {
+        readsAnswered?.await()
         if (failsReads) {
             throw FollowException(IllegalStateException("The server refused the read"))
         }
         emitAll(follows.map(answer).distinctUntilChanged())
     }
+        .onStart { openReadCount++ }
+        .onCompletion { openReadCount-- }
 
     private data class Follow(val followerUid: String, val followedUid: String)
 }
