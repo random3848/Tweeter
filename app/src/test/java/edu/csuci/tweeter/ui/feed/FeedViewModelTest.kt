@@ -2,7 +2,9 @@
 
 package edu.csuci.tweeter.ui.feed
 
+import edu.csuci.tweeter.data.AccountRepository
 import edu.csuci.tweeter.data.FakePostRepository
+import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.SAMPLE_POSTS
@@ -14,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
@@ -133,6 +136,8 @@ class FeedViewModelTest {
         postsDispatcher: CoroutineDispatcher = UnconfinedTestDispatcher()
     ) = FeedViewModel(
         postRepository = repository,
+        photoRepository = FakePhotoRepository(),
+        accountRepository = FakeAccountRepository(uid = null),
         showInFeedRequest = showInFeedRequest,
         showOnMapRequest = showOnMapRequest,
         postsDispatcher = postsDispatcher,
@@ -154,5 +159,25 @@ class FeedViewModelTest {
     // A repository whose first table never arrives, as while Firestore is still answering.
     private class TablelessPostRepository : PostRepository by FakePostRepository() {
         override fun getPostTable(): Flow<PostTable> = flow { awaitCancellation() }
+    }
+
+    private class FakePhotoRepository : PhotoRepository {
+        override suspend fun uploadPhoto(photoUri: String): String = ""
+
+        override suspend fun uploadProfilePhoto(photoUri: String): String = ""
+
+        override suspend fun deletePhoto(photoUrl: String) = Unit
+    }
+
+    private class FakeAccountRepository(uid: String?) : AccountRepository {
+        override val loggedInUid = MutableStateFlow(uid)
+
+        override suspend fun logIn(email: String, password: String) = Unit
+
+        override suspend fun createAccount(email: String, password: String) = Unit
+
+        override suspend fun logOut() = Unit
+
+        override suspend fun resetPassword(email: String) = Unit
     }
 }
