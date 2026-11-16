@@ -210,7 +210,9 @@ private fun PostHeader(
     avatarInitials: String,
     username: String,
     details: String,
+    authorUid: String,
     isMine: Boolean,
+    onOpenProfile: (String) -> Unit,
     onDelete: (String) -> Unit
 ) {
     var showDeleteConfirm by rememberSaveable { mutableStateOf(false) }
