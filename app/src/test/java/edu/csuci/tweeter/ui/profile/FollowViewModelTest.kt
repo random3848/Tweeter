@@ -134,6 +134,12 @@ class FollowViewModelTest {
                 emitAll(following)
             }
 
+        override fun observeFollowedUids(followerUid: String): Flow<Set<String>> =
+            error("Not used by FollowViewModel")
+
+        override fun observeFollowerUids(followedUid: String): Flow<Set<String>> =
+            error("Not used by FollowViewModel")
+
         override suspend fun follow(userUid: String) {
             followedUid = userUid
             following.value = true

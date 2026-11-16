@@ -12,6 +12,7 @@ import org.junit.Test
 private const val UNKNOWN_ID = "no-such-post"
 private const val MAYA = "maya"
 private const val JORDAN = "jordan"
+private const val SAM = "sam"
 
 private const val MOST_CONFIDENT = 5
 
@@ -83,6 +84,24 @@ class PostTableTest {
     @Test
     fun rowsBy_authorWithoutPosts_returnsNoRows() {
         assertArrayEquals(intArrayOf(), PostTable.of(SAMPLE_POSTS).rowsBy(MAYA))
+    }
+
+    @Test
+    fun rowsBy_authors_returnsAllTheirRowsInTableOrder() {
+        val table = PostTable.of(
+            listOf(
+                SAMPLE_POSTS[0].copy(id = "maya's", authorUid = MAYA),
+                SAMPLE_POSTS[1].copy(id = "jordan's", authorUid = JORDAN),
+                SAMPLE_POSTS[2].copy(id = "sam's", authorUid = SAM)
+            )
+        )
+
+        assertArrayEquals(intArrayOf(0, 2), table.rowsBy(setOf(SAM, MAYA)))
+    }
+
+    @Test
+    fun rowsBy_noAuthors_returnsNoRows() {
+        assertArrayEquals(intArrayOf(), PostTable.of(SAMPLE_POSTS).rowsBy(emptySet()))
     }
 
     @Test
