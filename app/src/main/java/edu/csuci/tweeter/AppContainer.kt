@@ -5,7 +5,9 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import edu.csuci.tweeter.data.AccountRepository
+import edu.csuci.tweeter.data.AnimalRepository
 import edu.csuci.tweeter.data.CameraFileStore
+import edu.csuci.tweeter.data.FakeAnimalRepository
 import edu.csuci.tweeter.data.FirebaseAccountRepository
 import edu.csuci.tweeter.data.FirebasePhotoRepository
 import edu.csuci.tweeter.data.FirestorePostRepository
@@ -102,6 +104,12 @@ class AppContainer(private val context: Context) {
             )
         )
     }
+
+    /**
+     * The animals a post can be tagged with: a fixed list in memory until the iNaturalist
+     * repository is built; that work replaces this.
+     */
+    val animalRepository: AnimalRepository = FakeAnimalRepository()
 
     /**
      * Saves profiles and deletes the photos the saves leave unused, waiting for the server in
