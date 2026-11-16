@@ -7,8 +7,10 @@ import com.google.firebase.storage.FirebaseStorage
 import edu.csuci.tweeter.data.AccountRepository
 import edu.csuci.tweeter.data.FirebaseAccountRepository
 import edu.csuci.tweeter.data.FirebasePhotoRepository
+import edu.csuci.tweeter.data.FirestoreFollowRepository
 import edu.csuci.tweeter.data.FirestorePostRepository
 import edu.csuci.tweeter.data.FirestoreProfileRepository
+import edu.csuci.tweeter.data.FollowRepository
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.ProfileRepository
@@ -52,6 +54,14 @@ class AppContainer(private val context: Context) {
     /** Every user's profile, stored in Firestore. */
     val profileRepository: ProfileRepository by lazy {
         FirestoreProfileRepository(firestore = FirebaseFirestore.getInstance())
+    }
+
+    /** Follower relationships between registered users. */
+    val followRepository: FollowRepository by lazy {
+        FirestoreFollowRepository(
+            auth = FirebaseAuth.getInstance(),
+            firestore = FirebaseFirestore.getInstance()
+        )
     }
 
     /**

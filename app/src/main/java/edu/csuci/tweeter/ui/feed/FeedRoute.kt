@@ -12,9 +12,13 @@ object FeedRoute
  * Registers [FeedScreen] under [FeedRoute] in the app's NavHost.
  *
  * @param onShowOnMap Opens Map, where the post the user chose to show is requested.
+ * @param onOpenProfile Opens the selected author's profile.
  */
-fun NavGraphBuilder.addFeedScreen(onShowOnMap: () -> Unit) {
+fun NavGraphBuilder.addFeedScreen(onShowOnMap: () -> Unit, onOpenProfile: (String) -> Unit) {
     composable<FeedRoute> {
-        FeedScreen(onShowOnMap = onShowOnMap)
+        FeedScreen(
+            onShowOnMap = onShowOnMap,
+            onOpenProfile = onOpenProfile
+        )
     }
 }

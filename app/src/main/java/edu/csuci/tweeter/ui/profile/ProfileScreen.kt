@@ -86,105 +86,19 @@ fun ProfileScreen(
             is ProfileUiState.LoggedIn -> {
                 ProfileContent(
                     profile = state.profile,
-                    posts = state.posts,
-                    onEditProfile = onEditProfile
-                )
+                    posts = state.posts
+                ) {
+                    FilledTonalButton(
+                        onClick = onEditProfile,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                    ) {
+                        Text(text = stringResource(R.string.profile_edit))
+                    }
+                }
             }
         }
-    }
-}
-
-@Composable
-private fun ProfileContent(profile: UserProfile, posts: List<Post>, onEditProfile: () -> Unit) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item {
-            ProfileHeader(
-                profile = profile,
-                postCount = posts.size,
-                onEditProfile = onEditProfile,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        item {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        }
-        if (posts.isEmpty()) {
-            item {
-                NoPostsMessage(modifier = Modifier.padding(16.dp))
-            }
-        } else {
-            items(items = posts, key = { post -> post.id }) { post ->
-                ProfilePostItem(post = post, modifier = Modifier.padding(horizontal = 16.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun ProfileHeader(
-    profile: UserProfile,
-    postCount: Int,
-    onEditProfile: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            ProfileAvatar(
-                profile = profile,
-                size = 88.dp,
-                initialsStyle = MaterialTheme.typography.headlineMedium
-            )
-            Column {
-                Text(text = profile.displayName, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    text = pluralStringResource(R.plurals.profile_post_count, postCount, postCount),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        if (profile.bio.isNotBlank()) {
-            Text(text = profile.bio, style = MaterialTheme.typography.bodyMedium)
-        }
-        FilledTonalButton(
-            onClick = onEditProfile,
-            shape = RoundedCornerShape(8.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(40.dp)
-        ) {
-            Text(text = stringResource(R.string.profile_edit))
-        }
-    }
-}
-
-@Composable
-private fun NoPostsMessage(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = stringResource(R.string.profile_empty_title),
-            style = MaterialTheme.typography.titleMedium,
-            textAlign = TextAlign.Center
-        )
-        Text(
-            text = stringResource(R.string.profile_empty_message),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
     }
 }

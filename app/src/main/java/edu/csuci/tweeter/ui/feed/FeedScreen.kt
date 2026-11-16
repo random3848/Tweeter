@@ -47,10 +47,12 @@ import edu.csuci.tweeter.ui.profile.timeAgoText
  * @param onShowOnMap Opens Map, once the post the user chose is requested there.
  * @param modifier Applied to the whole screen.
  * @param feedViewModel Supplies posts and UI state for the feed.
+ * @param onOpenProfile Opens the profile identified by the author's user ID.
  */
 @Composable
 fun FeedScreen(
     onShowOnMap: () -> Unit,
+    onOpenProfile: (String) -> Unit,
     modifier: Modifier = Modifier,
     feedViewModel: FeedViewModel = viewModel(factory = FeedViewModel.factory)
 ) {
@@ -107,6 +109,9 @@ fun FeedScreen(
                         onShowOnMap = {
                             feedViewModel.showOnMap(post)
                             onShowOnMap()
+                        },
+                        onOpenProfile = {
+                            onOpenProfile(post.authorUid)
                         }
                     )
                     if (index < uiState.posts.lastIndex) {
@@ -129,13 +134,25 @@ fun FeedScreen(
  * @param post The post to render.
  * @param onShowOnMap Shows the post on Map.
  * @param modifier Applied to the item container.
+ * @param onOpenProfile Opens the post author's profile.
  */
 @Composable
-private fun FeedPostItem(post: Post, onShowOnMap: () -> Unit, modifier: Modifier = Modifier) {
+private fun FeedPostItem(
+    post: Post,
+    onShowOnMap: () -> Unit,
+    onOpenProfile: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .clickable(
+                    enabled = post.authorUid.isNotBlank(),
+                    onClickLabel = stringResource(R.string.feed_open_author_profile),
+                    role = Role.Button,
+                    onClick = onOpenProfile
+                )
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(8.dp)

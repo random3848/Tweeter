@@ -32,8 +32,10 @@ import edu.csuci.tweeter.ui.post.addPostScreen
 import edu.csuci.tweeter.ui.profile.EditProfileRoute
 import edu.csuci.tweeter.ui.profile.ProfileButton
 import edu.csuci.tweeter.ui.profile.ProfileRoute
+import edu.csuci.tweeter.ui.profile.UserProfileRoute
 import edu.csuci.tweeter.ui.profile.addEditProfileScreen
 import edu.csuci.tweeter.ui.profile.addProfileScreen
+import edu.csuci.tweeter.ui.profile.addUserProfileScreen
 
 /**
  * Bottom-bar items in display order.
@@ -91,14 +93,16 @@ fun TweeterApp(modifier: Modifier = Modifier) {
     val isOnAuth = destination?.hasRoute(LogInRoute::class) == true ||
         destination?.hasRoute(CreateAccountRoute::class) == true
     val isOnEditProfile = destination?.hasRoute(EditProfileRoute::class) == true
-    val hasOwnTopBar = isOnProfile || isOnAuth || isOnEditProfile
+    val isOnUserProfile = destination?.hasRoute(UserProfileRoute::class) == true
+    val hasOwnTopBar = isOnProfile || isOnAuth || isOnEditProfile || isOnUserProfile
     // Log in and Create account keep the tab of the screen that opened them selected.
     val tabDestination = if (isOnAuth) {
         navController.previousBackStackEntry?.destination
     } else {
         destination
     }
-    val isOnProfileTab = tabDestination?.hasRoute(ProfileRoute::class) == true
+    val isOnProfileTab = tabDestination?.hasRoute(ProfileRoute::class) == true ||
+        tabDestination?.hasRoute(UserProfileRoute::class) == true
     val openLogIn = {
         navController.navigate(LogInRoute) {
             launchSingleTop = true
@@ -106,6 +110,11 @@ fun TweeterApp(modifier: Modifier = Modifier) {
     }
     val openCreateAccount = {
         navController.navigate(CreateAccountRoute) {
+            launchSingleTop = true
+        }
+    }
+    val openEditProfile = {
+        navController.navigate(EditProfileRoute) {
             launchSingleTop = true
         }
     }
@@ -163,18 +172,27 @@ fun TweeterApp(modifier: Modifier = Modifier) {
                 .padding(innerPadding)
                 .consumeWindowInsets(innerPadding)
         ) {
-            addFeedScreen(onShowOnMap = { navController.navigateToTopLevel(MapRoute) })
+            addFeedScreen(
+                onShowOnMap = { navController.navigateToTopLevel(MapRoute) },
+                onOpenProfile = { userUid ->
+                    navController.navigate(UserProfileRoute(userUid)) {
+                        launchSingleTop = true
+                    }
+                }
+            )
             addPostScreen(onLogIn = openLogIn, onCreateAccount = openCreateAccount)
             addMapScreen(onShowInFeed = { navController.navigateToFeed() })
             addProfileScreen(
                 onBack = { navController.navigateUp() },
                 onLogIn = openLogIn,
                 onCreateAccount = openCreateAccount,
-                onEditProfile = {
-                    navController.navigate(EditProfileRoute) {
-                        launchSingleTop = true
-                    }
-                }
+                onEditProfile = openEditProfile
+            )
+            addUserProfileScreen(
+                onBack = { navController.navigateUp() },
+                onLogIn = openLogIn,
+                onCreateAccount = openCreateAccount,
+                onEditProfile = openEditProfile
             )
             addEditProfileScreen(onClose = { navController.navigateUp() })
             addLogInScreen(
