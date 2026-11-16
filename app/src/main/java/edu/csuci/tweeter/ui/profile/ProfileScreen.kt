@@ -1,34 +1,21 @@
 package edu.csuci.tweeter.ui.profile
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
-import edu.csuci.tweeter.data.Post
-import edu.csuci.tweeter.data.UserProfile
 import edu.csuci.tweeter.ui.auth.LogInPrompt
 import edu.csuci.tweeter.ui.navigation.BackTopBar
 
@@ -39,11 +26,11 @@ import edu.csuci.tweeter.ui.navigation.BackTopBar
  * It is opened from Feed and has its own top bar with a back arrow.
  *
  * @param onBack Leaves Profile for the screen it was opened from.
- * @param modifier Applied to the whole screen.
- * @param profileViewModel Supplies the registered user's profile and posts.
  * @param onLogIn Opens the login form.
  * @param onCreateAccount Opens the registration form.
  * @param onEditProfile Opens Edit profile.
+ * @param modifier Applied to the whole screen.
+ * @param profileViewModel Supplies the registered user's profile and posts.
  */
 @Composable
 fun ProfileScreen(
@@ -86,7 +73,8 @@ fun ProfileScreen(
             is ProfileUiState.LoggedIn -> {
                 ProfileContent(
                     profile = state.profile,
-                    posts = state.posts
+                    table = state.table,
+                    rows = state.rows
                 ) {
                     FilledTonalButton(
                         onClick = onEditProfile,

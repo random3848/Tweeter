@@ -1,7 +1,7 @@
 package edu.csuci.tweeter.ui.profile
 
 import androidx.navigation.NavGraphBuilder
-import androidx.navigation.compose.composable
+import edu.csuci.tweeter.ui.navigation.opaqueComposable
 import kotlinx.serialization.Serializable
 
 /** The route of [ProfileScreen], which the profile button on Feed's top bar opens. */
@@ -22,7 +22,7 @@ fun NavGraphBuilder.addProfileScreen(
     onCreateAccount: () -> Unit,
     onEditProfile: () -> Unit
 ) {
-    composable<ProfileRoute> {
+    opaqueComposable<ProfileRoute> {
         ProfileScreen(
             onBack = onBack,
             onLogIn = onLogIn,

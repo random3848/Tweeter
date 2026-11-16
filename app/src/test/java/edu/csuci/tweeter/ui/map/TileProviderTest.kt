@@ -3,6 +3,7 @@
 package edu.csuci.tweeter.ui.map
 
 import java.net.ServerSocket
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 import kotlin.time.Clock
@@ -13,6 +14,7 @@ import kotlin.time.Instant
 import kotlin.time.TimeSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
@@ -42,7 +44,11 @@ private const val NEVER_SECONDS = 30L
 
 class TileProviderTest {
     private val server = MockWebServer()
-    private val provider = TileProvider(userAgent = USER_AGENT)
+
+    // Threads of the test's own for the blocking downloads, as Dispatchers.IO gives the app: a
+    // download blocked on one can then be stopped from another.
+    private val ioDispatcher = Executors.newCachedThreadPool().asCoroutineDispatcher()
+    private val provider = TileProvider(userAgent = USER_AGENT, ioDispatcher = ioDispatcher)
 
     @Before
     fun startServer() {
@@ -52,6 +58,7 @@ class TileProviderTest {
     @After
     fun stopServer() {
         server.close()
+        ioDispatcher.close()
     }
 
     @Test
