@@ -44,8 +44,10 @@ import edu.csuci.tweeter.ui.post.addPostScreen
 import edu.csuci.tweeter.ui.profile.EditProfileRoute
 import edu.csuci.tweeter.ui.profile.ProfileButton
 import edu.csuci.tweeter.ui.profile.ProfileRoute
+import edu.csuci.tweeter.ui.profile.UserProfileRoute
 import edu.csuci.tweeter.ui.profile.addEditProfileScreen
 import edu.csuci.tweeter.ui.profile.addProfileScreen
+import edu.csuci.tweeter.ui.profile.addUserProfileScreen
 
 /**
  * Bottom-bar items in display order.
@@ -132,7 +134,11 @@ fun TweeterApp(modifier: Modifier = Modifier) {
     } else {
         destination
     }
-    val selectedIndex = selectedTabIndex(BOTTOM_BAR_ITEMS, tabDestination)
+    val selectedIndex = if (tabDestination?.hasRoute(UserProfileRoute::class) == true) {
+        BOTTOM_BAR_ITEMS.indexOfFirst { it.route == FeedRoute }
+    } else {
+        selectedTabIndex(BOTTOM_BAR_ITEMS, tabDestination)
+    }
     val openLogIn = {
         navController.navigate(LogInRoute) {
             launchSingleTop = true
@@ -213,6 +219,11 @@ private fun TweeterNavHost(
     ) {
         addFeedScreen(
             onShowOnMap = { navController.navigateToTopLevel(MapRoute) },
+            onOpenProfile = { userUid ->
+                navController.navigate(UserProfileRoute(userUid)) {
+                    launchSingleTop = true
+                }
+            },
             topBarActions = {
                 ProfileButton(
                     onClick = {
@@ -226,6 +237,16 @@ private fun TweeterNavHost(
         addPostScreen(onLogIn = openLogIn, onCreateAccount = openCreateAccount)
         addMapScreen()
         addProfileScreen(
+            onBack = { navController.navigateUp() },
+            onLogIn = openLogIn,
+            onCreateAccount = openCreateAccount,
+            onEditProfile = {
+                navController.navigate(EditProfileRoute) {
+                    launchSingleTop = true
+                }
+            }
+        )
+        addUserProfileScreen(
             onBack = { navController.navigateUp() },
             onLogIn = openLogIn,
             onCreateAccount = openCreateAccount,

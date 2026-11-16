@@ -10,8 +10,10 @@ import edu.csuci.tweeter.data.CameraFileStore
 import edu.csuci.tweeter.data.FakeAnimalRepository
 import edu.csuci.tweeter.data.FirebaseAccountRepository
 import edu.csuci.tweeter.data.FirebasePhotoRepository
+import edu.csuci.tweeter.data.FirestoreFollowRepository
 import edu.csuci.tweeter.data.FirestorePostRepository
 import edu.csuci.tweeter.data.FirestoreProfileRepository
+import edu.csuci.tweeter.data.FollowRepository
 import edu.csuci.tweeter.data.GuestSignIn
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PostRepository
@@ -83,6 +85,14 @@ class AppContainer(private val context: Context) {
     /** Every user's profile, stored in Firestore. */
     val profileRepository: ProfileRepository by lazy {
         FirestoreProfileRepository(firestore = FirebaseFirestore.getInstance())
+    }
+
+    /** Reads and changes follower relationships in Firestore. */
+    val followRepository: FollowRepository by lazy {
+        FirestoreFollowRepository(
+            auth = FirebaseAuth.getInstance(),
+            firestore = FirebaseFirestore.getInstance()
+        )
     }
 
     /**
