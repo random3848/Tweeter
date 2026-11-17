@@ -3,13 +3,16 @@
 package edu.csuci.tweeter.ui.profile
 
 import edu.csuci.tweeter.data.FakeAccountRepository
+import edu.csuci.tweeter.data.FakePhotoRepository
 import edu.csuci.tweeter.data.FakePostRepository
 import edu.csuci.tweeter.data.FakeProfileRepository
+import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.SAMPLE_POSTS
 import edu.csuci.tweeter.data.UserProfile
 import edu.csuci.tweeter.data.assertSamePosts
 import java.time.Instant
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
@@ -95,6 +98,16 @@ class ProfileViewModelTest {
         assertEquals(ProfileUiState.LoggedOut, viewModel.uiState.value)
     }
 
+    @Test
+    fun deletePost_ownPost_dropsItFromProfile() = runTest {
+        val viewModel = profileViewModel(FakeAccountRepository(initialUid = USER_UID))
+
+        viewModel.deletePost(newer.id)
+
+        val state = viewModel.uiState.value as ProfileUiState.LoggedIn
+        assertEquals(listOf(older.id), state.rows.map(state.table::id))
+    }
+
     // Profile follows its sources while the test collects its state, as it does in the app while
     // Profile collects it.
     private fun TestScope.profileViewModel(
@@ -104,6 +117,12 @@ class ProfileViewModelTest {
             accountRepository = accountRepository,
             profileRepository = FakeProfileRepository(profiles = listOf(profile)),
             postRepository = postRepository,
+            postDeleter = PostDeleter(
+                postRepository = postRepository,
+                photoRepository = FakePhotoRepository(),
+                accountRepository = accountRepository,
+                scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
+            ),
             rowsDispatcher = UnconfinedTestDispatcher(testScheduler),
             sharing = SharingStarted.WhileSubscribed()
         )

@@ -1,17 +1,14 @@
 package edu.csuci.tweeter.ui.feed
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.google.firebase.FirebaseException
 import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
-import edu.csuci.tweeter.data.PhotoDeletionException
-import edu.csuci.tweeter.data.PhotoRepository
+import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
@@ -22,7 +19,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 
 /**
  * The UI state of the home feed screen.
@@ -43,9 +39,9 @@ data class FeedUiState(
 /**
  * Holds posts for [FeedScreen], and deletes the logged-in user's own posts.
  *
- * @param postRepository Where post data is read from and deleted.
- * @param photoRepository Where a deleted post's photo is removed from.
- * @param accountRepository Tells who is logged in, so only a post's author can delete it.
+ * @param postRepository Where posts are read from.
+ * @param postDeleter Deletes the logged-in user's posts and their photos.
+ * @param accountRepository Tells who is logged in, so only their posts show a delete button.
  * @param showInFeedRequest The post another screen asks the feed to show, which it scrolls to.
  * @param showOnMapRequest Where [showOnMap] asks Map to show a post.
  * @param postsDispatcher Where the row of the post to show is found: off the main thread, since
@@ -53,8 +49,8 @@ data class FeedUiState(
  * @param sharing When [uiState] follows the posts: while Feed collects it, in the app.
  */
 class FeedViewModel(
-    private val postRepository: PostRepository,
-    private val photoRepository: PhotoRepository,
+    postRepository: PostRepository,
+    private val postDeleter: PostDeleter,
     accountRepository: AccountRepository,
     private val showInFeedRequest: ShowPostRequest,
     private val showOnMapRequest: ShowPostRequest,
@@ -90,50 +86,21 @@ class FeedViewModel(
     }
 
     /**
-     * Deletes the post with [postId], then its photo. Ignored unless the logged-in user wrote it.
-     * The feed drops the post on its own, since [uiState] follows the repository's posts.
+     * Deletes the post with [postId], then its photo, if the logged-in user wrote it. The feed
+     * drops the post on its own, since [uiState] follows the repository's posts.
      */
     fun deletePost(postId: String) {
-        val posts = uiState.value.posts
-        val row = posts.rowOf(postId) ?: return
-        val authorUid = posts.authorUid(row)
-        if (authorUid.isEmpty() || authorUid != loggedInUid.value) {
-            return
-        }
-        // Read now: once the post is deleted, the table no longer holds it.
-        val imageUri = posts.imageUri(row)
-
-        viewModelScope.launch {
-            try {
-                postRepository.deletePost(postId)
-            } catch (error: FirebaseException) {
-                Log.e(TAG, "Could not delete the post", error)
-                return@launch
-            }
-
-            // A post without an uploaded photo has nothing more to delete.
-            if (!imageUri.startsWith("https://")) {
-                return@launch
-            }
-            try {
-                photoRepository.deletePhoto(imageUri)
-            } catch (error: PhotoDeletionException) {
-                // The post is gone, so nobody sees the leftover photo.
-                Log.e(TAG, "Post deleted, but its photo wasn't", error)
-            }
-        }
+        postDeleter.deleteOwnPost(uiState.value.posts, postId)
     }
 
     companion object {
-        private const val TAG = "FeedViewModel"
-
         /** Creates a [FeedViewModel] that reads the app's shared posts and requests. */
         val factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as TweeterApplication
                 FeedViewModel(
                     postRepository = application.container.postRepository,
-                    photoRepository = application.container.photoRepository,
+                    postDeleter = application.container.postDeleter,
                     accountRepository = application.container.accountRepository,
                     showInFeedRequest = application.container.showInFeedRequest,
                     showOnMapRequest = application.container.showOnMapRequest,
