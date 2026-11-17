@@ -9,6 +9,7 @@ import edu.csuci.tweeter.data.SAMPLE_POSTS
 import edu.csuci.tweeter.data.UserProfile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
@@ -100,21 +101,50 @@ class SearchViewModelTest {
         assertEquals(listOf("Coyote"), results.animals.map { it.name })
     }
 
+    @Test
+    fun results_searchShownAgain_keepsPeopleWhileTheyAreReadAgain() = runTest {
+        val viewModel = searchViewModel(OnceAnsweringProfileRepository(listOf(maya)))
+        viewModel.updateQuery("may")
+        val firstShowing = collect(viewModel)
+        firstShowing.cancel()
+
+        collect(viewModel)
+
+        val results = viewModel.results.value
+        assertEquals(false to listOf(maya), results.isLoadingPeople to results.people)
+    }
+
+    @Test
+    fun results_sayWhichQueryTheyAreFor() = runTest {
+        val viewModel = collectedSearchViewModel()
+
+        viewModel.updateQuery("fox")
+
+        assertEquals("fox", viewModel.results.value.query)
+    }
+
     // Searches while the test collects its results, as Search does while it's shown.
     private fun TestScope.collectedSearchViewModel(
         profiles: ProfileRepository = profileRepository
     ): SearchViewModel {
-        val viewModel = SearchViewModel(
+        val viewModel = searchViewModel(profiles)
+        collect(viewModel)
+        return viewModel
+    }
+
+    private fun TestScope.searchViewModel(profiles: ProfileRepository): SearchViewModel =
+        SearchViewModel(
             profileRepository = profiles,
             postRepository = postRepository,
             searchDispatcher = UnconfinedTestDispatcher(testScheduler),
             sharing = SharingStarted.WhileSubscribed()
         )
+
+    // Collects the results until the returned job is cancelled, as Search does while it's shown.
+    private fun TestScope.collect(viewModel: SearchViewModel): Job =
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.results.collect()
         }
-        return viewModel
-    }
 
     private fun profileNamed(uid: String, displayName: String): UserProfile =
         UserProfile.createDefault(uid).copy(displayName = displayName)
@@ -122,5 +152,20 @@ class SearchViewModelTest {
     // A repository whose profiles never arrive, like a listener the server hasn't answered yet.
     private class ProfilelessProfileRepository : ProfileRepository by FakeProfileRepository() {
         override fun getProfiles(): Flow<List<UserProfile>> = flow { awaitCancellation() }
+    }
+
+    // A repository whose listener answers the first time only, like one whose later listeners the
+    // server hasn't answered yet.
+    private class OnceAnsweringProfileRepository(private val profiles: List<UserProfile>) :
+        ProfileRepository by FakeProfileRepository() {
+        private var collectionCount = 0
+
+        override fun getProfiles(): Flow<List<UserProfile>> = flow {
+            collectionCount++
+            if (collectionCount == 1) {
+                emit(profiles)
+            }
+            awaitCancellation()
+        }
     }
 }

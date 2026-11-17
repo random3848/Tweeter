@@ -22,18 +22,19 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 
 /**
  * What Search found for its query.
  *
- * @property people The users whose name contains the query, those starting with it first.
- * @property animals The animals posts name that contain the query, those starting with it first.
+ * @property query The text these results are for, which the field may have moved on from.
+ * @property people The users whose name contains [query], those starting with it first.
+ * @property animals The animals posts name that contain [query], those starting with it first.
  * @property isLoadingPeople Whether the profiles are still being read, so [people] can't be told
  *     yet.
  */
 data class SearchResults(
+    val query: String = "",
     val people: List<UserProfile> = emptyList(),
     val animals: List<PostedAnimal> = emptyList(),
     val isLoadingPeople: Boolean = true
@@ -60,13 +61,19 @@ class SearchViewModel(
     var query by mutableStateOf("")
         private set
 
+    // Every profile, or null until they are first read. Kept while Search is hidden, so that
+    // showing it again, as when back from a profile it opened, finds the same people at once.
+    private val profiles: StateFlow<List<UserProfile>?> =
+        profileRepository.getProfiles().stateIn(viewModelScope, sharing, initialValue = null)
+
     /** The people and animals found for [query], updated as it and they change. */
     val results: StateFlow<SearchResults> = combine(
         snapshotFlow { query },
-        profileRepository.getProfiles().onStart<List<UserProfile>?> { emit(null) },
+        profiles,
         postRepository.getPostTable().map(::postedAnimalsIn)
     ) { query, profiles, animals ->
         SearchResults(
+            query = query,
             people = profiles?.filterByName(query, UserProfile::displayName).orEmpty(),
             animals = animals.filterByName(query, PostedAnimal::name),
             isLoadingPeople = profiles == null

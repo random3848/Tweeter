@@ -2,7 +2,6 @@ package edu.csuci.tweeter.ui.search
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,20 +18,20 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.data.UserProfile
+import edu.csuci.tweeter.ui.CenteredMessage
 import edu.csuci.tweeter.ui.navigation.TweeterTopBar
 import edu.csuci.tweeter.ui.profile.ProfileAvatar
 
@@ -64,8 +63,9 @@ fun SearchScreen(
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         )
         val bodyModifier = Modifier.weight(1f).fillMaxWidth()
+        // By the results' query rather than the field's, which the results can lag behind.
         when {
-            viewModel.query.isBlank() -> {
+            results.query.isBlank() -> {
                 CenteredMessage(
                     text = stringResource(R.string.search_prompt),
                     modifier = bodyModifier
@@ -74,7 +74,7 @@ fun SearchScreen(
 
             results.isEmpty() -> {
                 CenteredMessage(
-                    text = stringResource(R.string.search_no_results, viewModel.query.trim()),
+                    text = stringResource(R.string.search_no_results, results.query.trim()),
                     modifier = bodyModifier
                 )
             }
@@ -179,7 +179,11 @@ private fun LazyListScope.sectionHeading(@StringRes text: Int) {
 private fun PersonResult(profile: UserProfile, onOpenProfile: (String) -> Unit) {
     ListItem(
         headlineContent = { Text(profile.displayName) },
-        modifier = Modifier.clickable { onOpenProfile(profile.uid) },
+        modifier = Modifier.clickable(
+            onClickLabel = stringResource(R.string.search_open_profile),
+            role = Role.Button,
+            onClick = { onOpenProfile(profile.uid) }
+        ),
         leadingContent = {
             ProfileAvatar(
                 profile = profile,
@@ -200,7 +204,11 @@ private fun PersonResult(profile: UserProfile, onOpenProfile: (String) -> Unit) 
 private fun AnimalResult(animal: PostedAnimal, onOpenAnimal: (String) -> Unit) {
     ListItem(
         headlineContent = { Text(animal.name) },
-        modifier = Modifier.clickable { onOpenAnimal(animal.name) },
+        modifier = Modifier.clickable(
+            onClickLabel = stringResource(R.string.search_open_animal),
+            role = Role.Button,
+            onClick = { onOpenAnimal(animal.name) }
+        ),
         supportingContent = {
             Text(
                 pluralStringResource(
@@ -211,22 +219,4 @@ private fun AnimalResult(animal: PostedAnimal, onOpenAnimal: (String) -> Unit) {
             )
         }
     )
-}
-
-/**
- * [text] in the middle of the space below the search field.
- *
- * @param text What to say.
- * @param modifier Applied to the space.
- */
-@Composable
-private fun CenteredMessage(text: String, modifier: Modifier = Modifier) {
-    Box(modifier = modifier.padding(horizontal = 32.dp), contentAlignment = Alignment.Center) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
-    }
 }

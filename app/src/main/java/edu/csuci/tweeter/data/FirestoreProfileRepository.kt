@@ -8,7 +8,6 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
@@ -50,33 +49,10 @@ class FirestoreProfileRepository(
         awaitClose { registration.remove() }
     }
 
-    override fun getProfiles(): Flow<List<UserProfile>> = everyProfileSnapshot()
-        .retryWithBackoff(TAG, resetsBackoff = ::isFromServer)
+    override fun getProfiles(): Flow<List<UserProfile>> = profiles.snapshotsOn(dispatcher)
+        .retryWithBackoff(TAG, resetsBackoff = QuerySnapshot::isFromServer)
         .map(::profilesOf)
         .flowOn(dispatcher)
-
-    // Each snapshot of every profile, delivered on [dispatcher] one at a time. The newest snapshot
-    // replaces any that wasn't read yet.
-    private fun everyProfileSnapshot(): Flow<QuerySnapshot> = callbackFlow {
-        val executor = dispatcher.serialExecutor()
-        val registration = profiles.addSnapshotListener(executor) { snapshot, error ->
-            if (error != null) {
-                // The listener stops after an error; retrying sets up a new one.
-                close(error)
-                return@addSnapshotListener
-            }
-
-            if (snapshot != null) {
-                trySend(snapshot)
-            }
-        }
-
-        awaitClose { registration.remove() }
-    }.conflate()
-
-    // Whether [snapshot] came from the server. One from the phone's cache can come first even
-    // when the server then rejects the listener, so it doesn't show the listener works again.
-    private fun isFromServer(snapshot: QuerySnapshot): Boolean = !snapshot.metadata.isFromCache
 
     private fun profilesOf(snapshot: QuerySnapshot): List<UserProfile> =
         snapshot.documents.map { document ->

@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -18,6 +16,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
+import edu.csuci.tweeter.ui.CenteredMessage
 import edu.csuci.tweeter.ui.navigation.TweeterTopBar
 
 /**
@@ -69,13 +68,10 @@ fun FeedScreen(
             }
 
             uiState.posts.size == 0 -> {
-                Box(modifier = bodyModifier, contentAlignment = Alignment.Center) {
-                    Text(
-                        text = stringResource(R.string.feed_empty_message),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                CenteredMessage(
+                    text = stringResource(R.string.feed_empty_message),
+                    modifier = bodyModifier
+                )
             }
 
             else -> {

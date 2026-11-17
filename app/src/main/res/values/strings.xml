@@ -14,6 +14,8 @@
     <string name="search_people">People</string>
     <string name="search_people_loading">Finding people…</string>
     <string name="search_animals">Animals</string>
+    <string name="search_open_profile">View profile</string>
+    <string name="search_open_animal">See its posts</string>
     <plurals name="search_animal_post_count">
         <item quantity="one">%d post</item>
         <item quantity="other">%d posts</item>
