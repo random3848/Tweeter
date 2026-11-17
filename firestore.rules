@@ -10,18 +10,20 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if request.auth != null;
 
-      // Only the logged-in user (not a guest) can save their own profile.
-      allow create, update: if request.auth != null
-                            && request.auth.token.firebase.sign_in_provider != 'anonymous'
-                            && request.auth.uid == uid
-                            && request.resource.data.keys().hasOnly([
-                                 'displayName', 'bio', 'photoUrl'
-                               ])
-                            && request.resource.data.keys().hasAll([
-                                 'displayName', 'bio', 'photoUrl'
-                               ])
-                            && request.resource.data.displayName is string
-                            && request.resource.data.displayName.size() > 0
+        // Only the logged-in user (not a guest) can save their own profile.
+        allow create, update: if request.auth != null
+                              && request.auth.token.firebase.sign_in_provider != 'anonymous'
+                              && request.auth.uid == uid
+                              && request.resource.data.keys().hasOnly([
+                                   'displayName', 'bio', 'photoUrl'
+                                 ])
+                              && request.resource.data.keys().hasAll([
+                                   'displayName', 'bio', 'photoUrl'
+                                 ])
+                              && request.resource.data.displayName is string
+                              && request.resource.data.displayName.size() > 0
+                              && request.resource.data.displayName.size() <= 30
+                              && request.resource.data.bio is string
                             && request.resource.data.displayName.size() <= 30
                             && request.resource.data.bio is string
                             && request.resource.data.bio.size() <= 150
@@ -36,12 +38,14 @@ service cloud.firestore {
       match /followers/{followerUid} {
         allow read: if request.auth != null;
 
-        allow create, update: if request.auth != null
-                              && request.auth.token.firebase.sign_in_provider != 'anonymous'
-                              && request.auth.uid == followerUid
-                              && followerUid != uid
-                              && request.resource.data.keys().hasOnly([]);
+        // Registered users can follow others only as themselves.
+        allow create: if request.auth != null
+                      && request.auth.token.firebase.sign_in_provider != 'anonymous'
+                      && request.auth.uid == followerUid
+                      && followerUid != uid
+                      && request.resource.data.keys().hasOnly([]);
 
+        // Users can remove only their own following relationship.
         allow delete: if request.auth != null
                       && request.auth.token.firebase.sign_in_provider != 'anonymous'
                       && request.auth.uid == followerUid;
@@ -67,7 +71,7 @@ service cloud.firestore {
       // Guests (anonymous sessions) can read posts but not share them.
       allow read: if request.auth != null;
 
-      // Posts can't be edited or deleted yet.
+      // Posts can't be edited yet.
       allow create: if request.auth != null
                     && request.auth.token.firebase.sign_in_provider != 'anonymous'
                     && request.resource.data.keys().hasOnly([
@@ -93,6 +97,10 @@ service cloud.firestore {
                     && request.resource.data.get('commentCount', 0) == 0
                     // Set by Firestore when it receives the post, not by the phone's clock.
                     && request.resource.data.timestamp == request.time;
+                    // Only the post's author (not a guest) can delete it.
+      allow delete: if request.auth != null
+                    && request.auth.token.firebase.sign_in_provider != 'anonymous'
+                    && resource.data.authorUid == request.auth.uid;
     }
   }
 }

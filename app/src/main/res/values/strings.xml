@@ -110,6 +110,12 @@
     <string name="auth_reset_failed">Could not request a password reset. Check your email address and try again.</string>
 
     <string name="profile_log_out">Log out</string>
+
+    <string name="feed_delete_post">Delete post</string>
+    <string name="feed_delete_title">Delete post?</string>
+    <string name="feed_delete_message">This can\'t be undone.</string>
+    <string name="feed_delete_confirm">Delete</string>
+    <string name="feed_delete_cancel">Cancel</string>
     <string name="profile_follow">Follow</string>
     <string name="profile_unfollow">Unfollow</string>
     <string name="profile_log_in_to_follow">Log in to follow</string>

@@ -19,4 +19,8 @@ class FakePostRepository(initialPosts: List<Post> = SAMPLE_POSTS) : PostReposito
     override suspend fun addPost(post: Post) {
         posts.update { listOf(post) + it }
     }
+
+    override suspend fun deletePost(postId: String) {
+        posts.update { current -> current.filterNot { it.id == postId } }
+    }
 }

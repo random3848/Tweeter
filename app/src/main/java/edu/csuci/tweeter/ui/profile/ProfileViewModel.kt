@@ -10,6 +10,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.firebase.FirebaseException
 import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
+import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.ProfileRepository
@@ -70,6 +71,7 @@ sealed interface ProfileUiState {
  * @param accountRepository Supplies the registered user's identity.
  * @param profileRepository Where the profile is read from.
  * @param postRepository Where every post is read from; Profile shows the user's rows of it.
+ * @param postDeleter Deletes the user's posts and their photos.
  * @param rowsDispatcher Where the user's rows are found: off the main thread, since finding them
  *     is a pass over every post.
  * @param sharing When [uiState] follows the account, profile and posts: while Profile
@@ -79,6 +81,7 @@ class ProfileViewModel(
     private val accountRepository: AccountRepository,
     profileRepository: ProfileRepository,
     private val postRepository: PostRepository,
+    private val postDeleter: PostDeleter,
     private val rowsDispatcher: CoroutineDispatcher,
     sharing: SharingStarted
 ) : ViewModel() {
@@ -108,6 +111,17 @@ class ProfileViewModel(
         .map { table -> UserPosts(table, table.rowsBy(uid)) }
         .flowOn(rowsDispatcher)
 
+    /**
+     * Deletes the user's post with [postId], then its photo. Profile drops the post on its own,
+     * since [uiState] follows the repository's posts.
+     */
+    fun deletePost(postId: String) {
+        val state = uiState.value
+        if (state is ProfileUiState.LoggedIn) {
+            postDeleter.deleteOwnPost(state.table, postId)
+        }
+    }
+
     /** Signs out and restores the Firebase session used for guest browsing. */
     fun logOut() {
         viewModelScope.launch {
@@ -132,6 +146,7 @@ class ProfileViewModel(
                     accountRepository = application.container.accountRepository,
                     profileRepository = application.container.profileRepository,
                     postRepository = application.container.postRepository,
+                    postDeleter = application.container.postDeleter,
                     rowsDispatcher = Dispatchers.Default,
                     sharing = application.container.whileScreenCollects
                 )

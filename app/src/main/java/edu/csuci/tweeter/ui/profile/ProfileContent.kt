@@ -34,6 +34,8 @@ import edu.csuci.tweeter.ui.postDetailsText
  * @param table The table containing the posts.
  * @param rows The user's post rows, in display order.
  * @param modifier Applied to the scrolling content.
+ * @param onDeletePost Deletes the post with the given ID; given only on the logged-in user's own
+ *     profile, where each post shows a delete button.
  * @param actions Controls displayed below the bio.
  */
 @Composable
@@ -42,6 +44,7 @@ internal fun ProfileContent(
     table: PostTable,
     rows: IntArray,
     modifier: Modifier = Modifier,
+    onDeletePost: ((String) -> Unit)? = null,
     actions: @Composable () -> Unit
 ) {
     LazyColumn(
@@ -68,9 +71,11 @@ internal fun ProfileContent(
             items(count = rows.size, key = { i -> table.id(rows[i]) }) { i ->
                 val row = rows[i]
                 ProfilePostItem(
+                    postId = table.id(row),
                     imageUri = table.imageUri(row),
                     caption = table.caption(row),
                     details = postDetailsText(table.locationName(row), table.timestampMillis(row)),
+                    onDelete = onDeletePost,
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }
