@@ -48,7 +48,8 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
  *
  * Displays posts from [FeedViewModel], newest first, in a clean scrolling layout. A label
  * on each post's photo shows the post on Map. When another screen asks the feed to show a post,
- * as Map's popup does, the feed scrolls to it.
+ * as Map's popup does, the feed scrolls to it. The logged-in user's own posts have a delete
+ * button, which asks before deleting.
  *
  * @param onShowOnMap Opens Map, once the post the user chose is requested there.
  * @param modifier Applied to the whole screen.
@@ -65,6 +66,7 @@ fun FeedScreen(
     feedViewModel: FeedViewModel = viewModel(factory = FeedViewModel.factory)
 ) {
     val uiState by feedViewModel.uiState.collectAsStateWithLifecycle()
+    val loggedInUid by feedViewModel.loggedInUid.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
 
     val rowToShow = uiState.rowToShow
@@ -79,6 +81,10 @@ fun FeedScreen(
     val showPostOnMap = { postId: String ->
         feedViewModel.showOnMap(postId)
         onShowOnMap()
+    }
+    // Takes the post's ID for the same reason.
+    val deletePost = { postId: String ->
+        feedViewModel.deletePost(postId)
     }
     Column(modifier = modifier.fillMaxSize()) {
         TweeterTopBar(actions = topBarActions)
@@ -104,7 +110,9 @@ fun FeedScreen(
                 FeedList(
                     posts = uiState.posts,
                     listState = listState,
+                    loggedInUid = loggedInUid,
                     onShowOnMap = showPostOnMap,
+                    onDelete = deletePost,
                     onOpenProfile = onOpenProfile,
                     modifier = bodyModifier
                 )
@@ -121,8 +129,10 @@ fun FeedScreen(
  *
  * @param posts The posts to list, in table order.
  * @param listState The list's scroll position.
+ * @param loggedInUid The logged-in user's ID, whose posts get a delete button, or null for guests.
  * @param onShowOnMap Shows the post with the given ID on Map. It takes the ID rather than
  *     capturing the table, so it stays the same as new tables arrive.
+ * @param onDelete Deletes the post with the given ID. It takes the ID for the same reason.
  * @param modifier Applied to the list.
  * @param onOpenProfile Opens the selected author's profile.
  */
@@ -130,7 +140,9 @@ fun FeedScreen(
 private fun FeedList(
     posts: PostTable,
     listState: LazyListState,
+    loggedInUid: String?,
     onShowOnMap: (String) -> Unit,
+    onDelete: (String) -> Unit,
     onOpenProfile: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -142,9 +154,14 @@ private fun FeedList(
     ) {
         items(count = posts.size, key = { row -> posts.id(row) }) { row ->
             PostHeader(
+                postId = posts.id(row),
                 avatarInitials = posts.avatarInitials(row),
                 username = posts.username(row),
                 details = postDetailsText(posts.locationName(row), posts.timestampMillis(row)),
+                // A guest's ID is null, and a post shared while logged out has no author, so
+                // neither matches.
+                isMine = loggedInUid != null && posts.authorUid(row) == loggedInUid,
+                onDelete = onDelete,
                 authorUid = posts.authorUid(row),
                 onOpenProfile = onOpenProfile
             )
@@ -168,20 +185,29 @@ private fun FeedList(
 
 /**
  * The top of a feed post: the poster's avatar and name, where the post was shared and how long
- * ago. It receives the displayed texts and author UID separately from the post table.
+ * ago. Pressing it opens the author's profile. On the logged-in user's own posts it also has a
+ * delete button, which asks before deleting. It receives the displayed texts and author UID
+ * separately from the post table.
  *
+ * @param postId The post's ID, which [onDelete] is called with.
  * @param avatarInitials The initials in the poster's avatar.
  * @param username The poster's name.
  * @param details Where the post was shared and how long ago, as [postDetailsText] puts it.
  * @param authorUid The Firebase UID of the post's author.
+ * @param isMine Whether the logged-in user wrote the post, which shows the delete button.
+ * @param onOpenProfile Opens the profile of the author with the given UID.
+ * @param onDelete Deletes the post with the given ID, once the user confirms.
  */
 @Composable
 private fun PostHeader(
+    postId: String,
     avatarInitials: String,
     username: String,
     details: String,
     authorUid: String,
-    onOpenProfile: (String) -> Unit
+    isMine: Boolean,
+    onOpenProfile: (String) -> Unit,
+    onDelete: (String) -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -210,7 +236,11 @@ private fun PostHeader(
             )
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        // Takes the leftover width, which puts the delete button at the right edge.
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
             Text(
                 text = username,
                 style = MaterialTheme.typography.titleMedium,
@@ -221,6 +251,10 @@ private fun PostHeader(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+
+        if (isMine) {
+            DeletePostButton(postId = postId, onDelete = onDelete)
         }
     }
 }

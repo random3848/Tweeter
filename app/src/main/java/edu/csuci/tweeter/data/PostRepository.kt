@@ -17,11 +17,17 @@ import kotlinx.coroutines.flow.Flow
 interface PostRepository {
     /**
      * All posts as one [PostTable], newest first. Emits a new table whenever a post is added or
-     * changes, and only then: each table holds other posts than the one before it, so screens
-     * tell tables apart by identity, without comparing their posts.
+     * changes or is deleted and only then: each table holds other posts than the one before it,
+     * so screens tell tables apart by identity, without comparing their posts.
      */
     fun getPostTable(): Flow<PostTable>
 
     /** Stores [post] so it shows up first in [getPostTable]. */
     suspend fun addPost(post: Post)
+
+    /**
+     * Deletes the post with [postId], so it no longer shows up in [getPostTable]. Only its author
+     * can delete it; the Firestore rules refuse anyone else.
+     */
+    suspend fun deletePost(postId: String)
 }

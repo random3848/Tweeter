@@ -34,7 +34,8 @@ interface PhotoRepository {
 
 /**
  * Deletes the uploaded photo at [photoUrl], which nothing uses, as far as it can, without
- * throwing: see [cleanUpUnusedPhoto]. For cleaning up after a post or profile couldn't be saved.
+ * throwing: see [cleanUpUnusedPhoto]. For cleaning up after a post or profile couldn't be saved,
+ * or after a post was deleted.
  */
 suspend fun PhotoRepository.deleteUnusedPhoto(photoUrl: String) {
     cleanUpUnusedPhoto { deletePhoto(photoUrl) }
