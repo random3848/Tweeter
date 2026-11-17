@@ -82,9 +82,15 @@ class AppContainer(private val context: Context) {
         )
     }
 
-    /** Every user's profile, stored in Firestore. */
+    /**
+     * Every user's profile, stored in Firestore. Search's list of every profile is parsed on
+     * [Dispatchers.Default].
+     */
     val profileRepository: ProfileRepository by lazy {
-        FirestoreProfileRepository(firestore = FirebaseFirestore.getInstance())
+        FirestoreProfileRepository(
+            firestore = FirebaseFirestore.getInstance(),
+            dispatcher = Dispatchers.Default
+        )
     }
 
     /** Reads and changes follower relationships in Firestore. */

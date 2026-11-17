@@ -97,6 +97,8 @@ class UserProfileViewModelTest {
     private class FakeProfileRepository(private val profile: UserProfile) : ProfileRepository {
         override fun getProfile(uid: String): Flow<UserProfile> = flowOf(profile.copy(uid = uid))
 
+        override fun getProfiles(): Flow<List<UserProfile>> = flowOf(listOf(profile))
+
         override suspend fun saveProfile(profile: UserProfile) = Unit
     }
 

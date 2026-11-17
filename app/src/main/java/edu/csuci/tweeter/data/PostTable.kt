@@ -82,16 +82,18 @@ class PostTable private constructor(
     }
 
     /** The rows of the posts shared by user [authorUid] ([Post.authorUid]), in table order. */
-    fun rowsBy(authorUid: String): IntArray {
-        val rows = IntArray(countRowsBy(authorUid))
-        var found = 0
-        for (row in 0 until size) {
-            if (authorUids[row] == authorUid) {
-                rows[found] = row
-                found++
-            }
+    fun rowsBy(authorUid: String): IntArray = rowsWhere(authorUids) { it == authorUid }
+
+    /**
+     * The rows of the posts of [animal] ([Post.animalType]), in table order: the posts naming it
+     * the same way, ignoring case and the spaces around it. A blank [animal] matches no post.
+     */
+    fun rowsOfAnimal(animal: String): IntArray {
+        val name = animal.trim()
+        if (name.isEmpty()) {
+            return IntArray(0)
         }
-        return rows
+        return rowsWhere(animalTypes) { it.trim().equals(name, ignoreCase = true) }
     }
 
     /**
@@ -103,10 +105,24 @@ class PostTable private constructor(
 
     override fun toString(): String = "PostTable(ids=${ids.asList().subList(0, size)})"
 
-    private fun countRowsBy(authorUid: String): Int {
+    // The rows whose value in [column] is wanted, in table order. Counts them first, so they go
+    // straight into an array of their size.
+    private inline fun rowsWhere(column: Array<String>, isWanted: (String) -> Boolean): IntArray {
+        val rows = IntArray(countRowsWhere(column, isWanted))
+        var found = 0
+        for (row in 0 until size) {
+            if (isWanted(column[row])) {
+                rows[found] = row
+                found++
+            }
+        }
+        return rows
+    }
+
+    private inline fun countRowsWhere(column: Array<String>, isWanted: (String) -> Boolean): Int {
         var count = 0
         for (row in 0 until size) {
-            if (authorUids[row] == authorUid) {
+            if (isWanted(column[row])) {
                 count++
             }
         }

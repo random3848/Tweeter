@@ -86,6 +86,26 @@ class PostTableTest {
     }
 
     @Test
+    fun rowsOfAnimal_matchesAnimalIgnoringCaseAndSurroundingSpaces() {
+        val table = PostTable.of(
+            listOf(
+                SAMPLE_POSTS[0].copy(id = "spaced", animalType = " Island fox "),
+                SAMPLE_POSTS[1].copy(id = "other", animalType = "Coyote"),
+                SAMPLE_POSTS[2].copy(id = "lower", animalType = "island fox")
+            )
+        )
+
+        assertArrayEquals(intArrayOf(0, 2), table.rowsOfAnimal("Island Fox"))
+    }
+
+    @Test
+    fun rowsOfAnimal_blankAnimal_matchesNoPosts() {
+        val table = PostTable.of(listOf(SAMPLE_POSTS[0].copy(animalType = "")))
+
+        assertArrayEquals(intArrayOf(), table.rowsOfAnimal(" "))
+    }
+
+    @Test
     fun rowOf_postAddedAfterBuild_returnsNull() {
         val builder = builderWithRoomAfter(SAMPLE_POSTS[0])
         val table = builder.build()

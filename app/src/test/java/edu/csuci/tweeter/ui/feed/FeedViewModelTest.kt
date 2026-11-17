@@ -24,6 +24,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -62,6 +63,15 @@ class FeedViewModelTest {
 
         assertFalse(uiState.isLoading)
         assertSamePosts(PostTable.of(SAMPLE_POSTS), uiState.posts)
+    }
+
+    @Test
+    fun uiState_afterFirstTable_listsEveryRowInOrder() = runTest {
+        val viewModel = collectedFeedViewModel()
+
+        val rows = viewModel.uiState.value.listedPosts.rows
+
+        assertArrayEquals(SAMPLE_POSTS.indices.toList().toIntArray(), rows)
     }
 
     @Test
