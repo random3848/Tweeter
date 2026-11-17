@@ -113,16 +113,4 @@
     <string name="profile_follow_retry">Retry</string>
 
     <string name="feed_open_author_profile">View profile</string>
-
-    <string name="profile_followers_loading">Loading followers...</string>
-    <string name="profile_followers_failed">Could not load followers.</string>
-    <string name="profile_following_loading">Loading following...</string>
-    <string name="profile_following_failed">Could not load following.</string>
-    <string name="profile_following_count">%d following</string>
-
-    <plurals name="profile_follower_count">
-        <item quantity="one">%d follower</item>
-        <item quantity="other">%d followers</item>
-    </plurals>
-
 </resources>

@@ -17,20 +17,6 @@ interface FollowRepository {
     fun observeFollowing(followerUid: String, followedUid: String): Flow<Boolean>
 
     /**
-     * The number of followers of [userUid], updated when relationships change.
-     *
-     * Waits for server-backed data before emitting. A failed read fails the flow.
-     */
-    fun observeFollowerCount(userUid: String): Flow<Int>
-
-    /**
-     * The number of users [userUid] follows, updated when relationships change.
-     *
-     * Waits for server-backed data before emitting. A failed read fails the flow.
-     */
-    fun observeFollowingCount(userUid: String): Flow<Int>
-
-    /**
      * Makes the logged-in user a follower of [userUid].
      *
      * Following an already-followed user leaves the relationship unchanged.
