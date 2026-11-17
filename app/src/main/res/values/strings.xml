@@ -82,6 +82,9 @@
     <string name="post_location_from_photo">Location from the photo: %1$.5f, %2$.5f</string>
     <string name="post_location_from_device">Location from your device: %1$.5f, %2$.5f</string>
     <string name="post_location_picked">Location you picked: %1$.5f, %2$.5f</string>
+    <string name="post_animal_label">Animal</string>
+    <string name="post_animal_hint">Search for the animal, or leave this empty if you\'re not sure.</string>
+    <string name="post_animal_not_chosen">Choose an animal from the list, or clear this field.</string>
 
     <string name="location_picker_use_my_location">Use my location</string>
     <string name="location_picker_no_fix">Couldn\'t get your location. Tap the map instead.</string>
@@ -108,4 +111,24 @@
     <string name="auth_reset_failed">Could not request a password reset. Check your email address and try again.</string>
 
     <string name="profile_log_out">Log out</string>
+    <string name="profile_follow">Follow</string>
+    <string name="profile_unfollow">Unfollow</string>
+    <string name="profile_log_in_to_follow">Log in to follow</string>
+    <string name="profile_follow_failed">Could not load or update following. Please try again.</string>
+    <string name="profile_load_failed">Could not load this profile. Go back and try again.</string>
+    <string name="profile_follow_retry">Retry</string>
+
+    <string name="feed_open_author_profile">View profile</string>
+
+    <string name="profile_followers_loading">Loading followers...</string>
+    <string name="profile_followers_failed">Could not load followers.</string>
+    <string name="profile_following_loading">Loading following...</string>
+    <string name="profile_following_failed">Could not load following.</string>
+    <string name="profile_following_count">%d following</string>
+
+    <plurals name="profile_follower_count">
+        <item quantity="one">%d follower</item>
+        <item quantity="other">%d followers</item>
+    </plurals>
+
 </resources>
