@@ -6,6 +6,7 @@ import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.MetadataChanges
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -45,6 +46,48 @@ class FirestoreFollowRepository(
 
             awaitClose { registration.remove() }
         }
+
+    override fun observeFollowerCount(userUid: String): Flow<Int> = callbackFlow {
+        val followers = firestore
+            .collection(ProfileDocument.COLLECTION)
+            .document(userUid)
+            .collection(FOLLOWERS)
+
+        val registration = followers.addSnapshotListener(
+            MetadataChanges.INCLUDE
+        ) { snapshot, error ->
+            if (error != null) {
+                close(FollowException(error))
+                return@addSnapshotListener
+            }
+
+            if (snapshot != null && !snapshot.metadata.isFromCache) {
+                trySend(snapshot.size())
+            }
+        }
+
+        awaitClose { registration.remove() }
+    }
+
+    override fun observeFollowingCount(userUid: String): Flow<Int> = callbackFlow {
+        val registration = firestore
+            .collectionGroup(FOLLOWERS)
+            .addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
+                if (error != null) {
+                    close(FollowException(error))
+                    return@addSnapshotListener
+                }
+
+                if (snapshot != null && !snapshot.metadata.isFromCache) {
+                    val count = snapshot.documents.count { document ->
+                        document.id == userUid
+                    }
+                    trySend(count)
+                }
+            }
+
+        awaitClose { registration.remove() }
+    }
 
     override fun observeFollowedUids(followerUid: String): Flow<Set<String>> =
         observeDocumentIds(userCollection(followerUid, FOLLOWING))

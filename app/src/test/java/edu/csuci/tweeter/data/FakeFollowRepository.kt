@@ -42,6 +42,12 @@ class FakeFollowRepository : FollowRepository {
     override fun observeFollowing(followerUid: String, followedUid: String): Flow<Boolean> =
         read { follows -> Follow(followerUid, followedUid) in follows }
 
+    override fun observeFollowerCount(userUid: String): Flow<Int> =
+        observeFollowerUids(userUid).map { it.size }
+
+    override fun observeFollowingCount(userUid: String): Flow<Int> =
+        observeFollowedUids(userUid).map { it.size }
+
     override fun observeFollowedUids(followerUid: String): Flow<Set<String>> = read { follows ->
         follows.filter { it.followerUid == followerUid }.mapTo(HashSet(), Follow::followedUid)
     }
