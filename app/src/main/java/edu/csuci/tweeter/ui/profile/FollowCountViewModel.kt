@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import edu.csuci.tweeter.TweeterApplication
+import edu.csuci.tweeter.data.AccountRepository
 import edu.csuci.tweeter.data.FollowException
 import edu.csuci.tweeter.data.FollowRepository
 import kotlinx.coroutines.Job
@@ -28,10 +29,12 @@ data class FollowerCountUiState(val count: Int? = null, val hasFailed: Boolean =
  *
  * @param userUid The user whose followers are counted.
  * @param followRepository Supplies live follower totals.
+ * @param accountRepository Identifies account changes that restart the count listeners.
  */
 class FollowerCountViewModel(
     private val userUid: String,
-    private val followRepository: FollowRepository
+    private val followRepository: FollowRepository,
+    accountRepository: AccountRepository
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(FollowerCountUiState())
     private var observationJob: Job? = null
@@ -46,8 +49,12 @@ class FollowerCountViewModel(
     val uiState = _uiState.asStateFlow()
 
     init {
-        retry()
-        retryFollowing()
+        viewModelScope.launch {
+            accountRepository.loggedInUid.collect {
+                retry()
+                retryFollowing()
+            }
+        }
     }
 
     /** Starts reading again, cancelling the previous listener. */
@@ -93,7 +100,8 @@ class FollowerCountViewModel(
                 val application = this[APPLICATION_KEY] as TweeterApplication
                 FollowerCountViewModel(
                     userUid = userUid,
-                    followRepository = application.container.followRepository
+                    followRepository = application.container.followRepository,
+                    accountRepository = application.container.accountRepository
                 )
             }
         }
