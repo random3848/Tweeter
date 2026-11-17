@@ -70,8 +70,10 @@ class PinFilterChoice(
     // Loading until they are read. Once they can't be, unknown until the user asks to retry.
     private fun friendsOf(uid: String): Flow<PinnedAuthors> =
         followRepository.observeFriendUids(uid)
-            .map<Set<String>, PinnedAuthors> { friendUids -> PinnedAuthors.Friends(friendUids) }
-            .onStart { emit(PinnedAuthors.LoadingFriends) }
+            .map<Set<String>, PinnedAuthors> { friendUids ->
+                PinnedAuthors.Friends(userUid = uid, uids = friendUids)
+            }
+            .onStart { emit(PinnedAuthors.LoadingFriends(userUid = uid)) }
             .retryWhen { error, _ ->
                 if (error !is FollowException) {
                     return@retryWhen false

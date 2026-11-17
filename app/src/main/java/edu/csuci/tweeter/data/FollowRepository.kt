@@ -1,7 +1,11 @@
 package edu.csuci.tweeter.data
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 
 /**
  * Follower relationships between registered users.
@@ -33,13 +37,6 @@ interface FollowRepository {
     fun observeFollowingCount(userUid: String): Flow<Int>
 
     /**
-     * The IDs of the users [followerUid] follows, updated as they follow and unfollow.
-     *
-     * A failed read fails the flow.
-     */
-    fun observeFollowedUids(followerUid: String): Flow<Set<String>>
-
-    /**
      * The IDs of the users who follow [followedUid], updated as they follow and unfollow.
      *
      * A failed read fails the flow.
@@ -66,8 +63,21 @@ interface FollowRepository {
 /**
  * The IDs of [userUid]'s friends: the users who follow [userUid] and whom [userUid] follows back,
  * updated as either of them follows or unfollows. A failed read fails the flow.
+ *
+ * It reads only followers, which every follow is stored as: [userUid]'s followers, then, for each
+ * of them, whether [userUid] is among theirs. That's one listener for [userUid]'s followers and
+ * one per follower.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 fun FollowRepository.observeFriendUids(userUid: String): Flow<Set<String>> =
-    combine(observeFollowedUids(userUid), observeFollowerUids(userUid)) { followed, followers ->
-        followed intersect followers
+    observeFollowerUids(userUid).flatMapLatest { followerUids ->
+        if (followerUids.isEmpty()) {
+            flowOf(emptySet())
+        } else {
+            val followedBack = followerUids.map { followerUid ->
+                observeFollowing(userUid, followerUid)
+                    .map { follows -> followerUid.takeIf { follows } }
+            }
+            combine(followedBack) { friendUids -> friendUids.filterNotNullTo(HashSet()) }
+        }
     }

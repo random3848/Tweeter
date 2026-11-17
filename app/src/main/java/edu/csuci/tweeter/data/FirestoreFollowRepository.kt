@@ -14,14 +14,12 @@ import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.tasks.await
 
 private const val FOLLOWERS = "followers"
-private const val FOLLOWING = "following"
 
 /**
- * Follower relationships stored under both users' Firestore profiles.
+ * Follower relationships stored under each user's Firestore profile.
  *
- * A follow is two documents, written and deleted together: users/{followedUid}/followers/
- * {followerUid}, which lists a user's followers, and users/{followerUid}/following/{followedUid},
- * which lists whom a user follows. Neither has fields.
+ * A document at users/{followedUid}/followers/{followerUid} represents a follow.
+ * The document has no fields.
  *
  * @param auth Identifies the registered user changing a relationship.
  * @param firestore Stores and observes follower relationships.
@@ -32,7 +30,7 @@ class FirestoreFollowRepository(
 ) : FollowRepository {
     override fun observeFollowing(followerUid: String, followedUid: String): Flow<Boolean> =
         callbackFlow {
-            val reference = followerDocument(followerUid, followedUid)
+            val reference = relationship(followerUid, followedUid)
             val registration = reference.addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     close(FollowException(error))
@@ -89,29 +87,21 @@ class FirestoreFollowRepository(
         awaitClose { registration.remove() }
     }
 
-    override fun observeFollowedUids(followerUid: String): Flow<Set<String>> =
-        observeDocumentIds(userCollection(followerUid, FOLLOWING))
-
-    override fun observeFollowerUids(followedUid: String): Flow<Set<String>> =
-        observeDocumentIds(userCollection(followedUid, FOLLOWERS))
-
-    // The IDs of the documents in [collection], which name the users it lists. Each snapshot holds
-    // the whole list, so only the newest of those not collected yet is kept.
-    private fun observeDocumentIds(collection: CollectionReference): Flow<Set<String>> =
-        callbackFlow {
-            val registration = collection.addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    close(FollowException(error))
-                    return@addSnapshotListener
-                }
-
-                if (snapshot != null) {
-                    trySend(snapshot.documents.mapTo(HashSet(), DocumentSnapshot::getId))
-                }
+    // Each snapshot holds every follower, so only the newest of those not collected yet is kept.
+    override fun observeFollowerUids(followedUid: String): Flow<Set<String>> = callbackFlow {
+        val registration = followersOf(followedUid).addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                close(FollowException(error))
+                return@addSnapshotListener
             }
 
-            awaitClose { registration.remove() }
-        }.conflate()
+            if (snapshot != null) {
+                trySend(snapshot.documents.mapTo(HashSet(), DocumentSnapshot::getId))
+            }
+        }
+
+        awaitClose { registration.remove() }
+    }.conflate()
 
     override suspend fun follow(userUid: String) {
         try {
@@ -123,10 +113,8 @@ class FirestoreFollowRepository(
 
     private suspend fun createRelationship(userUid: String) {
         val followerUid = registeredFollowerUid(userUid)
-        firestore.batch()
-            .set(followerDocument(followerUid, userUid), emptyMap<String, Any>())
-            .set(followingDocument(followerUid, userUid), emptyMap<String, Any>())
-            .commit()
+        relationship(followerUid, userUid)
+            .set(emptyMap<String, Any>())
             .await()
     }
 
@@ -140,11 +128,7 @@ class FirestoreFollowRepository(
 
     private suspend fun deleteRelationship(userUid: String) {
         val followerUid = registeredFollowerUid(userUid)
-        firestore.batch()
-            .delete(followerDocument(followerUid, userUid))
-            .delete(followingDocument(followerUid, userUid))
-            .commit()
-            .await()
+        relationship(followerUid, userUid).delete().await()
     }
 
     private fun registeredFollowerUid(userUid: String): String {
@@ -164,14 +148,10 @@ class FirestoreFollowRepository(
         return user.uid
     }
 
-    // The relationship in the followed user's list of followers.
-    private fun followerDocument(followerUid: String, followedUid: String): DocumentReference =
-        userCollection(followedUid, FOLLOWERS).document(followerUid)
+    private fun relationship(followerUid: String, followedUid: String): DocumentReference =
+        followersOf(followedUid).document(followerUid)
 
-    // The relationship in the follower's list of users they follow.
-    private fun followingDocument(followerUid: String, followedUid: String): DocumentReference =
-        userCollection(followerUid, FOLLOWING).document(followedUid)
-
-    private fun userCollection(uid: String, name: String): CollectionReference =
-        firestore.collection(ProfileDocument.COLLECTION).document(uid).collection(name)
+    // The documents of the users who follow user [uid], one per follower, named by their ID.
+    private fun followersOf(uid: String): CollectionReference =
+        firestore.collection(ProfileDocument.COLLECTION).document(uid).collection(FOLLOWERS)
 }

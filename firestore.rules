@@ -31,10 +31,7 @@ service cloud.firestore {
                             && (request.resource.data.photoUrl == ''
                                 || request.resource.data.photoUrl.matches('https://.*'));
 
-      // A follow is two documents without fields, written and deleted together by the follower:
-      // followers/{followerUid} under the followed user, and following/{followedUid} under the
-      // follower. Registered users can follow others only as themselves, and remove only their
-      // own follows.
+      // A follower document identifies who follows this user.
       match /followers/{followerUid} {
         allow read: if request.auth != null;
 
@@ -49,20 +46,6 @@ service cloud.firestore {
         allow delete: if request.auth != null
                       && request.auth.token.firebase.sign_in_provider != 'anonymous'
                       && request.auth.uid == followerUid;
-      }
-
-      match /following/{followedUid} {
-        allow read: if request.auth != null;
-
-        allow create, update: if request.auth != null
-                              && request.auth.token.firebase.sign_in_provider != 'anonymous'
-                              && request.auth.uid == uid
-                              && followedUid != uid
-                              && request.resource.data.keys().hasOnly([]);
-
-        allow delete: if request.auth != null
-                      && request.auth.token.firebase.sign_in_provider != 'anonymous'
-                      && request.auth.uid == uid;
       }
     }
 

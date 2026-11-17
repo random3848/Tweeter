@@ -44,6 +44,9 @@ private const val USER = "user"
 private const val FRIEND = "friend"
 private const val FOLLOWED = "followed"
 
+// Another user, who logs in on the same phone.
+private const val OTHER_USER = "other user"
+
 class MapViewModelTest {
     private val showOnMapRequest = ShowPostRequest()
     private val showInFeedRequest = ShowPostRequest()
@@ -431,6 +434,24 @@ class MapViewModelTest {
         viewModel.setMapShown(true)
 
         assertSame(pinnedPosts, viewModel.uiState.value.pinnedPosts)
+    }
+
+    @Test
+    fun uiState_otherUserLogsInWhileMapIsHidden_pinsNoneOfFirstUsersFriends() = runTest {
+        followEachOther(USER, FRIEND)
+        val viewModel = mapViewModelOfPostsByEach()
+        viewModel.choosePinFilter(PinFilter.FRIENDS)
+        viewModel.setMapShown(false)
+        accountRepository.logOut()
+        accountRepository.logInAs(OTHER_USER)
+        followRepository.readsAnswered = CompletableDeferred()
+
+        viewModel.setMapShown(true)
+
+        assertEquals(
+            PinFilter.FRIENDS to emptyList<String>(),
+            viewModel.uiState.value.filterAndPinnedPostIds()
+        )
     }
 
     @Test

@@ -45,25 +45,31 @@ sealed interface PinnedAuthors {
     }
 
     /**
-     * The user's friends, as [PinFilter.FRIENDS] picks: the map pins their posts.
+     * A user's friends, as [PinFilter.FRIENDS] picks: the map pins their posts.
      *
+     * @property userUid The user whose friends they are.
      * @property uids The friends' IDs.
      */
-    data class Friends(val uids: Set<String>) : PinnedAuthors {
+    data class Friends(val userUid: String, val uids: Set<String>) : PinnedAuthors {
         override val filter: PinFilter = PinFilter.FRIENDS
 
         override fun rowsIn(posts: PostTable): IntArray = posts.rowsBy(uids)
     }
 
-    /** The user's friends, while they are read: the map pins no posts yet. */
-    data object LoadingFriends : PinnedAuthors {
+    /**
+     * A user's friends, while they are read: the map pins no posts yet.
+     *
+     * @property userUid The user whose friends are read.
+     */
+    data class LoadingFriends(val userUid: String) : PinnedAuthors {
         override val filter: PinFilter = PinFilter.FRIENDS
 
         override fun rowsIn(posts: PostTable): IntArray = IntArray(0)
 
-        // Friends already pinned, as when Map is shown again, stay pinned while they're read again.
+        // The same user's friends already pinned, as when Map is shown again, stay pinned while
+        // they're read again. Another user's, as after logging in as someone else, don't.
         override fun replacing(pinned: PinnedAuthors): PinnedAuthors =
-            if (pinned is Friends) pinned else this
+            if (pinned is Friends && pinned.userUid == userUid) pinned else this
     }
 
     /** The user's friends, who couldn't be read: the map pins no posts. */

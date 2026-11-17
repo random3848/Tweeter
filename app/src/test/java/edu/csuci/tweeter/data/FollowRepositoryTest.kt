@@ -40,6 +40,39 @@ class FollowRepositoryTest {
         assertEquals(emptySet<String>(), friendUids.last())
     }
 
+    @Test
+    fun observeFriendUids_userFollowsFollowerBack_addsThem() = runTest {
+        repository.addFollow(followerUid = FOLLOWER, followedUid = USER)
+        val friendUids = mutableListOf<Set<String>>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            repository.observeFriendUids(USER).toList(friendUids)
+        }
+
+        repository.addFollow(followerUid = USER, followedUid = FOLLOWER)
+
+        assertEquals(setOf(FOLLOWER), friendUids.last())
+    }
+
+    @Test
+    fun observeFriendUids_userUnfollowsFriend_dropsThem() = runTest {
+        followEachOther(USER, FRIEND)
+        val friendUids = mutableListOf<Set<String>>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            repository.observeFriendUids(USER).toList(friendUids)
+        }
+
+        repository.removeFollow(followerUid = USER, followedUid = FRIEND)
+
+        assertEquals(emptySet<String>(), friendUids.last())
+    }
+
+    @Test
+    fun observeFriendUids_noFollowers_isEmpty() = runTest {
+        repository.addFollow(followerUid = USER, followedUid = FOLLOWED)
+
+        assertEquals(emptySet<String>(), repository.observeFriendUids(USER).first())
+    }
+
     private fun followEachOther(oneUid: String, otherUid: String) {
         repository.addFollow(followerUid = oneUid, followedUid = otherUid)
         repository.addFollow(followerUid = otherUid, followedUid = oneUid)
