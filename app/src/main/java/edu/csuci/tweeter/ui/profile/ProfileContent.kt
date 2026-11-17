@@ -11,13 +11,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.UserProfile
@@ -108,6 +112,10 @@ private fun ProfileHeader(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    ProfileFollowerCount(userUid = profile.uid)
+                    ProfileFollowingCount(userUid = profile.uid)
+                }
             }
         }
         if (profile.bio.isNotBlank()) {
@@ -138,5 +146,95 @@ private fun NoPostsMessage(modifier: Modifier = Modifier) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
+    }
+}
+
+@Composable
+private fun ProfileFollowerCount(
+    userUid: String,
+    followerCountViewModel: FollowerCountViewModel = viewModel(
+        key = "followers:$userUid",
+        factory = FollowerCountViewModel.createFactory(userUid)
+    )
+) {
+    val state by followerCountViewModel.uiState.collectAsStateWithLifecycle()
+    val count = state.count
+
+    when {
+        state.hasFailed -> {
+            Column {
+                Text(
+                    text = stringResource(R.string.profile_followers_failed),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+                TextButton(onClick = followerCountViewModel::retry) {
+                    Text(text = stringResource(R.string.profile_follow_retry))
+                }
+            }
+        }
+
+        count == null -> {
+            Text(
+                text = stringResource(R.string.profile_followers_loading),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        else -> {
+            Text(
+                text = pluralStringResource(
+                    R.plurals.profile_follower_count,
+                    count,
+                    count
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProfileFollowingCount(
+    userUid: String,
+    followerCountViewModel: FollowerCountViewModel = viewModel(
+        key = "followers:$userUid",
+        factory = FollowerCountViewModel.createFactory(userUid)
+    )
+) {
+    val state by followerCountViewModel.followingUiState.collectAsStateWithLifecycle()
+    val count = state.count
+
+    when {
+        state.hasFailed -> {
+            Column {
+                Text(
+                    text = stringResource(R.string.profile_following_failed),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+                TextButton(onClick = followerCountViewModel::retryFollowing) {
+                    Text(text = stringResource(R.string.profile_follow_retry))
+                }
+            }
+        }
+
+        count == null -> {
+            Text(
+                text = stringResource(R.string.profile_following_loading),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        else -> {
+            Text(
+                text = stringResource(R.string.profile_following_count, count),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
