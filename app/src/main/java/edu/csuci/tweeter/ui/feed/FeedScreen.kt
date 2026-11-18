@@ -1,5 +1,6 @@
 package edu.csuci.tweeter.ui.feed
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -76,8 +77,10 @@ fun FeedScreen(
             onSelect = feedViewModel::choose
         )
         val bodyModifier = Modifier.weight(1f).fillMaxWidth()
-        // The posts, a spinner while they're read, or what to say when there are none.
-        val posts = @Composable { isLoading: Boolean, emptyMessage: Int ->
+
+        // The posts, a spinner while they're read, or [emptyMessage] when there are none.
+        @Composable
+        fun FeedPosts(isLoading: Boolean, @StringRes emptyMessage: Int) {
             PostList(
                 listedPosts = uiState.listedPosts,
                 isLoading = isLoading,
@@ -92,11 +95,17 @@ fun FeedScreen(
             )
         }
         when (uiState.authors) {
-            FeedAuthors.Everyone -> posts(uiState.isLoading, R.string.feed_empty_message)
+            FeedAuthors.Everyone -> {
+                FeedPosts(isLoading = uiState.isLoading, emptyMessage = R.string.feed_empty_message)
+            }
 
-            is FeedAuthors.Friends -> posts(uiState.isLoading, R.string.feed_friends_empty)
+            is FeedAuthors.Friends -> {
+                FeedPosts(isLoading = uiState.isLoading, emptyMessage = R.string.feed_friends_empty)
+            }
 
-            FeedAuthors.LoadingFriends -> posts(true, R.string.feed_friends_empty)
+            FeedAuthors.LoadingFriends -> {
+                FeedPosts(isLoading = true, emptyMessage = R.string.feed_friends_empty)
+            }
 
             FeedAuthors.UnknownFriends -> {
                 CenteredMessage(

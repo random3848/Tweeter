@@ -317,6 +317,21 @@ class FeedViewModelTest {
     }
 
     @Test
+    fun choose_guestPicksNewest_showsNewestFirst() = runTest {
+        val viewModel = collectedFeedViewModel(
+            FakePostRepository(rankedPosts),
+            account = FakeAccountRepository(initialUid = null)
+        )
+
+        viewModel.choose(FeedChoice.NEWEST)
+
+        assertEquals(
+            listOf(NEW_UNLIKED_ID, RECENT_LIKED_ID, OLD_POPULAR_ID),
+            viewModel.uiState.value.shownPostIds()
+        )
+    }
+
+    @Test
     fun choose_friends_readsThemOnce() = runTest {
         val follows = followsOfUser()
         val viewModel = collectedFeedViewModel(follows = follows)

@@ -118,18 +118,18 @@ class FeedViewModel(
     // first.
     private val postsWithLikeChanging = MutableStateFlow(emptySet<String>())
 
-    // What the user chose and whose posts it shows, reading their friends for Friends. Collected
-    // once, in [uiState], so the friends are read once. Guests, who have no choice, see Best.
+    // What the user or guest chose and whose posts it shows, reading the user's friends for
+    // Friends. Collected once, in [uiState], so the friends are read once.
     @OptIn(ExperimentalCoroutinesApi::class)
-    private val shown: Flow<ShownChoice> = choice.loggedInUsersChoice().flatMapLatest { chosen ->
-        val shownChoice = chosen?.value ?: FeedChoice.BEST
-        authorsFor(chosen).map { authors -> ShownChoice(shownChoice, authors) }
+    private val shown: Flow<ShownChoice> = choice.currentChoice().flatMapLatest { chosen ->
+        val shownChoice = shownChoiceOf(chosen)
+        authorsFor(chosen.uid, shownChoice).map { authors -> ShownChoice(shownChoice, authors) }
     }
 
     // The order alone, which doesn't depend on who the user's friends are, so it's found without
     // reading them.
-    private val order: Flow<FeedOrder> = choice.loggedInUsersChoice()
-        .map { chosen -> (chosen?.value ?: FeedChoice.BEST).order }
+    private val order: Flow<FeedOrder> = choice.currentChoice()
+        .map { chosen -> shownChoiceOf(chosen).order }
         .distinctUntilChanged()
 
     // Ranked when the user picks an order, and kept for every new table until they pick another.
@@ -189,9 +189,16 @@ class FeedViewModel(
         friendsReader.retry()
     }
 
-    private fun authorsFor(chosen: UserChoice<FeedChoice>?): Flow<FeedAuthors> =
-        if (chosen != null && chosen.value.showsOnlyFriends) {
-            friendsReader.friendsOf(chosen.uid).map(::feedAuthorsOf)
+    // What the feed shows for [chosen]: the choice itself, except Best for a guest on Friends,
+    // since guests have no friends.
+    private fun shownChoiceOf(chosen: UserChoice<FeedChoice>): FeedChoice {
+        val isGuestOnFriends = chosen.uid == null && chosen.value.showsOnlyFriends
+        return if (isGuestOnFriends) FeedChoice.BEST else chosen.value
+    }
+
+    private fun authorsFor(uid: String?, shownChoice: FeedChoice): Flow<FeedAuthors> =
+        if (uid != null && shownChoice.showsOnlyFriends) {
+            friendsReader.friendsOf(uid).map(::feedAuthorsOf)
         } else {
             flowOf(FeedAuthors.Everyone)
         }

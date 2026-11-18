@@ -7,9 +7,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
- * A choice each logged-in user makes for themselves, such as which posts a screen shows. Each
- * user starts on [default], and gets back what they chose when they log in again, unless someone
- * else chose since. Guests have no choice to make.
+ * A choice each user makes for themselves, such as which posts a screen shows. Each user starts
+ * on [default], and gets back what they chose when they log in again, unless someone else chose
+ * since. Guests make one too, which the screen may limit, as Feed does with Friends.
  *
  * @param accountRepository Who is logged in.
  * @param default What a user who hasn't chosen gets.
@@ -18,26 +18,25 @@ class ChoicePerUser<T>(private val accountRepository: AccountRepository, private
     // The choice made last, and who made it.
     private val lastChoice = MutableStateFlow<UserChoice<T>?>(null)
 
-    /** The logged-in user and what they chose, or null while nobody is logged in. */
-    fun loggedInUsersChoice(): Flow<UserChoice<T>?> =
+    /** Who is using the app, a user or a guest, and what they chose. */
+    fun currentChoice(): Flow<UserChoice<T>> =
         combine(accountRepository.loggedInUid, lastChoice) { uid, lastChoice ->
-            uid?.let { UserChoice(it, valueChosenBy(it, lastChoice)) }
+            UserChoice(uid, valueChosenBy(uid, lastChoice))
         }.distinctUntilChanged()
 
-    /** Makes [value] the logged-in user's choice from now on. Guests have none to make. */
+    /** Makes [value] the choice of whoever is using the app, a user or a guest, from now on. */
     fun choose(value: T) {
-        val uid = accountRepository.loggedInUid.value ?: return
-        lastChoice.value = UserChoice(uid, value)
+        lastChoice.value = UserChoice(accountRepository.loggedInUid.value, value)
     }
 
-    private fun valueChosenBy(uid: String, lastChoice: UserChoice<T>?): T =
+    private fun valueChosenBy(uid: String?, lastChoice: UserChoice<T>?): T =
         if (lastChoice != null && lastChoice.uid == uid) lastChoice.value else default
 }
 
 /**
- * What a user chose, with [ChoicePerUser].
+ * What a user or a guest chose, with [ChoicePerUser].
  *
- * @property uid The user's ID.
+ * @property uid The user's ID, or null for a guest.
  * @property value What they chose.
  */
-data class UserChoice<T>(val uid: String, val value: T)
+data class UserChoice<T>(val uid: String?, val value: T)

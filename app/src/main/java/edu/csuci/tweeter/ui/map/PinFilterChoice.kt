@@ -3,7 +3,6 @@ package edu.csuci.tweeter.ui.map
 import edu.csuci.tweeter.data.AccountRepository
 import edu.csuci.tweeter.data.FollowRepository
 import edu.csuci.tweeter.ui.ChoicePerUser
-import edu.csuci.tweeter.ui.UserChoice
 import edu.csuci.tweeter.ui.friends.FriendsReader
 import edu.csuci.tweeter.ui.friends.UserFriends
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -40,12 +39,15 @@ class PinFilterChoice(
      * [PinFilter.FRIENDS].
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun pinnedAuthors(): Flow<PinnedAuthors> =
-        choice.loggedInUsersChoice().flatMapLatest { chosen ->
-            if (chosen == null) flowOf(PinnedAuthors.Everyone) else authorsPicked(chosen)
-        }
+    fun pinnedAuthors(): Flow<PinnedAuthors> = choice.currentChoice().flatMapLatest { chosen ->
+        val uid = chosen.uid
+        if (uid == null) flowOf(PinnedAuthors.Everyone) else authorsPicked(uid, chosen.value)
+    }
 
-    /** Pins the posts of the authors [filter] picks, for the user logged in, from now on. */
+    /**
+     * Pins the posts of the authors [filter] picks, for the user logged in, from now on. Guests
+     * aren't offered a filter.
+     */
     fun choose(filter: PinFilter) {
         choice.choose(filter)
     }
@@ -55,12 +57,11 @@ class PinFilterChoice(
         friendsReader.retry()
     }
 
-    private fun authorsPicked(chosen: UserChoice<PinFilter>): Flow<PinnedAuthors> =
-        when (chosen.value) {
-            PinFilter.ALL -> flowOf(PinnedAuthors.Everyone)
-            PinFilter.FRIENDS -> friendsReader.friendsOf(chosen.uid).map(::pinnedAuthorsOf)
-            PinFilter.MINE -> flowOf(PinnedAuthors.User(chosen.uid))
-        }
+    private fun authorsPicked(uid: String, filter: PinFilter): Flow<PinnedAuthors> = when (filter) {
+        PinFilter.ALL -> flowOf(PinnedAuthors.Everyone)
+        PinFilter.FRIENDS -> friendsReader.friendsOf(uid).map(::pinnedAuthorsOf)
+        PinFilter.MINE -> flowOf(PinnedAuthors.User(uid))
+    }
 
     private fun pinnedAuthorsOf(friends: UserFriends): PinnedAuthors = when (friends) {
         is UserFriends.Known -> PinnedAuthors.Friends(friends.uids)
