@@ -5,8 +5,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * An [AccountRepository] for tests: user [initialUid] starts logged in, and [logOut] logs them
- * out. Logging in and creating accounts aren't needed by any test yet.
+ * An [AccountRepository] for tests: user [initialUid] starts logged in, [logInAs] logs another
+ * user in, and [logOut] logs them out. Logging in with an email and password and creating
+ * accounts aren't needed by any test yet.
  */
 class FakeAccountRepository(initialUid: String? = null) : AccountRepository {
     private val uid = MutableStateFlow(initialUid)
@@ -16,6 +17,11 @@ class FakeAccountRepository(initialUid: String? = null) : AccountRepository {
         private set
 
     override val loggedInUid: StateFlow<String?> = uid.asStateFlow()
+
+    /** Logs user [uid] in, as logging in with their email and password would. */
+    fun logInAs(uid: String) {
+        this.uid.value = uid
+    }
 
     override suspend fun logIn(email: String, password: String) {
         error("Not needed by tests")
