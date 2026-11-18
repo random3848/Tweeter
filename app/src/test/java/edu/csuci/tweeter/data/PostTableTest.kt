@@ -94,6 +94,35 @@ class PostTableTest {
     }
 
     @Test
+    fun rowsByLikeCount_mostLikedFirst() {
+        val table = tableOfLikeCounts(1, 5, 0, 3)
+
+        assertArrayEquals(intArrayOf(1, 3, 0, 2), table.rowsByLikeCount())
+    }
+
+    @Test
+    fun rowsByLikeCount_equalLikeCounts_keepsTableOrder() {
+        val table = tableOfLikeCounts(2, 7, 2, 2)
+
+        assertArrayEquals(intArrayOf(1, 0, 2, 3), table.rowsByLikeCount())
+    }
+
+    @Test
+    fun rowsByLikeCount_noPosts_returnsNoRows() {
+        assertArrayEquals(intArrayOf(), PostTable.EMPTY.rowsByLikeCount())
+    }
+
+    @Test
+    fun rowsByLikeCount_postAddedAfterBuild_leavesItOut() {
+        val builder = builderWithRoomAfter(SAMPLE_POSTS[0])
+        val table = builder.build()
+
+        builder.add(SAMPLE_POSTS[1].copy(likeCount = LIKE_COUNT))
+
+        assertArrayEquals(intArrayOf(0), table.rowsByLikeCount())
+    }
+
+    @Test
     fun rowOf_postAddedAfterBuild_returnsNull() {
         val builder = builderWithRoomAfter(SAMPLE_POSTS[0])
         val table = builder.build()
@@ -165,6 +194,13 @@ class PostTableTest {
     }
 
     // A builder holding [post], with room for one more.
+    // A table with one post per like count, in the order given.
+    private fun tableOfLikeCounts(vararg likeCounts: Int): PostTable = PostTable.of(
+        likeCounts.mapIndexed { row, likeCount ->
+            SAMPLE_POSTS[0].copy(id = "post$row", likeCount = likeCount)
+        }
+    )
+
     private fun builderWithRoomAfter(post: Post): PostTable.Builder {
         val builder = PostTable.Builder(capacity = 2)
         builder.add(post)
