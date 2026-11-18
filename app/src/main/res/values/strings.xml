@@ -1,12 +1,19 @@
 <resources>
     <string name="app_name">Tweeter</string>
 
+    <string name="camera_permission_settings">Camera permission was denied. Enable it in Settings to take a photo.</string>
+    <string name="open_settings">Open settings</string>
+
     <string name="navigation_home">Home</string>
+    <string name="navigation_camera">Camera</string>
     <string name="navigation_search">Search</string>
-    <string name="navigation_create_post">Create post</string>
     <string name="navigation_map">Map</string>
     <string name="navigation_profile">Profile</string>
     <string name="navigation_back">Back</string>
+    <string name="camera_permission_required">Camera permission is required to view live camera preview.</string>
+    <string name="grant_permission">Grant permission</string>
+    <string name="camera_close">Close camera</string>
+    <string name="camera_retake">Retake photo</string>
 
     <string name="search_field_label">Search people and animals</string>
     <string name="search_prompt">Find people by their name, and animals that posts name.</string>
@@ -102,7 +109,6 @@
     <string name="photo_upload_failed">Could not share the post. Please try again.</string>
     <string name="photo_uploaded">Post shared. It\'s on the feed and the map.</string>
     <string name="photo_ready">Photo ready to share.</string>
-    <string name="photo_not_taken">Take or choose a photo to get started.</string>
 
     <string name="post_log_in_title">Log in to share a photo</string>
     <string name="post_location_finding">Finding where this photo was taken…</string>

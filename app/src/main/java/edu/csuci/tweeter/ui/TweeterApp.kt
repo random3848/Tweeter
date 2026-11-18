@@ -73,9 +73,9 @@ internal val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
         route = SearchRoute
     ),
     BottomBarItem(
-        selectedIcon = R.drawable.ic_upload_filled,
-        unselectedIcon = R.drawable.ic_upload_unfilled,
-        description = R.string.navigation_create_post,
+        selectedIcon = R.drawable.ic_camera_filled,
+        unselectedIcon = R.drawable.ic_camera_unfilled,
+        description = R.string.navigation_camera,
         route = PostRoute
     ),
     BottomBarItem(
@@ -254,7 +254,11 @@ private fun TweeterNavHost(
             onOpenProfile = openUserProfile,
             onLogIn = openLogIn
         )
-        addPostScreen(onLogIn = openLogIn, onCreateAccount = openCreateAccount)
+        addPostScreen(
+            onLogIn = openLogIn,
+            onCreateAccount = openCreateAccount,
+            onClose = { navController.navigateUp() }
+        )
         addMapScreen()
         addProfileScreen(
             onBack = { navController.navigateUp() },

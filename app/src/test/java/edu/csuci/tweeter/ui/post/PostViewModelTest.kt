@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import edu.csuci.tweeter.data.CameraFile
 import edu.csuci.tweeter.data.CameraFileStore
 import edu.csuci.tweeter.data.FakeAccountRepository
 import edu.csuci.tweeter.data.FakePostRepository
@@ -15,11 +16,9 @@ import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PhotoUploadException
 import edu.csuci.tweeter.location.GeoPoint
 import edu.csuci.tweeter.location.PhotoLocator
-import edu.csuci.tweeter.ui.camera.CameraCapture
 import edu.csuci.tweeter.ui.camera.ChosenPhoto
 import java.io.File
 import java.io.IOException
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
@@ -72,47 +71,83 @@ class PostViewModelTest {
     }
 
     @Test
-    fun takePicture_asksToOpenCameraWithNewFile() {
+    fun requestPhotoCapture_createsFileAndSetsPendingFile() {
         val viewModel = createViewModel()
 
-        viewModel.takePicture()
+        viewModel.requestPhotoCapture()
 
-        assertEquals(listOf(viewModel.cameraUriToOpen), contentUrisInDirectory())
-        assertTrue(viewModel.isOpeningCamera)
+        val file = checkNotNull(viewModel.pendingCaptureFile)
+        assertTrue(viewModel.isCapturing)
+        assertFalse(viewModel.captureFailed)
+        assertEquals(listOf(file.contentUri), contentUrisInDirectory())
     }
 
     @Test
-    fun pictureSaved_makesItThePhoto() {
+    fun requestPhotoCapture_whileAlreadyCapturing_ignoresSecondRequest() {
         val viewModel = createViewModel()
-        val cameraUri = openCamera(viewModel)
+        viewModel.requestPhotoCapture()
+        val firstFile = viewModel.pendingCaptureFile
 
-        viewModel.pictureSaved()
+        viewModel.requestPhotoCapture()
 
-        assertEquals(cameraUri, viewModel.photoUri)
+        assertEquals(firstFile, viewModel.pendingCaptureFile)
+        assertEquals(1, contentUrisInDirectory().size)
+    }
+
+    @Test
+    fun requestPhotoCapture_fileCreationFails_setsCaptureFailed() {
+        val failingFileStore = CameraFileStore(
+            findDirectory = { throw IOException("Disk full") },
+            scope = appScope,
+            ioDispatcher = dispatcher,
+            contentUriOf = ::contentUriOf
+        )
+        val viewModel = createViewModel(cameraFileStore = failingFileStore)
+
+        viewModel.requestPhotoCapture()
+
+        assertTrue(viewModel.captureFailed)
+        assertFalse(viewModel.isCapturing)
+        assertNull(viewModel.pendingCaptureFile)
+    }
+
+    @Test
+    fun onPhotoCaptured_makesItThePhotoAndClearsPendingFile() {
+        val viewModel = createViewModel()
+        val file = startCapture(viewModel)
+
+        viewModel.onPhotoCaptured(file)
+
+        assertEquals(file.contentUri, viewModel.photoUri)
         assertTrue(viewModel.isPhotoFromCamera)
+        assertFalse(viewModel.isCapturing)
+        assertNull(viewModel.pendingCaptureFile)
     }
 
     @Test
-    fun pictureCancelled_deletesFileAndKeepsPhoto() {
+    fun onCaptureFailed_deletesFileAndKeepsExistingPhoto() {
         val viewModel = createViewModel()
         viewModel.choosePhoto(CAMERA_ROLL_URI)
-        openCamera(viewModel)
+        val file = startCapture(viewModel)
 
-        viewModel.pictureCancelled()
+        viewModel.onCaptureFailed(file)
 
+        assertTrue(viewModel.captureFailed)
+        assertFalse(viewModel.isCapturing)
+        assertNull(viewModel.pendingCaptureFile)
         assertEquals(CAMERA_ROLL_URI, viewModel.photoUri)
         assertEquals(emptyList<String>(), contentUrisInDirectory())
     }
 
     @Test
-    fun pictureSaved_replacingCameraPhoto_deletesItsFile() {
+    fun onPhotoCaptured_replacingCameraPhoto_deletesItsFile() {
         val viewModel = createViewModel()
         takeCameraPhoto(viewModel)
-        val secondUri = openCamera(viewModel)
+        val secondFile = startCapture(viewModel)
 
-        viewModel.pictureSaved()
+        viewModel.onPhotoCaptured(secondFile)
 
-        assertEquals(listOf(secondUri), contentUrisInDirectory())
+        assertEquals(listOf(secondFile.contentUri), contentUrisInDirectory())
     }
 
     @Test
@@ -128,26 +163,49 @@ class PostViewModelTest {
     }
 
     @Test
-    fun cameraUnavailable_failsAndDeletesFile() {
-        val viewModel = createViewModel()
-        viewModel.takePicture()
+    fun choosePhoto_clearsUploadedPhotoUrlAndCaptureFailed() {
+        val viewModel = createViewModel(photoRepository = UploadingPhotoRepository())
+        takeCameraPhoto(viewModel)
+        viewModel.pickLocation(PICKED_POINT)
+        viewModel.uploadPhoto(caption = "", animalType = "", confidence = null)
 
-        viewModel.cameraUnavailable()
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
 
-        assertTrue(viewModel.cameraFailed)
-        assertFalse(viewModel.isOpeningCamera)
+        assertNull(viewModel.uploadedPhotoUrl)
+        assertFalse(viewModel.captureFailed)
+    }
+
+    @Test
+    fun retakePhoto_clearsPhotoLocationAndDeletesCameraFile() {
+        val viewModel = createViewModel(
+            photoLocator = PhotoLocator(
+                readExif = { null },
+                currentDeviceFix = { awaitCancellation() },
+                ioDispatcher = dispatcher
+            )
+        )
+        takeCameraPhoto(viewModel)
+        viewModel.locatePhoto()
+
+        viewModel.retakePhoto()
+
+        assertNull(viewModel.photoUri)
+        assertNull(viewModel.location)
+        assertFalse(viewModel.isLocating)
         assertEquals(emptyList<String>(), contentUrisInDirectory())
     }
 
     @Test
-    fun dismissCameraFailure_clearsFailure() {
-        val viewModel = createViewModel()
-        viewModel.takePicture()
-        viewModel.cameraUnavailable()
+    fun retakePhoto_whileUploading_isIgnored() {
+        val viewModel = createViewModel(photoRepository = SlowPhotoRepository())
+        val cameraUri = takeCameraPhoto(viewModel)
+        viewModel.pickLocation(PICKED_POINT)
+        viewModel.uploadPhoto(caption = "", animalType = "", confidence = null)
 
-        viewModel.dismissCameraFailure()
+        viewModel.retakePhoto()
 
-        assertFalse(viewModel.cameraFailed)
+        assertEquals(cameraUri, viewModel.photoUri)
+        assertEquals(listOf(cameraUri), contentUrisInDirectory())
     }
 
     @Test
@@ -178,16 +236,13 @@ class PostViewModelTest {
     }
 
     @Test
-    fun cleared_whileCameraOpen_restoredViewModelKeepsPicture() {
+    fun cleared_whilePendingCapture_discardsUnusedFile() {
         val store = ViewModelStore()
-        val cameraUri = openCamera(createViewModelIn(store))
+        startCapture(createViewModelIn(store))
 
         store.clear()
-        val restored = createViewModel()
-        restored.pictureSaved()
 
-        assertEquals(cameraUri, restored.photoUri)
-        assertEquals(listOf(cameraUri), contentUrisInDirectory())
+        assertEquals(emptyList<String>(), contentUrisInDirectory())
     }
 
     @Test
@@ -210,17 +265,6 @@ class PostViewModelTest {
     }
 
     @Test
-    fun photoToLocate_cameraAnswersWithoutPicture_staysNull() {
-        val viewModel = createViewModel()
-        viewModel.choosePhoto(CAMERA_ROLL_URI)
-        viewModel.locationPermissionsRequested()
-
-        viewModel.pictureSaved()
-
-        assertNull(viewModel.photoToLocate)
-    }
-
-    @Test
     fun choosePhoto_whileUploading_keepsPhotoBeingUploaded() {
         val viewModel = createViewModel(photoRepository = SlowPhotoRepository())
         viewModel.choosePhoto(CAMERA_ROLL_URI)
@@ -233,14 +277,14 @@ class PostViewModelTest {
     }
 
     @Test
-    fun pictureSaved_whileUploading_keepsPhotoBeingUploadedAndDeletesNewFile() {
+    fun onPhotoCaptured_whileUploading_keepsPhotoBeingUploadedAndDeletesNewFile() {
         val viewModel = createViewModel(photoRepository = SlowPhotoRepository())
         val cameraUri = takeCameraPhoto(viewModel)
         viewModel.pickLocation(PICKED_POINT)
-        openCamera(viewModel)
+        val secondFile = startCapture(viewModel)
         viewModel.uploadPhoto(caption = "", animalType = "", confidence = null)
 
-        viewModel.pictureSaved()
+        viewModel.onPhotoCaptured(secondFile)
 
         assertEquals(cameraUri, viewModel.photoUri)
         assertEquals(listOf(cameraUri), contentUrisInDirectory())
@@ -284,17 +328,15 @@ class PostViewModelTest {
         assertEquals(emptyList<String>(), contentUrisInDirectory())
     }
 
-    // Takes a picture up to the camera app opening, and returns the URI it saves into.
-    private fun openCamera(viewModel: PostViewModel): String {
-        viewModel.takePicture()
-        val cameraUri = checkNotNull(viewModel.cameraUriToOpen) { "The camera wasn't asked for" }
-        viewModel.cameraOpened()
-        return cameraUri
+    // Starts a capture, returning the pending CameraFile created by the ViewModel.
+    private fun startCapture(viewModel: PostViewModel): CameraFile {
+        viewModel.requestPhotoCapture()
+        return checkNotNull(viewModel.pendingCaptureFile) { "No capture file was created" }
     }
 
-    // Takes a picture that the camera app saves, and returns its URI.
+    // Takes a picture that completes capture, and returns its content URI.
     private fun takeCameraPhoto(viewModel: PostViewModel): String =
-        openCamera(viewModel).also { viewModel.pictureSaved() }
+        startCapture(viewModel).also { viewModel.onPhotoCaptured(it) }.contentUri
 
     // A ViewModel that [store] holds, so that clearing [store] clears it.
     private fun createViewModelIn(store: ViewModelStore): PostViewModel {
@@ -303,32 +345,28 @@ class PostViewModelTest {
     }
 
     private fun createViewModel(
-        photoRepository: PhotoRepository = UnusedPhotoRepository()
-    ): PostViewModel {
-        val cameraFileStore = CameraFileStore(
+        photoRepository: PhotoRepository = UnusedPhotoRepository(),
+        cameraFileStore: CameraFileStore = CameraFileStore(
             findDirectory = { directory },
             scope = appScope,
             ioDispatcher = dispatcher,
             contentUriOf = ::contentUriOf
+        ),
+        photoLocator: PhotoLocator<String> = PhotoLocator(
+            readExif = { null },
+            currentDeviceFix = { null },
+            ioDispatcher = dispatcher
         )
+    ): PostViewModel {
         val photo = ChosenPhoto(cameraFileStore, savedStateHandle)
         return PostViewModel(
             photoRepository = photoRepository,
             postRepository = postRepository,
             profileRepository = FakeProfileRepository(),
             accountRepository = FakeAccountRepository(initialUid = "uid"),
-            photoLocator = PhotoLocator(
-                readExif = { null },
-                currentDeviceFix = { null },
-                ioDispatcher = dispatcher
-            ),
+            photoLocator = photoLocator,
             photo = photo,
-            cameraCapture = CameraCapture(
-                cameraFileStore = cameraFileStore,
-                photo = photo,
-                savedStateHandle = savedStateHandle,
-                scope = CoroutineScope(dispatcher)
-            ),
+            cameraFileStore = cameraFileStore,
             savedStateHandle = savedStateHandle
         )
     }
