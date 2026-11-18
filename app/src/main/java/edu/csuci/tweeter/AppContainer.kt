@@ -11,10 +11,12 @@ import edu.csuci.tweeter.data.FakeAnimalRepository
 import edu.csuci.tweeter.data.FirebaseAccountRepository
 import edu.csuci.tweeter.data.FirebasePhotoRepository
 import edu.csuci.tweeter.data.FirestoreFollowRepository
+import edu.csuci.tweeter.data.FirestoreLikeRepository
 import edu.csuci.tweeter.data.FirestorePostRepository
 import edu.csuci.tweeter.data.FirestoreProfileRepository
 import edu.csuci.tweeter.data.FollowRepository
 import edu.csuci.tweeter.data.GuestSignIn
+import edu.csuci.tweeter.data.LikeRepository
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
@@ -109,6 +111,19 @@ class AppContainer(private val context: Context) {
      */
     val accountRepository: AccountRepository by lazy {
         FirebaseAccountRepository(auth = FirebaseAuth.getInstance(), guestSignIn = guestSignIn)
+    }
+
+    /**
+     * The logged-in user's likes of posts, stored in Firestore with the posts' like counts, and
+     * read on [Dispatchers.Default].
+     */
+    val likeRepository: LikeRepository by lazy {
+        FirestoreLikeRepository(
+            accountRepository = accountRepository,
+            guestSignIn = guestSignIn,
+            firestore = FirebaseFirestore.getInstance(),
+            dispatcher = Dispatchers.Default
+        )
     }
 
     /** Uploads post and profile photos to Firebase Storage. */

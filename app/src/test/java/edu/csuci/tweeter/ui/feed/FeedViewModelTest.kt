@@ -2,16 +2,24 @@
 
 package edu.csuci.tweeter.ui.feed
 
-import edu.csuci.tweeter.data.AccountRepository
+import edu.csuci.tweeter.data.FakeAccountRepository
+import edu.csuci.tweeter.data.FakeLikeRepository
 import edu.csuci.tweeter.data.FakePostRepository
+import edu.csuci.tweeter.data.LikeException
+import edu.csuci.tweeter.data.LikeRepository
 import edu.csuci.tweeter.data.PhotoRepository
+import edu.csuci.tweeter.data.Post
 import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.SAMPLE_POSTS
 import edu.csuci.tweeter.data.assertSamePosts
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
+import java.time.Clock
+import java.time.Duration
 import java.time.Instant
+import java.time.ZoneOffset
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +30,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -39,10 +49,23 @@ import org.junit.Test
 
 private const val NEW_POST_ID = "new"
 private const val USER_UID = "maya"
+private const val NEW_UNLIKED_ID = "new-unliked"
+private const val RECENT_LIKED_ID = "recent-liked"
+private const val OLD_POPULAR_ID = "old-popular"
 
 class FeedViewModelTest {
     private val showInFeedRequest = ShowPostRequest()
     private val showOnMapRequest = ShowPostRequest()
+    private val likedPostId = SAMPLE_POSTS[0].id
+    private val unlikedPostId = SAMPLE_POSTS[1].id
+    private val clock = Clock.fixed(Instant.now(), ZoneOffset.UTC)
+
+    // Newest first, as the repository gives them: each order puts them differently.
+    private val rankedPosts = listOf(
+        postShared(NEW_UNLIKED_ID, Duration.ofMinutes(10), likeCount = 0),
+        postShared(RECENT_LIKED_ID, Duration.ofHours(1), likeCount = 3),
+        postShared(OLD_POPULAR_ID, Duration.ofDays(2), likeCount = 40)
+    )
 
     @Before
     fun useTestMainDispatcher() {
@@ -72,12 +95,12 @@ class FeedViewModelTest {
     }
 
     @Test
-    fun uiState_afterFirstTable_listsEveryRowInOrder() = runTest {
+    fun uiState_afterFirstTable_listsEveryRowOnce() = runTest {
         val viewModel = collectedFeedViewModel()
 
         val rows = viewModel.uiState.value.listedPosts.rows
 
-        assertArrayEquals(SAMPLE_POSTS.indices.toList().toIntArray(), rows)
+        assertArrayEquals(SAMPLE_POSTS.indices.toList().toIntArray(), rows.sortedArray())
     }
 
     @Test
@@ -92,36 +115,217 @@ class FeedViewModelTest {
     }
 
     @Test
-    fun uiState_postAskedToShow_hasItsRow() = runTest {
+    fun uiState_postAskedToShow_hasItsPosition() = runTest {
         val viewModel = collectedFeedViewModel()
         val post = SAMPLE_POSTS[1]
 
         showInFeedRequest.send(post.id)
 
-        assertEquals(SAMPLE_POSTS.indexOf(post), viewModel.uiState.value.rowToShow)
+        assertEquals(SAMPLE_POSTS.indexOf(post), viewModel.uiState.value.positionToShow)
     }
 
     @Test
-    fun uiState_postAskedToShowNotLoadedYet_hasItsRowOnceItArrives() = runTest {
+    fun uiState_postAskedToShowNotLoadedYet_hasItsPositionOnceItArrives() = runTest {
         val repository = FakePostRepository()
         val viewModel = collectedFeedViewModel(repository)
         showInFeedRequest.send(NEW_POST_ID)
-        val rowBeforePostArrives = viewModel.uiState.value.rowToShow
+        val positionBeforePostArrives = viewModel.uiState.value.positionToShow
 
         repository.addPost(SAMPLE_POSTS.first().copy(id = NEW_POST_ID, timestamp = Instant.now()))
 
-        assertNull(rowBeforePostArrives)
-        assertEquals(0, viewModel.uiState.value.rowToShow)
+        assertNull(positionBeforePostArrives)
+        assertEquals(0, viewModel.uiState.value.positionToShow)
     }
 
     @Test
-    fun clearPostToShow_leavesNoRowToShow() = runTest {
+    fun uiState_postAskedToShowInTopOrder_hasItsPositionInThatOrder() = runTest {
+        val viewModel = collectedFeedViewModel(FakePostRepository(rankedPosts))
+        viewModel.selectOrder(FeedOrder.TOP)
+
+        showInFeedRequest.send(NEW_UNLIKED_ID)
+
+        assertEquals(2, viewModel.uiState.value.positionToShow)
+    }
+
+    @Test
+    fun uiState_byDefault_ordersBest() = runTest {
+        val viewModel = collectedFeedViewModel()
+
+        assertEquals(FeedOrder.BEST, viewModel.uiState.value.order)
+    }
+
+    @Test
+    fun uiState_best_ranksRecentLikesFirstAndNewPostsAboveOldLikes() = runTest {
+        val viewModel = collectedFeedViewModel(FakePostRepository(rankedPosts))
+
+        assertEquals(
+            listOf(RECENT_LIKED_ID, NEW_UNLIKED_ID, OLD_POPULAR_ID),
+            viewModel.uiState.value.shownPostIds()
+        )
+    }
+
+    @Test
+    fun selectOrder_newest_showsNewestFirst() = runTest {
+        val viewModel = collectedFeedViewModel(FakePostRepository(rankedPosts))
+
+        viewModel.selectOrder(FeedOrder.NEWEST)
+
+        assertEquals(
+            listOf(NEW_UNLIKED_ID, RECENT_LIKED_ID, OLD_POPULAR_ID),
+            viewModel.uiState.value.shownPostIds()
+        )
+    }
+
+    @Test
+    fun selectOrder_top_showsMostLikedFirst() = runTest {
+        val viewModel = collectedFeedViewModel(FakePostRepository(rankedPosts))
+
+        viewModel.selectOrder(FeedOrder.TOP)
+
+        assertEquals(
+            listOf(OLD_POPULAR_ID, RECENT_LIKED_ID, NEW_UNLIKED_ID),
+            viewModel.uiState.value.shownPostIds()
+        )
+    }
+
+    @Test
+    fun uiState_postLikedAfterOrdering_staysWhereItWas() = runTest {
+        val repository = LikedPostRepository(rankedPosts)
+        val viewModel = collectedFeedViewModel(repository)
+        viewModel.selectOrder(FeedOrder.TOP)
+
+        repository.setLikeCount(NEW_UNLIKED_ID, likeCount = 100)
+
+        assertEquals(
+            listOf(OLD_POPULAR_ID, RECENT_LIKED_ID, NEW_UNLIKED_ID),
+            viewModel.uiState.value.shownPostIds()
+        )
+    }
+
+    @Test
+    fun selectOrder_again_reordersByCurrentLikes() = runTest {
+        val repository = LikedPostRepository(rankedPosts)
+        val viewModel = collectedFeedViewModel(repository)
+        viewModel.selectOrder(FeedOrder.TOP)
+        repository.setLikeCount(NEW_UNLIKED_ID, likeCount = 100)
+
+        viewModel.selectOrder(FeedOrder.NEWEST)
+        viewModel.selectOrder(FeedOrder.TOP)
+
+        assertEquals(NEW_UNLIKED_ID, viewModel.uiState.value.shownPostIds().first())
+    }
+
+    @Test
+    fun selectOrder_keepsChosenOrder() = runTest {
+        val viewModel = collectedFeedViewModel()
+
+        viewModel.selectOrder(FeedOrder.TOP)
+
+        assertEquals(FeedOrder.TOP, viewModel.uiState.value.order)
+    }
+
+    @Test
+    fun clearPostToShow_leavesNoPositionToShow() = runTest {
         val viewModel = collectedFeedViewModel()
         showInFeedRequest.send(SAMPLE_POSTS[1].id)
 
         viewModel.clearPostToShow()
 
-        assertNull(viewModel.uiState.value.rowToShow)
+        assertNull(viewModel.uiState.value.positionToShow)
+    }
+
+    @Test
+    fun uiState_holdsPostsUserLiked() = runTest {
+        val viewModel = collectedFeedViewModel(likes = FakeLikeRepository(setOf(likedPostId)))
+
+        assertEquals(setOf(likedPostId), viewModel.uiState.value.likedPostIds)
+    }
+
+    @Test
+    fun uiState_userLoggedIn_canLike() = runTest {
+        val viewModel = collectedFeedViewModel(loggedInUid = USER_UID)
+
+        assertTrue(viewModel.uiState.value.canLike)
+    }
+
+    @Test
+    fun uiState_guest_cannotLike() = runTest {
+        val viewModel = collectedFeedViewModel(loggedInUid = null)
+
+        assertFalse(viewModel.uiState.value.canLike)
+    }
+
+    @Test
+    fun toggleLike_postNotLiked_likesIt() = runTest {
+        val viewModel = collectedFeedViewModel(likes = FakeLikeRepository(setOf(likedPostId)))
+
+        viewModel.toggleLike(unlikedPostId)
+
+        assertEquals(setOf(likedPostId, unlikedPostId), viewModel.uiState.value.likedPostIds)
+    }
+
+    @Test
+    fun toggleLike_likedPost_unlikesIt() = runTest {
+        val viewModel = collectedFeedViewModel(likes = FakeLikeRepository(setOf(likedPostId)))
+
+        viewModel.toggleLike(likedPostId)
+
+        assertEquals(emptySet<String>(), viewModel.uiState.value.likedPostIds)
+    }
+
+    @Test
+    fun toggleLike_likeNotSaved_keepsPostUnliked() = runTest {
+        val viewModel = collectedFeedViewModel(likes = UnsavableLikeRepository())
+
+        viewModel.toggleLike(unlikedPostId)
+
+        assertEquals(emptySet<String>(), viewModel.uiState.value.likedPostIds)
+    }
+
+    @Test
+    fun toggleLike_tappedAgainBeforeSaved_likesOnce() = runTest {
+        val likes = SlowLikeRepository()
+        val viewModel = collectedFeedViewModel(likes = likes)
+
+        viewModel.toggleLike(unlikedPostId)
+        viewModel.toggleLike(unlikedPostId)
+
+        assertEquals(1, likes.changeCount)
+    }
+
+    @Test
+    fun toggleLike_afterLikeSaved_unlikes() = runTest {
+        val likes = SlowLikeRepository()
+        val viewModel = collectedFeedViewModel(likes = likes)
+        viewModel.toggleLike(unlikedPostId)
+        likes.finishChanges()
+
+        viewModel.toggleLike(unlikedPostId)
+        likes.finishChanges()
+
+        assertEquals(emptySet<String>(), viewModel.uiState.value.likedPostIds)
+    }
+
+    @Test
+    fun toggleLike_afterLikeNotSaved_triesAgain() = runTest {
+        val likes = UnsavableLikeRepository()
+        val viewModel = collectedFeedViewModel(likes = likes)
+        viewModel.toggleLike(unlikedPostId)
+
+        viewModel.toggleLike(unlikedPostId)
+
+        assertEquals(2, likes.attemptCount)
+    }
+
+    @Test
+    fun toggleLike_otherPostWhileOneIsSaving_changesBoth() = runTest {
+        val likes = SlowLikeRepository()
+        val viewModel = collectedFeedViewModel(likes = likes)
+
+        viewModel.toggleLike(unlikedPostId)
+        viewModel.toggleLike(likedPostId)
+
+        assertEquals(2, likes.changeCount)
     }
 
     @Test
@@ -157,12 +361,14 @@ class FeedViewModelTest {
 
     private fun feedViewModel(
         repository: PostRepository = FakePostRepository(),
-        postsDispatcher: CoroutineDispatcher = UnconfinedTestDispatcher(),
-        loggedInUid: String? = null
+        likes: LikeRepository = FakeLikeRepository(),
+        loggedInUid: String? = USER_UID,
+        postsDispatcher: CoroutineDispatcher = UnconfinedTestDispatcher()
     ): FeedViewModel {
-        val accountRepository = FakeAccountRepository(uid = loggedInUid)
+        val accountRepository = FakeAccountRepository(loggedInUid)
         return FeedViewModel(
             postRepository = repository,
+            likeRepository = likes,
             postDeleter = PostDeleter(
                 postRepository = repository,
                 photoRepository = FakePhotoRepository(),
@@ -173,6 +379,7 @@ class FeedViewModelTest {
             showInFeedRequest = showInFeedRequest,
             showOnMapRequest = showOnMapRequest,
             postsDispatcher = postsDispatcher,
+            clock = clock,
             sharing = SharingStarted.WhileSubscribed()
         )
     }
@@ -181,14 +388,86 @@ class FeedViewModelTest {
     // while Feed collects it.
     private fun TestScope.collectedFeedViewModel(
         repository: PostRepository = FakePostRepository(),
-        loggedInUid: String? = null
+        likes: LikeRepository = FakeLikeRepository(),
+        loggedInUid: String? = USER_UID
     ): FeedViewModel {
-        val viewModel =
-            feedViewModel(repository, UnconfinedTestDispatcher(testScheduler), loggedInUid)
+        val viewModel = feedViewModel(
+            repository,
+            likes,
+            loggedInUid,
+            postsDispatcher = UnconfinedTestDispatcher(testScheduler)
+        )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect()
         }
         return viewModel
+    }
+
+    private fun postShared(id: String, ago: Duration, likeCount: Int) = SAMPLE_POSTS[0].copy(
+        id = id,
+        timestamp = clock.instant().minus(ago),
+        likeCount = likeCount
+    )
+
+    private fun FeedUiState.shownPostIds(): List<String> = listedPosts.rows.map(posts::id)
+
+    // Likes that can't be saved, as when the Firestore rules refuse them.
+    private class UnsavableLikeRepository : LikeRepository by FakeLikeRepository() {
+        var attemptCount = 0
+            private set
+
+        override suspend fun like(postId: String) {
+            attemptCount++
+            throw LikeException(IllegalStateException("Refused"))
+        }
+    }
+
+    // Likes that aren't saved until the test calls [finishChanges], as on a slow network.
+    private class SlowLikeRepository : LikeRepository {
+        private val saved = FakeLikeRepository()
+        private var pendingNetwork = CompletableDeferred<Unit>()
+
+        var changeCount = 0
+            private set
+
+        override fun getLikedPostIds(): Flow<Set<String>> = saved.getLikedPostIds()
+
+        override suspend fun like(postId: String) {
+            awaitNetwork()
+            saved.like(postId)
+        }
+
+        override suspend fun unlike(postId: String) {
+            awaitNetwork()
+            saved.unlike(postId)
+        }
+
+        fun finishChanges() {
+            val finished = pendingNetwork
+            pendingNetwork = CompletableDeferred()
+            finished.complete(Unit)
+        }
+
+        private suspend fun awaitNetwork() {
+            changeCount++
+            pendingNetwork.await()
+        }
+    }
+
+    // Posts whose like counts a test changes, as other users' likes do.
+    private class LikedPostRepository(initialPosts: List<Post>) :
+        PostRepository by FakePostRepository() {
+        private val posts = MutableStateFlow(initialPosts)
+
+        override fun getPostTable(): Flow<PostTable> = posts.map(PostTable::of)
+
+        fun setLikeCount(postId: String, likeCount: Int) {
+            posts.update { current ->
+                current.map { post ->
+                    if (post.id == postId) post.copy(likeCount = likeCount) else post
+                }
+            }
+        }
     }
 
     // A repository whose first table never arrives, as while Firestore is still answering.
@@ -202,17 +481,5 @@ class FeedViewModelTest {
         override suspend fun uploadProfilePhoto(photoUri: String): String = ""
 
         override suspend fun deletePhoto(photoUrl: String) = Unit
-    }
-
-    private class FakeAccountRepository(uid: String?) : AccountRepository {
-        override val loggedInUid = MutableStateFlow(uid)
-
-        override suspend fun logIn(email: String, password: String) = Unit
-
-        override suspend fun createAccount(email: String, password: String) = Unit
-
-        override suspend fun logOut() = Unit
-
-        override suspend fun resetPassword(email: String) = Unit
     }
 }

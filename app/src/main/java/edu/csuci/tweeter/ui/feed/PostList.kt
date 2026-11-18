@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,7 +42,8 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
  * A screen's posts: a spinner while they are read, [emptyMessage] when there are none, and
  * otherwise the posts of [listedPosts] as a scrolling list, in the order of its rows, with a
  * divider between posts. Each has its author, photo, caption and animal, as Feed shows them, and
- * the logged-in user's own posts have a delete button, which asks before deleting.
+ * the logged-in user's own posts have a delete button, which asks before deleting. Given [likes],
+ * each also has a like button and its like count.
  *
  * @param listedPosts The posts to list.
  * @param isLoading Whether the posts are still being read.
@@ -52,6 +55,8 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
  * @param onOpenProfile Opens the profile of the author with the given ID.
  * @param modifier Applied to the space the posts take.
  * @param listState The list's scroll position.
+ * @param likes Which posts the user liked and what pressing a like button does, or null for no
+ *     like buttons.
  */
 @Composable
 internal fun PostList(
@@ -63,7 +68,8 @@ internal fun PostList(
     onDelete: (String) -> Unit,
     onOpenProfile: (String) -> Unit,
     modifier: Modifier = Modifier,
-    listState: LazyListState = rememberLazyListState()
+    listState: LazyListState = rememberLazyListState(),
+    likes: PostLikes? = null
 ) {
     when {
         isLoading -> {
@@ -82,6 +88,7 @@ internal fun PostList(
                 onDelete = onDelete,
                 onOpenProfile = onOpenProfile,
                 listState = listState,
+                likes = likes,
                 modifier = modifier
             )
         }
@@ -98,6 +105,7 @@ private fun PostItems(
     onDelete: (String) -> Unit,
     onOpenProfile: (String) -> Unit,
     listState: LazyListState,
+    likes: PostLikes?,
     modifier: Modifier = Modifier
 ) {
     val posts = listedPosts.table
@@ -110,8 +118,9 @@ private fun PostItems(
     ) {
         items(count = rows.size, key = { index -> posts.id(rows[index]) }) { index ->
             val row = rows[index]
+            val postId = posts.id(row)
             PostHeader(
-                postId = posts.id(row),
+                postId = postId,
                 avatarInitials = posts.avatarInitials(row),
                 username = posts.username(row),
                 details = postDetailsText(posts.locationName(row), posts.timestampMillis(row)),
@@ -123,10 +132,17 @@ private fun PostItems(
                 onDelete = onDelete
             )
             PhotoWithMapLabel(
-                postId = posts.id(row),
+                postId = postId,
                 imageUri = posts.imageUri(row),
                 onShowOnMap = onShowOnMap
             )
+            if (likes != null) {
+                LikeButton(
+                    likeCount = posts.likeCount(row),
+                    isLiked = postId in likes.likedPostIds,
+                    onClick = { likes.onLike(postId) }
+                )
+            }
             PostCaption(caption = posts.caption(row))
             AnimalDetails(text = animalDetailsOf(posts.animalType(row), posts.confidence(row)))
             if (index < lastIndex) {
@@ -232,6 +248,40 @@ private fun PhotoWithMapLabel(postId: String, imageUri: String, onShowOnMap: (St
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(8.dp)
+        )
+    }
+}
+
+/**
+ * A heart that likes a post, filled once the user liked it, and how many users did.
+ *
+ * @param likeCount How many users liked the post.
+ * @param isLiked Whether the user liked the post.
+ * @param onClick Likes the post or takes the like back, or opens Log in for guests.
+ */
+@Composable
+private fun LikeButton(likeCount: Int, isLiked: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.padding(start = 4.dp, top = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconToggleButton(checked = isLiked, onCheckedChange = { onClick() }) {
+            Icon(
+                painter = painterResource(
+                    if (isLiked) R.drawable.ic_favorite else R.drawable.ic_favorite_border
+                ),
+                contentDescription = stringResource(R.string.feed_like),
+                tint = if (isLiked) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                }
+            )
+        }
+        Text(
+            text = pluralStringResource(R.plurals.feed_like_count, likeCount, likeCount),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }

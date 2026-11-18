@@ -15,6 +15,7 @@ private const val JORDAN = "jordan"
 private const val SAM = "sam"
 
 private const val MOST_CONFIDENT = 5
+private const val LIKE_COUNT = 12
 
 class PostTableTest {
     // The table keeps a post's time to the millisecond.
@@ -57,6 +58,13 @@ class PostTableTest {
     }
 
     @Test
+    fun likeCount_isPostsLikeCount() {
+        val table = PostTable.of(listOf(SAMPLE_POSTS.first().copy(likeCount = LIKE_COUNT)))
+
+        assertEquals(LIKE_COUNT, table.likeCount(0))
+    }
+
+    @Test
     fun rowOf_postId_returnsItsRow() {
         val table = PostTable.of(SAMPLE_POSTS)
 
@@ -84,6 +92,56 @@ class PostTableTest {
     @Test
     fun rowsBy_authorWithoutPosts_returnsNoRows() {
         assertArrayEquals(intArrayOf(), PostTable.of(SAMPLE_POSTS).rowsBy(MAYA))
+    }
+
+    @Test
+    fun rowsByLikeCount_mostLikedFirst() {
+        val table = tableOfLikeCounts(1, 5, 0, 3)
+
+        assertArrayEquals(intArrayOf(1, 3, 0, 2), table.rowsByLikeCount())
+    }
+
+    @Test
+    fun rowsByLikeCount_equalLikeCounts_keepsTableOrder() {
+        val table = tableOfLikeCounts(2, 7, 2, 2)
+
+        assertArrayEquals(intArrayOf(1, 0, 2, 3), table.rowsByLikeCount())
+    }
+
+    @Test
+    fun rowsByDescending_highestScoreFirst() {
+        val table = tableOfLikeCounts(0, 0, 0)
+        val scores = doubleArrayOf(0.5, 2.0, 1.0)
+
+        assertArrayEquals(intArrayOf(1, 2, 0), table.rowsByDescending { row -> scores[row] })
+    }
+
+    @Test
+    fun rowsByDescending_scoresEachRowOnce() {
+        val table = PostTable.of(SAMPLE_POSTS)
+        var scoreCount = 0
+
+        table.rowsByDescending { row ->
+            scoreCount++
+            row.toDouble()
+        }
+
+        assertEquals(table.size, scoreCount)
+    }
+
+    @Test
+    fun rowsByLikeCount_noPosts_returnsNoRows() {
+        assertArrayEquals(intArrayOf(), PostTable.EMPTY.rowsByLikeCount())
+    }
+
+    @Test
+    fun rowsByLikeCount_postAddedAfterBuild_leavesItOut() {
+        val builder = builderWithRoomAfter(SAMPLE_POSTS[0])
+        val table = builder.build()
+
+        builder.add(SAMPLE_POSTS[1].copy(likeCount = LIKE_COUNT))
+
+        assertArrayEquals(intArrayOf(0), table.rowsByLikeCount())
     }
 
     @Test
@@ -157,6 +215,13 @@ class PostTableTest {
     }
 
     @Test
+    fun holdsSamePosts_postLiked_false() {
+        val liked = SAMPLE_POSTS.map { it.copy(likeCount = it.likeCount + 1) }
+
+        assertFalse(PostTable.of(SAMPLE_POSTS).holdsSamePosts(PostTable.of(liked)))
+    }
+
+    @Test
     fun holdsSamePosts_postRemoved_false() {
         val fewer = PostTable.of(SAMPLE_POSTS.drop(1))
 
@@ -188,6 +253,13 @@ class PostTableTest {
         assertSamePosts(PostTable.of(listOf(SAMPLE_POSTS[0])), table)
     }
 
+    // A table with one post per like count, in the order given.
+    private fun tableOfLikeCounts(vararg likeCounts: Int): PostTable = PostTable.of(
+        likeCounts.mapIndexed { row, likeCount ->
+            SAMPLE_POSTS[0].copy(id = "post$row", likeCount = likeCount)
+        }
+    )
+
     // A builder holding [post], with room for one more.
     private fun builderWithRoomAfter(post: Post): PostTable.Builder {
         val builder = PostTable.Builder(capacity = 2)
@@ -207,7 +279,7 @@ class PostTableTest {
         longitude = longitude(row),
         imageUri = imageUri(row),
         caption = caption(row),
-        likeCount = 0,
+        likeCount = likeCount(row),
         commentCount = 0,
         isLiked = false,
         isBookmarked = false,
@@ -216,11 +288,11 @@ class PostTableTest {
         confidence = confidence(row)
     )
 
-    // No screen shows likes, comments or bookmarks yet, so the table doesn't keep them. It keeps
-    // authors only to find their rows with rowsBy, which the tests of rowsBy cover.
+    // No screen shows comments or bookmarks yet, and whether the user liked a post depends on who
+    // is looking, so the table doesn't keep them. It keeps authors only to find their rows with
+    // rowsBy, which the tests of rowsBy cover.
     private fun Post.withFieldsNotReadBackCleared(): Post = copy(
         authorUid = "",
-        likeCount = 0,
         commentCount = 0,
         isLiked = false,
         isBookmarked = false

@@ -228,6 +228,7 @@ private fun TweeterNavHost(
         }
         addFeedScreen(
             onShowOnMap = { navController.navigateToTopLevel(MapRoute) },
+            onLogIn = openLogIn,
             onOpenProfile = openUserProfile,
             topBarActions = {
                 ProfileButton(
