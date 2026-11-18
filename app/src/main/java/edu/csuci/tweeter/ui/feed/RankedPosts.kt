@@ -26,9 +26,6 @@ class RankedPosts private constructor(
         return RankedPosts(newPosts, order, rows, rankByPostId)
     }
 
-    /** Where in [rows] the post with [postId] is, or null if [posts] doesn't hold it. */
-    fun positionOf(postId: String): Int? = posts.rowOf(postId)?.let(rows::indexOf)
-
     // Higher for posts ranked higher, and highest for posts shared after the ranking.
     private fun scoreOf(postId: String): Double =
         rankByPostId[postId]?.let { rank -> -rank.toDouble() } ?: Double.POSITIVE_INFINITY

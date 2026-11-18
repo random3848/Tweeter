@@ -4,7 +4,6 @@ import edu.csuci.tweeter.data.Post
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.SAMPLE_POSTS
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 private const val NOW_MILLIS = 0L
@@ -61,20 +60,6 @@ class RankedPostsTest {
         val ranked = RankedPosts.of(tableOf(lessLiked, moreLiked), FeedOrder.TOP, NOW_MILLIS)
 
         assertEquals(FeedOrder.TOP, ranked.withPosts(tableOf(lessLiked)).order)
-    }
-
-    @Test
-    fun positionOf_post_isWhereItIsShown() {
-        val ranked = RankedPosts.of(tableOf(lessLiked, moreLiked), FeedOrder.TOP, NOW_MILLIS)
-
-        assertEquals(1, ranked.positionOf(LESS_LIKED_ID))
-    }
-
-    @Test
-    fun positionOf_unknownPost_isNull() {
-        val ranked = RankedPosts.of(tableOf(lessLiked, moreLiked), FeedOrder.TOP, NOW_MILLIS)
-
-        assertNull(ranked.positionOf(NEW_ID))
     }
 
     private fun postWith(id: String, likeCount: Int): Post =

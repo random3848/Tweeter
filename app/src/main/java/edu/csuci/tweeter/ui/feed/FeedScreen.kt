@@ -1,5 +1,6 @@
 package edu.csuci.tweeter.ui.feed
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,12 +18,12 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,6 +35,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -48,8 +50,9 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
 /**
  * The home feed, the screen the app opens to, under the app's top bar.
  *
- * Displays posts from [FeedViewModel] in a clean scrolling layout, in the order the user picks
- * with the chips above them: Best, Newest or Top. Picking one shows its first post. A label
+ * Displays posts from [FeedViewModel] in a clean scrolling layout, as the user picks with the chips
+ * above them: everyone's by Best, Newest or Top, or, for users who are logged in, their friends'.
+ * Picking one shows its first post. A label
  * on each post's photo shows the post on Map, and a heart under it likes the post, or opens Log in
  * for guests, who can't. When another screen asks the feed to show a post, as Map's popup does,
  * the feed scrolls to it. The logged-in user's own posts have a delete button, which asks before
@@ -73,9 +76,9 @@ fun FeedScreen(
 ) {
     val uiState by feedViewModel.uiState.collectAsStateWithLifecycle()
     val loggedInUid by feedViewModel.loggedInUid.collectAsStateWithLifecycle()
-    // A new list state for each order, which starts at its first post. One list state kept across
-    // orders would keep the post at the top in view, wherever the new order puts it.
-    val listState = rememberSaveable(uiState.order, saver = LazyListState.Saver) {
+    // A new list state for each choice, which starts at its first post. One list state kept across
+    // choices would keep the post at the top in view, wherever the new choice puts it.
+    val listState = rememberSaveable(uiState.choice, saver = LazyListState.Saver) {
         LazyListState()
     }
 
@@ -101,56 +104,82 @@ fun FeedScreen(
     )
     Column(modifier = modifier.fillMaxSize()) {
         TweeterTopBar(actions = topBarActions)
-        FeedOrderChips(selected = uiState.order, onSelect = feedViewModel::selectOrder)
+        FeedChoiceChips(
+            choices = uiState.offeredChoices,
+            selected = uiState.choice,
+            onSelect = feedViewModel::choose
+        )
         val bodyModifier = Modifier.weight(1f).fillMaxWidth()
-        when {
-            uiState.isLoading -> {
-                Box(modifier = bodyModifier, contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            }
+        if (uiState.isLoading) {
+            LoadingIndicator(modifier = bodyModifier)
+        } else {
+            when (val authors = uiState.authors) {
+                FeedAuthors.LoadingFriends -> LoadingIndicator(modifier = bodyModifier)
 
-            uiState.posts.size == 0 -> {
-                Box(modifier = bodyModifier, contentAlignment = Alignment.Center) {
-                    Text(
-                        text = stringResource(R.string.feed_empty_message),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                FeedAuthors.UnknownFriends -> {
+                    FeedMessage(text = R.string.feed_friends_unknown, modifier = bodyModifier) {
+                        TextButton(onClick = feedViewModel::retryFriends) {
+                            Text(stringResource(R.string.feed_friends_retry))
+                        }
+                    }
                 }
-            }
 
-            else -> {
-                FeedList(
-                    uiState = uiState,
-                    listState = listState,
-                    loggedInUid = loggedInUid,
-                    controls = controls,
-                    modifier = bodyModifier
-                )
+                FeedAuthors.Everyone, is FeedAuthors.Friends -> {
+                    if (uiState.rows.isEmpty()) {
+                        FeedMessage(text = emptyMessageOf(authors), modifier = bodyModifier)
+                    } else {
+                        FeedList(
+                            uiState = uiState,
+                            listState = listState,
+                            loggedInUid = loggedInUid,
+                            controls = controls,
+                            modifier = bodyModifier
+                        )
+                    }
+                }
             }
         }
     }
 }
 
+// What the feed says when it shows no posts: that nobody, or none of the user's friends, posted.
+@StringRes
+private fun emptyMessageOf(authors: FeedAuthors): Int =
+    if (authors is FeedAuthors.Friends) R.string.feed_friends_empty else R.string.feed_empty_message
+
+/** A spinner in the middle of the feed's body, while its posts are read. */
+@Composable
+private fun LoadingIndicator(modifier: Modifier = Modifier) {
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        CircularProgressIndicator()
+    }
+}
+
 /**
- * A chip for each [FeedOrder], the [selected] one checked.
+ * A message in the middle of the feed's body, in place of posts, and what the user can do about
+ * it, if anything.
  *
- * @param onSelect Shows the posts in the order of the chip pressed.
+ * @param text The message.
+ * @param action What the user can do, such as a retry button, under the message.
  */
 @Composable
-private fun FeedOrderChips(selected: FeedOrder, onSelect: (FeedOrder) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+private fun FeedMessage(
+    @StringRes text: Int,
+    modifier: Modifier = Modifier,
+    action: @Composable () -> Unit = {}
+) {
+    Column(
+        modifier = modifier.padding(horizontal = 32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        for (order in FeedOrder.entries) {
-            FilterChip(
-                selected = order == selected,
-                onClick = { onSelect(order) },
-                label = { Text(stringResource(order.labelRes)) }
-            )
-        }
+        Text(
+            text = stringResource(text),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+        action()
     }
 }
 

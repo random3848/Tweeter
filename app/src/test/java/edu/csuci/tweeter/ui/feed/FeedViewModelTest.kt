@@ -2,9 +2,12 @@
 
 package edu.csuci.tweeter.ui.feed
 
+import edu.csuci.tweeter.data.AccountRepository
 import edu.csuci.tweeter.data.FakeAccountRepository
+import edu.csuci.tweeter.data.FakeFollowRepository
 import edu.csuci.tweeter.data.FakeLikeRepository
 import edu.csuci.tweeter.data.FakePostRepository
+import edu.csuci.tweeter.data.FollowRepository
 import edu.csuci.tweeter.data.LikeException
 import edu.csuci.tweeter.data.LikeRepository
 import edu.csuci.tweeter.data.PhotoRepository
@@ -19,6 +22,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -50,6 +54,11 @@ private const val USER_UID = "maya"
 private const val NEW_UNLIKED_ID = "new-unliked"
 private const val RECENT_LIKED_ID = "recent-liked"
 private const val OLD_POPULAR_ID = "old-popular"
+private const val FRIEND_UID = "jordan"
+private const val FOLLOWED_UID = "sam"
+private const val FRIENDS_NEWER_POST_ID = "friends-newer"
+private const val FRIENDS_OLDER_POST_ID = "friends-older"
+private const val FOLLOWED_POST_ID = "followed"
 
 class FeedViewModelTest {
     private val showInFeedRequest = ShowPostRequest()
@@ -129,7 +138,7 @@ class FeedViewModelTest {
     @Test
     fun uiState_postAskedToShowInTopOrder_hasItsPositionInThatOrder() = runTest {
         val viewModel = collectedFeedViewModel(FakePostRepository(rankedPosts))
-        viewModel.selectOrder(FeedOrder.TOP)
+        viewModel.choose(FeedChoice.TOP)
 
         showInFeedRequest.send(NEW_UNLIKED_ID)
 
@@ -137,10 +146,10 @@ class FeedViewModelTest {
     }
 
     @Test
-    fun uiState_byDefault_ordersBest() = runTest {
+    fun uiState_byDefault_choosesBest() = runTest {
         val viewModel = collectedFeedViewModel()
 
-        assertEquals(FeedOrder.BEST, viewModel.uiState.value.order)
+        assertEquals(FeedChoice.BEST, viewModel.uiState.value.choice)
     }
 
     @Test
@@ -154,10 +163,10 @@ class FeedViewModelTest {
     }
 
     @Test
-    fun selectOrder_newest_showsNewestFirst() = runTest {
+    fun choose_newest_showsNewestFirst() = runTest {
         val viewModel = collectedFeedViewModel(FakePostRepository(rankedPosts))
 
-        viewModel.selectOrder(FeedOrder.NEWEST)
+        viewModel.choose(FeedChoice.NEWEST)
 
         assertEquals(
             listOf(NEW_UNLIKED_ID, RECENT_LIKED_ID, OLD_POPULAR_ID),
@@ -166,10 +175,10 @@ class FeedViewModelTest {
     }
 
     @Test
-    fun selectOrder_top_showsMostLikedFirst() = runTest {
+    fun choose_top_showsMostLikedFirst() = runTest {
         val viewModel = collectedFeedViewModel(FakePostRepository(rankedPosts))
 
-        viewModel.selectOrder(FeedOrder.TOP)
+        viewModel.choose(FeedChoice.TOP)
 
         assertEquals(
             listOf(OLD_POPULAR_ID, RECENT_LIKED_ID, NEW_UNLIKED_ID),
@@ -181,7 +190,7 @@ class FeedViewModelTest {
     fun uiState_postLikedAfterOrdering_staysWhereItWas() = runTest {
         val repository = LikedPostRepository(rankedPosts)
         val viewModel = collectedFeedViewModel(repository)
-        viewModel.selectOrder(FeedOrder.TOP)
+        viewModel.choose(FeedChoice.TOP)
 
         repository.setLikeCount(NEW_UNLIKED_ID, likeCount = 100)
 
@@ -192,25 +201,139 @@ class FeedViewModelTest {
     }
 
     @Test
-    fun selectOrder_again_reordersByCurrentLikes() = runTest {
+    fun choose_again_reordersByCurrentLikes() = runTest {
         val repository = LikedPostRepository(rankedPosts)
         val viewModel = collectedFeedViewModel(repository)
-        viewModel.selectOrder(FeedOrder.TOP)
+        viewModel.choose(FeedChoice.TOP)
         repository.setLikeCount(NEW_UNLIKED_ID, likeCount = 100)
 
-        viewModel.selectOrder(FeedOrder.NEWEST)
-        viewModel.selectOrder(FeedOrder.TOP)
+        viewModel.choose(FeedChoice.NEWEST)
+        viewModel.choose(FeedChoice.TOP)
 
         assertEquals(NEW_UNLIKED_ID, viewModel.uiState.value.shownPostIds().first())
     }
 
     @Test
-    fun selectOrder_keepsChosenOrder() = runTest {
+    fun choose_keepsChoice() = runTest {
         val viewModel = collectedFeedViewModel()
 
-        viewModel.selectOrder(FeedOrder.TOP)
+        viewModel.choose(FeedChoice.TOP)
 
-        assertEquals(FeedOrder.TOP, viewModel.uiState.value.order)
+        assertEquals(FeedChoice.TOP, viewModel.uiState.value.choice)
+    }
+
+    @Test
+    fun uiState_loggedIn_offersFriends() = runTest {
+        val viewModel = collectedFeedViewModel()
+
+        assertTrue(FeedChoice.FRIENDS in viewModel.uiState.value.offeredChoices)
+    }
+
+    @Test
+    fun uiState_guest_doesNotOfferFriends() = runTest {
+        val viewModel =
+            collectedFeedViewModel(account = FakeAccountRepository(initialUid = null))
+
+        assertFalse(FeedChoice.FRIENDS in viewModel.uiState.value.offeredChoices)
+    }
+
+    @Test
+    fun choose_friends_showsMutualFollowsPostsNewestFirst() = runTest {
+        val viewModel = collectedFeedViewModel(
+            FakePostRepository(postsByFriendAndOthers),
+            follows = followsOfUser()
+        )
+
+        viewModel.choose(FeedChoice.FRIENDS)
+
+        assertEquals(
+            listOf(FRIENDS_NEWER_POST_ID, FRIENDS_OLDER_POST_ID),
+            viewModel.uiState.value.shownPostIds()
+        )
+    }
+
+    @Test
+    fun choose_friendsWhileTheyAreRead_isLoadingFriends() = runTest {
+        val follows = followsOfUser()
+        follows.readsAnswered = CompletableDeferred()
+        val viewModel = collectedFeedViewModel(follows = follows)
+
+        viewModel.choose(FeedChoice.FRIENDS)
+
+        assertEquals(FeedAuthors.LoadingFriends, viewModel.uiState.value.authors)
+    }
+
+    @Test
+    fun choose_friendsWhoCannotBeRead_isUnknownFriends() = runTest {
+        val follows = followsOfUser()
+        follows.failsReads = true
+        val viewModel = collectedFeedViewModel(follows = follows)
+
+        viewModel.choose(FeedChoice.FRIENDS)
+
+        assertEquals(FeedAuthors.UnknownFriends, viewModel.uiState.value.authors)
+    }
+
+    @Test
+    fun retryFriends_afterReadFailed_showsFriendsPosts() = runTest {
+        val follows = followsOfUser()
+        follows.failsReads = true
+        val viewModel =
+            collectedFeedViewModel(FakePostRepository(postsByFriendAndOthers), follows = follows)
+        viewModel.choose(FeedChoice.FRIENDS)
+
+        follows.failsReads = false
+        viewModel.retryFriends()
+
+        assertEquals(
+            listOf(FRIENDS_NEWER_POST_ID, FRIENDS_OLDER_POST_ID),
+            viewModel.uiState.value.shownPostIds()
+        )
+    }
+
+    @Test
+    fun uiState_newFriendOnFriends_showsTheirPosts() = runTest {
+        val follows = followsOfUser()
+        val viewModel =
+            collectedFeedViewModel(FakePostRepository(postsByFriendAndOthers), follows = follows)
+        viewModel.choose(FeedChoice.FRIENDS)
+
+        follows.addFollow(FOLLOWED_UID, USER_UID)
+
+        assertEquals(
+            listOf(FRIENDS_NEWER_POST_ID, FOLLOWED_POST_ID, FRIENDS_OLDER_POST_ID),
+            viewModel.uiState.value.shownPostIds()
+        )
+    }
+
+    @Test
+    fun uiState_logOutOnFriends_showsBestOfEveryone() = runTest {
+        val account = FakeAccountRepository(USER_UID)
+        val viewModel = collectedFeedViewModel(
+            FakePostRepository(postsByFriendAndOthers),
+            account = account,
+            follows = followsOfUser()
+        )
+        viewModel.choose(FeedChoice.FRIENDS)
+
+        account.logOut()
+
+        val uiState = viewModel.uiState.value
+        assertEquals(FeedChoice.BEST, uiState.choice)
+        assertEquals(postsByFriendAndOthers.size, uiState.rows.size)
+    }
+
+    @Test
+    fun uiState_postAskedToShowNotAmongFriends_hasNoPosition() = runTest {
+        val viewModel = collectedFeedViewModel(
+            FakePostRepository(postsByFriendAndOthers),
+            follows = followsOfUser()
+        )
+        viewModel.choose(FeedChoice.FRIENDS)
+
+        showInFeedRequest.send(FOLLOWED_POST_ID)
+
+        assertNull(viewModel.uiState.value.positionToShow)
     }
 
     @Test
@@ -232,14 +355,14 @@ class FeedViewModelTest {
 
     @Test
     fun uiState_userLoggedIn_canLike() = runTest {
-        val viewModel = collectedFeedViewModel(loggedInUid = USER_UID)
+        val viewModel = collectedFeedViewModel(account = FakeAccountRepository(USER_UID))
 
         assertTrue(viewModel.uiState.value.canLike)
     }
 
     @Test
     fun uiState_guest_cannotLike() = runTest {
-        val viewModel = collectedFeedViewModel(loggedInUid = null)
+        val viewModel = collectedFeedViewModel(account = FakeAccountRepository(initialUid = null))
 
         assertFalse(viewModel.uiState.value.canLike)
     }
@@ -295,7 +418,8 @@ class FeedViewModelTest {
     fun deletePost_loggedInUsersPost_dropsItFromFeed() = runTest {
         val mine = SAMPLE_POSTS.first().copy(id = NEW_POST_ID, authorUid = USER_UID)
         val repository = FakePostRepository(initialPosts = listOf(mine) + SAMPLE_POSTS)
-        val viewModel = collectedFeedViewModel(repository, loggedInUid = USER_UID)
+        val viewModel =
+            collectedFeedViewModel(repository, account = FakeAccountRepository(USER_UID))
 
         viewModel.deletePost(mine.id)
 
@@ -305,10 +429,11 @@ class FeedViewModelTest {
     private fun feedViewModel(
         repository: PostRepository = FakePostRepository(),
         likes: LikeRepository = FakeLikeRepository(),
-        loggedInUid: String? = USER_UID,
+        account: AccountRepository = FakeAccountRepository(USER_UID),
+        follows: FollowRepository = FakeFollowRepository(),
         postsDispatcher: CoroutineDispatcher = UnconfinedTestDispatcher()
     ): FeedViewModel {
-        val accountRepository = FakeAccountRepository(loggedInUid)
+        val accountRepository = account
         return FeedViewModel(
             postRepository = repository,
             likeRepository = likes,
@@ -319,6 +444,7 @@ class FeedViewModelTest {
                 scope = CoroutineScope(postsDispatcher)
             ),
             accountRepository = accountRepository,
+            followRepository = follows,
             showInFeedRequest = showInFeedRequest,
             showOnMapRequest = showOnMapRequest,
             postsDispatcher = postsDispatcher,
@@ -332,12 +458,14 @@ class FeedViewModelTest {
     private fun TestScope.collectedFeedViewModel(
         repository: PostRepository = FakePostRepository(),
         likes: LikeRepository = FakeLikeRepository(),
-        loggedInUid: String? = USER_UID
+        account: AccountRepository = FakeAccountRepository(USER_UID),
+        follows: FollowRepository = FakeFollowRepository()
     ): FeedViewModel {
         val viewModel = feedViewModel(
             repository,
             likes,
-            loggedInUid,
+            account,
+            follows,
             postsDispatcher = UnconfinedTestDispatcher(testScheduler)
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -345,6 +473,26 @@ class FeedViewModelTest {
         }
         return viewModel
     }
+
+    // Newest first: the friend's two posts, with a post by someone the user follows who doesn't
+    // follow back, and the user's own, between them.
+    private val postsByFriendAndOthers = listOf(
+        postBy(FRIEND_UID, FRIENDS_NEWER_POST_ID, Duration.ofMinutes(5)),
+        postBy(FOLLOWED_UID, FOLLOWED_POST_ID, Duration.ofMinutes(30)),
+        postBy(USER_UID, NEW_POST_ID, Duration.ofHours(1)),
+        postBy(FRIEND_UID, FRIENDS_OLDER_POST_ID, Duration.ofHours(3))
+    )
+
+    // The user and FRIEND_UID follow each other; the user follows FOLLOWED_UID, who doesn't
+    // follow back.
+    private fun followsOfUser() = FakeFollowRepository().apply {
+        addFollow(USER_UID, FRIEND_UID)
+        addFollow(FRIEND_UID, USER_UID)
+        addFollow(USER_UID, FOLLOWED_UID)
+    }
+
+    private fun postBy(authorUid: String, id: String, ago: Duration) =
+        postShared(id, ago, likeCount = 0).copy(authorUid = authorUid)
 
     private fun postShared(id: String, ago: Duration, likeCount: Int) = SAMPLE_POSTS[0].copy(
         id = id,
