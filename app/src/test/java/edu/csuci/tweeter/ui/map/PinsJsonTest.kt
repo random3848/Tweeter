@@ -13,6 +13,7 @@ private const val CAMPUS_LONGITUDE_TEXT = "-119.25"
 private const val ISLAND_LATITUDE_TEXT = "33.75"
 private const val ISLAND_LONGITUDE_TEXT = "-120.0"
 
+private const val FIRST_ROW = 0
 private const val SECOND_ROW = 1
 
 private const val EMPTY_COLLECTION = """{"type":"FeatureCollection","features":[]}"""
@@ -30,15 +31,17 @@ class PinsJsonTest {
     )
 
     @Test
-    fun pinsJsonOf_emptyTable_writesEmptyCollection() {
-        assertEquals(EMPTY_COLLECTION, pinsJsonOf(PostTable.EMPTY))
+    fun pinsJsonOf_noRows_writesEmptyCollection() {
+        val posts = PostTable.of(listOf(campus))
+
+        assertEquals(EMPTY_COLLECTION, pinsJsonOf(posts, rows = intArrayOf()))
     }
 
     @Test
     fun pinsJsonOf_onePost_writesPinAtLongitudeThenLatitudeWithPostIdAsId() {
         val posts = PostTable.of(listOf(campus))
 
-        val json = pinsJsonOf(posts)
+        val json = pinsJsonOf(posts, intArrayOf(FIRST_ROW))
 
         assertEquals(
             """{"type":"FeatureCollection","features":[""" +
@@ -53,7 +56,7 @@ class PinsJsonTest {
     fun pinsJsonOf_twoPosts_writesPinsInTableOrder() {
         val posts = PostTable.of(listOf(campus, island))
 
-        val json = pinsJsonOf(posts)
+        val json = pinsJsonOf(posts, intArrayOf(FIRST_ROW, SECOND_ROW))
 
         assertEquals(
             """{"type":"FeatureCollection","features":[""" +
@@ -68,10 +71,25 @@ class PinsJsonTest {
     }
 
     @Test
+    fun pinsJsonOf_someRows_writesOnlyTheirPins() {
+        val posts = PostTable.of(listOf(campus, island))
+
+        val json = pinsJsonOf(posts, intArrayOf(SECOND_ROW))
+
+        assertEquals(
+            """{"type":"FeatureCollection","features":[""" +
+                """{"type":"Feature","id":"island","geometry":{"type":"Point",""" +
+                """"coordinates":[$ISLAND_LONGITUDE_TEXT,$ISLAND_LATITUDE_TEXT]},""" +
+                """"properties":null}]}""",
+            json
+        )
+    }
+
+    @Test
     fun pinsJsonOf_idWithQuoteBackslashAndControlCharacter_escapesThem() {
         val posts = PostTable.of(listOf(campus.copy(id = "a\"b\\c\u0001")))
 
-        val json = pinsJsonOf(posts)
+        val json = pinsJsonOf(posts, intArrayOf(FIRST_ROW))
 
         assertEquals(
             """{"type":"FeatureCollection","features":[""" +
@@ -88,7 +106,7 @@ class PinsJsonTest {
         val infiniteLongitude = campus.copy(id = "infinite", longitude = Double.POSITIVE_INFINITY)
         val posts = PostTable.of(listOf(unknownLatitude, infiniteLongitude, island))
 
-        val json = pinsJsonOf(posts)
+        val json = pinsJsonOf(posts, intArrayOf(0, 1, 2))
 
         assertEquals(
             """{"type":"FeatureCollection","features":[""" +

@@ -82,7 +82,8 @@ class PostPinsTest {
     )
 
     // The pins of [posts] as MapLibre hands them back: read from the GeoJSON the map draws.
-    private fun pinsOf(vararg posts: Post): List<Feature<Geometry, JsonObject?>> =
-        FeatureCollection.fromJson<Geometry, JsonObject?>(pinsJsonOf(PostTable.of(posts.asList())))
-            .features
+    private fun pinsOf(vararg posts: Post): List<Feature<Geometry, JsonObject?>> {
+        val json = pinsJsonOf(PostTable.of(posts.asList()), rows = IntArray(posts.size) { it })
+        return FeatureCollection.fromJson<Geometry, JsonObject?>(json).features
+    }
 }

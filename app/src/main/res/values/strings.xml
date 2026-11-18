@@ -27,6 +27,11 @@
     <string name="map_my_location">Show my location</string>
     <string name="map_post_photo_description">Photo taken here</string>
     <string name="map_popup_open">See the post on Home</string>
+    <string name="map_filter_all">All</string>
+    <string name="map_filter_friends">Friends</string>
+    <string name="map_filter_mine">Mine</string>
+    <string name="map_friends_unknown">Could not load your friends.</string>
+    <string name="map_friends_retry">Retry</string>
 
     <plurals name="profile_post_count">
         <item quantity="one">%d post</item>

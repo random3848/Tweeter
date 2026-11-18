@@ -2,6 +2,7 @@ package edu.csuci.tweeter.ui.map
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -57,12 +58,13 @@ internal const val CAMPUS_ZOOM = 15.0
 private const val CLOSE_UP_ZOOM = 16.0
 
 /**
- * The map, under the app's top bar: every post as a pin where its photo was taken, and the user's
- * location as a blue dot. It opens over the campus.
+ * The map, under the app's top bar: the posts as pins where their photos were taken, and the
+ * user's location as a blue dot. It opens over the campus.
  *
- * Tapping a pin opens a popup above it with the post's photo, and the map moves to the pin. Back,
- * or a tap anywhere else on the map, closes the popup; pressing it shows the post on Home. Feed
- * shows a post here through [edu.csuci.tweeter.AppContainer.showOnMapRequest]. The location
+ * A logged-in user chooses above the map whose posts it pins: everyone's, their friends' or their
+ * own. Tapping a pin opens a popup above it with the post's photo, and the map moves to the pin.
+ * Back, or a tap anywhere else on the map, closes the popup; pressing it shows the post on Home.
+ * Feed shows a post here through [edu.csuci.tweeter.AppContainer.showOnMapRequest]. The location
  * button moves the map to the user, asking for location permission first if the app doesn't
  * have it.
  *
@@ -114,7 +116,16 @@ fun MapScreen(
             interactions = rememberMapInteractions(onMapClick = viewModel::clearSelection),
             overlay = {
                 if (isShown) {
-                    MapControls(mapState) {
+                    MapControls(
+                        mapState = mapState,
+                        header = {
+                            OfferedPinFilter(
+                                uiState = uiState,
+                                onChoose = viewModel::choosePinFilter,
+                                onRetryFriends = viewModel::retryFriends
+                            )
+                        }
+                    ) {
                         MyLocationButton(
                             locationState = locationState,
                             onClick = viewModel::moveToUser,
@@ -132,6 +143,33 @@ fun MapScreen(
             }
         )
     }
+}
+
+/**
+ * [PinFilterBar] for the filter [uiState] offers, or nothing while nobody is logged in.
+ *
+ * @param uiState The filter offered, and whether the map could read the user's friends.
+ * @param onChoose Called with the filter the user presses.
+ * @param onRetryFriends Called when the user asks to read their friends again.
+ */
+@Composable
+private fun OfferedPinFilter(
+    uiState: MapUiState,
+    onChoose: (PinFilter) -> Unit,
+    onRetryFriends: () -> Unit
+) {
+    val pinFilter = uiState.pinFilter ?: return
+    PinFilterBar(
+        chosen = pinFilter,
+        friendsUnknown = uiState.friendsUnknown,
+        onChoose = onChoose,
+        onRetryFriends = onRetryFriends,
+        modifier = Modifier.padding(
+            start = MapOverlay.Spacing,
+            top = MapOverlay.Spacing,
+            end = MapOverlay.Spacing
+        )
+    )
 }
 
 // Keeps the hidden map and its top bar, and everything in them, out of the accessibility tree,
@@ -214,22 +252,36 @@ private fun rememberMapInteractions(onMapClick: () -> Unit): MapInteractions {
  * theirs collapses once the map moves, which OpenStreetMap doesn't allow.
  *
  * @param mapState The map the controls belong to.
+ * @param header The screen's own controls, centered along the top edge, above the scale bar and
+ *     the compass.
  * @param actions The screen's own buttons, shown above the attribution in the bottom-right corner.
  */
 @Composable
-internal fun MapOverlayScope.MapControls(mapState: MapState, actions: @Composable () -> Unit = {}) {
-    DisappearingScaleBar(
-        metersPerDp = { mapState.viewport?.metersPerDpAtCenter ?: 0.0 },
-        zoom = { mapState.cameraPosition.zoom },
-        modifier = Modifier.align(Alignment.TopStart).padding(MapOverlay.Spacing),
-        color = MaterialTheme.colorScheme.onSurface,
-        haloColor = MaterialTheme.colorScheme.surface,
-        textStyle = MaterialTheme.typography.labelSmall
-    )
-    DisappearingCompassButton(
-        modifier = Modifier.align(Alignment.TopEnd).padding(MapOverlay.Spacing),
-        style = CompassButtonStyle(containerColor = MaterialTheme.colorScheme.surface)
-    )
+internal fun MapOverlayScope.MapControls(
+    mapState: MapState,
+    header: @Composable () -> Unit = {},
+    actions: @Composable () -> Unit = {}
+) {
+    Column(
+        modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        header()
+        Box(modifier = Modifier.fillMaxWidth()) {
+            DisappearingScaleBar(
+                metersPerDp = { mapState.viewport?.metersPerDpAtCenter ?: 0.0 },
+                zoom = { mapState.cameraPosition.zoom },
+                modifier = Modifier.align(Alignment.TopStart).padding(MapOverlay.Spacing),
+                color = MaterialTheme.colorScheme.onSurface,
+                haloColor = MaterialTheme.colorScheme.surface,
+                textStyle = MaterialTheme.typography.labelSmall
+            )
+            DisappearingCompassButton(
+                modifier = Modifier.align(Alignment.TopEnd).padding(MapOverlay.Spacing),
+                style = CompassButtonStyle(containerColor = MaterialTheme.colorScheme.surface)
+            )
+        }
+    }
     MaplibreLogo(Modifier.align(Alignment.BottomStart).padding(MapOverlay.Spacing))
     Column(modifier = Modifier.align(Alignment.BottomEnd), horizontalAlignment = Alignment.End) {
         actions()

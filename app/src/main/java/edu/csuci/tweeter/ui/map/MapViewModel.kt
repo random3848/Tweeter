@@ -63,17 +63,18 @@ sealed interface MapMove {
 /**
  * What [MapScreen] shows.
  *
- * @property pinnedPosts Every post with its pin; none until the posts load.
+ * @property pinnedPosts Every post, with the pins of those the filter picks; none until the posts
+ *     load.
  * @property selectedRow The row in [posts] of the post whose popup is open, or null if none is or
- *     it hasn't loaded.
+ *     it hasn't loaded. The popup stays open whichever posts the filter pins.
  * @property pendingMove Where the camera moves next, or null if it stays where the user left it.
  */
 data class MapUiState(
-    val pinnedPosts: PinnedPosts = PinnedPosts(PostTable.EMPTY),
+    val pinnedPosts: PinnedPosts = PinnedPosts(PostTable.EMPTY, PinnedAuthors.EveryoneForGuests),
     val selectedRow: Int? = null,
     val pendingMove: MapMove? = null
 ) {
-    /** Every post, each shown as a pin; empty until the posts load. */
+    /** Every post, pinned or not; empty until the posts load. */
     val posts: PostTable
         get() = pinnedPosts.posts
 
@@ -85,27 +86,47 @@ data class MapUiState(
      * pin, as its coordinates can't be pinned.
      */
     val selectedPosition: Position? = selectedRow?.let(posts::pinPositionOf)
+
+    /**
+     * The filter that picked the pinned posts, shown selected, or null while nobody is logged in,
+     * when the map pins every post and offers no filter.
+     */
+    val pinFilter: PinFilter?
+        get() = pinnedPosts.authors.filter
+
+    /** Whether the map pins no posts for [PinFilter.FRIENDS], as it couldn't read the friends. */
+    val friendsUnknown: Boolean
+        get() = pinnedPosts.authors == PinnedAuthors.UnknownFriends
 }
 
 /**
- * Posts with their pins, as the GeoJSON the map draws. The pins are written from [posts] when the
- * table arrives, rather than each time the selection changes.
+ * Posts with the pins of those by [authors], as the GeoJSON the map draws. The pins are written
+ * when the table or the authors change, rather than each time the selection changes.
  *
- * @property posts The posts that the pins show.
+ * @property posts Every post, pinned or not.
+ * @property authors Whose posts the pins show.
  */
-data class PinnedPosts(val posts: PostTable) {
-    /** A pin for each post, identified by the post's ID. */
-    val pins: GeoJsonData = GeoJsonData.JsonString(pinsJsonOf(posts))
+data class PinnedPosts(val posts: PostTable, val authors: PinnedAuthors) {
+    /** A pin for each post by [authors], identified by the post's ID. */
+    val pins: GeoJsonData = GeoJsonData.JsonString(pinsJsonOf(posts, authors.rowsIn(posts)))
+
+    /**
+     * Whether these are the pins of the posts in [table] by [authors]: whether the table holds the
+     * same posts as [posts], and the authors are the same.
+     */
+    fun pinsSamePosts(table: PostTable, authors: PinnedAuthors): Boolean =
+        this.authors == authors && posts.holdsSamePosts(table)
 }
 
 /**
- * Holds what [MapScreen] shows: the map, the posts as pins, which post's popup is open, and where
- * the camera moves next.
+ * Holds what [MapScreen] shows: the map, the posts the user's filter picks as pins, which post's
+ * popup is open, and where the camera moves next.
  *
  * The popup and the move live here, not in [showOnMapRequest], so a request from Feed is handled
  * once: Map opened again shows what the user left, instead of moving back to the requested post.
  *
  * @param postRepository Where the posts come from.
+ * @param pinFilterChoice The filter the user chooses, and whose posts it picks.
  * @param showOnMapRequest The post Feed asks Map to show, whose popup this opens once.
  * @param showInFeedRequest Where [showInFeed] asks Feed to show a post.
  * @param savedStateHandle Keeps the camera if Android ends the app while it is in the background.
@@ -117,6 +138,7 @@ data class PinnedPosts(val posts: PostTable) {
  */
 class MapViewModel internal constructor(
     private val postRepository: PostRepository,
+    private val pinFilterChoice: PinFilterChoice,
     private val showOnMapRequest: ShowPostRequest,
     private val showInFeedRequest: ShowPostRequest,
     savedStateHandle: SavedStateHandle,
@@ -166,14 +188,16 @@ class MapViewModel internal constructor(
             )
         }.flowOn(postsDispatcher)
 
-    // The posts as pins, starting with those the map shows already. Pins are written once per set
-    // of posts: showing Map again with the posts it showed when hidden, from the same table or a
-    // new listener's, keeps their pins, since writing one for every post takes a while.
-    private fun pinnedPosts(): Flow<PinnedPosts> = postRepository.getPostTable()
-        .scan(uiState.value.pinnedPosts) { pinned, table ->
-            if (pinned.posts.holdsSamePosts(table)) pinned else PinnedPosts(table)
-        }
-        .distinctUntilChanged()
+    // The posts with their pins, starting with those the map shows already. Pins are written once
+    // per set of posts and authors: showing Map again with the posts it showed when hidden, from
+    // the same table or a new listener's, keeps their pins, since writing them takes a while.
+    private fun pinnedPosts(): Flow<PinnedPosts> =
+        combine(postRepository.getPostTable(), pinFilterChoice.pinnedAuthors(), ::Pair)
+            .scan(uiState.value.pinnedPosts) { pinned, (table, arrivingAuthors) ->
+                val authors = arrivingAuthors.replacing(pinned.authors)
+                if (pinned.pinsSamePosts(table, authors)) pinned else PinnedPosts(table, authors)
+            }
+            .distinctUntilChanged()
 
     init {
         savedStateHandle.setSavedStateProvider(CAMERA_KEY) {
@@ -219,6 +243,16 @@ class MapViewModel internal constructor(
         selection.update { if (it.pendingMove == move) it.copy(pendingMove = null) else it }
     }
 
+    /** Pins only the posts [filter] picks from now on, keeping the popup open. */
+    fun choosePinFilter(filter: PinFilter) {
+        pinFilterChoice.choose(filter)
+    }
+
+    /** Reads the user's friends again, if reading them failed, to pin their posts. */
+    fun retryFriends() {
+        pinFilterChoice.retryFriends()
+    }
+
     /** Asks Feed to show the post with [postId], which it scrolls to when it opens. */
     fun showInFeed(postId: String) {
         showInFeedRequest.send(postId)
@@ -249,12 +283,16 @@ class MapViewModel internal constructor(
     private data class Selection(val postId: String? = null, val pendingMove: MapMove? = null)
 
     companion object {
-        /** Creates a [MapViewModel] that reads the app's shared posts and requests. */
+        /** Creates a [MapViewModel] that reads the app's shared repositories and requests. */
         val factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as TweeterApplication
                 MapViewModel(
                     postRepository = application.container.postRepository,
+                    pinFilterChoice = PinFilterChoice(
+                        accountRepository = application.container.accountRepository,
+                        followRepository = application.container.followRepository
+                    ),
                     showOnMapRequest = application.container.showOnMapRequest,
                     showInFeedRequest = application.container.showInFeedRequest,
                     savedStateHandle = createSavedStateHandle(),

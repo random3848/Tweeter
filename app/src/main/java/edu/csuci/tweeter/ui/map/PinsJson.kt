@@ -31,13 +31,14 @@ private const val HEXADECIMAL = 16
 private const val ESCAPE_DIGITS = 4
 
 /**
- * Returns a GeoJSON FeatureCollection with a pin for each post of [posts] whose coordinates are
- * finite, in table order. Each pin's ID is its post's [PostTable.id], so tables holding the same
- * posts have the same pins, and a pin still identifies its post once the table has changed.
+ * Returns a GeoJSON FeatureCollection with a pin for the post in each of [rows] of [posts] whose
+ * coordinates are finite, in the order of [rows]. Each pin's ID is its post's [PostTable.id], so
+ * tables holding the same posts have the same pins, and a pin still identifies its post once the
+ * table has changed.
  */
-internal fun pinsJsonOf(posts: PostTable): String {
-    val json = pinsJsonBuilder(pinCount = posts.size, idLength = totalIdLength(posts))
-    for (row in 0 until posts.size) {
+internal fun pinsJsonOf(posts: PostTable, rows: IntArray): String {
+    val json = pinsJsonBuilder(pinCount = rows.size, idLength = totalIdLength(posts, rows))
+    for (row in rows) {
         json.appendPin(posts, row)
     }
     return json.append(COLLECTION_END).toString()
@@ -67,9 +68,9 @@ internal fun pinJsonAt(point: GeoPoint?): String {
     return json.append(COLLECTION_END).toString()
 }
 
-private fun totalIdLength(posts: PostTable): Int {
+private fun totalIdLength(posts: PostTable, rows: IntArray): Int {
     var length = 0
-    for (row in 0 until posts.size) {
+    for (row in rows) {
         length += posts.id(row).length
     }
     return length
