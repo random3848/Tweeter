@@ -127,6 +127,28 @@ service cloud.firestore {
                     && request.auth.token.firebase.sign_in_provider != 'anonymous'
                     && resource.data.authorUid == request.auth.uid;
 
+      // Guests can read a post's comments; only logged-in users can write one, as themselves.
+      // The fields and limits match Comment and FirestoreCommentRepository in the app.
+      match /comments/{commentId} {
+        allow read: if request.auth != null;
+        allow create: if isLoggedIn()
+                      && request.resource.data.keys().hasOnly([
+                           'authorUid', 'username', 'text', 'timestamp'
+                         ])
+                      && request.resource.data.keys().hasAll([
+                           'authorUid', 'username', 'text', 'timestamp'
+                         ])
+                      && request.resource.data.authorUid == request.auth.uid
+                      && request.resource.data.username is string
+                      && request.resource.data.username.size() > 0
+                      && request.resource.data.text is string
+                      && request.resource.data.text.size() > 0
+                      && request.resource.data.text.size() <= 500
+                      // Set by Firestore when it receives the comment, not by the phone's clock.
+                      && request.resource.data.timestamp == request.time
+                      && exists(/databases/$(database)/documents/posts/$(postId));
+      }
+
       function isLiking(postId) {
         return request.resource.data.likeCount == resource.data.get('likeCount', 0) + 1
             && !exists(likePath(postId))

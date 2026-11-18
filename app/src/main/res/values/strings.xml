@@ -159,6 +159,12 @@
     <string name="profile_follow_retry">Retry</string>
 
     <string name="feed_open_author_profile">View profile</string>
+    <string name="feed_open_comments">Comments</string>
+    <string name="comments_empty">No comments yet.</string>
+    <string name="comments_hint">Add a comment</string>
+    <string name="comments_send">Post</string>
+    <string name="comments_log_in">Log in to comment</string>
+    <string name="comments_failed">Couldn\'t load comments.</string>
 
     <string name="profile_followers_loading">Loading followers...</string>
     <string name="profile_followers_failed">Could not load followers.</string>
