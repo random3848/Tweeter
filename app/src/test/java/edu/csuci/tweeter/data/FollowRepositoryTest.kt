@@ -1,6 +1,7 @@
 package edu.csuci.tweeter.data
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
@@ -13,10 +14,39 @@ private const val USER = "user"
 private const val FRIEND = "friend"
 private const val FOLLOWED = "followed"
 private const val FOLLOWER = "follower"
+private const val NEW_FOLLOWER = "new follower"
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FollowRepositoryTest {
     private val repository = FakeFollowRepository()
+
+    @Test
+    fun observeFriendUids_newFollower_readsOnlyTheirRelationship() = runTest {
+        followEachOther(USER, FRIEND)
+        repository.addFollow(followerUid = FOLLOWER, followedUid = USER)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            repository.observeFriendUids(USER).collect()
+        }
+        val readsBefore = repository.startedReadCount
+
+        repository.addFollow(followerUid = NEW_FOLLOWER, followedUid = USER)
+
+        assertEquals(1, repository.startedReadCount - readsBefore)
+    }
+
+    @Test
+    fun observeFriendUids_followerLeaves_stopsReadingTheirRelationship() = runTest {
+        followEachOther(USER, FRIEND)
+        repository.addFollow(followerUid = FOLLOWER, followedUid = USER)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            repository.observeFriendUids(USER).collect()
+        }
+        val openReadsBefore = repository.openReadCount
+
+        repository.removeFollow(followerUid = FOLLOWER, followedUid = USER)
+
+        assertEquals(openReadsBefore - 1, repository.openReadCount)
+    }
 
     @Test
     fun observeFriendUids_returnsOnlyUsersWhoFollowEachOther() = runTest {

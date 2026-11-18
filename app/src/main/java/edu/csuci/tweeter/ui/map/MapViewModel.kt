@@ -68,11 +68,13 @@ sealed interface MapMove {
  * @property selectedRow The row in [posts] of the post whose popup is open, or null if none is or
  *     it hasn't loaded. The popup stays open whichever posts the filter pins.
  * @property pendingMove Where the camera moves next, or null if it stays where the user left it.
+ * @property isFilterOffered Whether the map offers its filter: while someone is logged in.
  */
 data class MapUiState(
-    val pinnedPosts: PinnedPosts = PinnedPosts(PostTable.EMPTY, PinnedAuthors.EveryoneForGuests),
+    val pinnedPosts: PinnedPosts = PinnedPosts(PostTable.EMPTY, PinnedAuthors.Everyone),
     val selectedRow: Int? = null,
-    val pendingMove: MapMove? = null
+    val pendingMove: MapMove? = null,
+    val isFilterOffered: Boolean = false
 ) {
     /** Every post, pinned or not; empty until the posts load. */
     val posts: PostTable
@@ -88,11 +90,11 @@ data class MapUiState(
     val selectedPosition: Position? = selectedRow?.let(posts::pinPositionOf)
 
     /**
-     * The filter that picked the pinned posts, shown selected, or null while nobody is logged in,
-     * when the map pins every post and offers no filter.
+     * The filter that picks the pinned posts, shown selected, or null while the map offers no
+     * filter and pins every post.
      */
     val pinFilter: PinFilter?
-        get() = pinnedPosts.authors.filter
+        get() = pinnedPosts.authors.filter.takeIf { isFilterOffered }
 
     /** Whether the map pins no posts for [PinFilter.FRIENDS], as it couldn't read the friends. */
     val friendsUnknown: Boolean
@@ -179,14 +181,18 @@ class MapViewModel internal constructor(
 
     // What the map shows while the user sees it. A new selection only finds its post's row and
     // writes that one pin.
-    private fun shownUiState(): Flow<MapUiState> =
-        combine(pinnedPosts(), selection) { pinnedPosts, selection ->
-            MapUiState(
-                pinnedPosts = pinnedPosts,
-                selectedRow = selection.postId?.let(pinnedPosts.posts::rowOf),
-                pendingMove = selection.pendingMove
-            )
-        }.flowOn(postsDispatcher)
+    private fun shownUiState(): Flow<MapUiState> = combine(
+        pinnedPosts(),
+        selection,
+        pinFilterChoice.isOffered()
+    ) { pinnedPosts, selection, isFilterOffered ->
+        MapUiState(
+            pinnedPosts = pinnedPosts,
+            selectedRow = selection.postId?.let(pinnedPosts.posts::rowOf),
+            pendingMove = selection.pendingMove,
+            isFilterOffered = isFilterOffered
+        )
+    }.flowOn(postsDispatcher)
 
     // The posts with their pins, starting with those the map shows already. Pins are written once
     // per set of posts and authors: showing Map again with the posts it showed when hidden, from

@@ -86,10 +86,22 @@ class PostTable private constructor(
     }
 
     /** The rows of the posts shared by user [authorUid] ([Post.authorUid]), in table order. */
-    fun rowsBy(authorUid: String): IntArray = rowsWhere { it == authorUid }
+    fun rowsBy(authorUid: String): IntArray = rowsWhere(authorUids) { it == authorUid }
 
     /** The rows of the posts shared by any of the users [authorUids], in table order. */
-    fun rowsBy(authorUids: Set<String>): IntArray = rowsWhere(authorUids::contains)
+    fun rowsBy(authorUids: Set<String>): IntArray = rowsWhere(this.authorUids, authorUids::contains)
+
+    /**
+     * The rows of the posts of [animal] ([Post.animalType]), in table order: the posts naming it
+     * the same way, ignoring case and the spaces around it. A blank [animal] matches no post.
+     */
+    fun rowsOfAnimal(animal: String): IntArray {
+        val name = animal.trim()
+        if (name.isEmpty()) {
+            return IntArray(0)
+        }
+        return rowsWhere(animalTypes) { it.trim().equals(name, ignoreCase = true) }
+    }
 
     /**
      * Every row, the most liked post ([Post.likeCount]) first; posts liked equally keep their
@@ -99,10 +111,13 @@ class PostTable private constructor(
 
     /**
      * Every row, the post with the highest [score] first; posts that score the same keep their
-     * table order, newest first. It sorts the whole table, so it's a pass over every post.
+     * table order, newest first. It sorts the whole table, so it's a pass over every post, and
+     * calls [score] once per row.
      */
-    fun rowsByDescending(score: (row: Int) -> Double): IntArray =
-        (0 until size).sortedByDescending(score).toIntArray()
+    fun rowsByDescending(score: (row: Int) -> Double): IntArray {
+        val scores = DoubleArray(size) { row -> score(row) }
+        return (0 until size).sortedByDescending { row -> scores[row] }.toIntArray()
+    }
 
     /**
      * Whether [other] holds the same posts as this table, in the same rows. It compares every
@@ -113,12 +128,13 @@ class PostTable private constructor(
 
     override fun toString(): String = "PostTable(ids=${ids.asList().subList(0, size)})"
 
-    // Counts first, so the rows go straight into an array of their size.
-    private inline fun rowsWhere(isWanted: (authorUid: String) -> Boolean): IntArray {
-        val rows = IntArray(countRowsWhere(isWanted))
+    // The rows whose value in [column] is wanted, in table order. Counts them first, so they go
+    // straight into an array of their size.
+    private inline fun rowsWhere(column: Array<String>, isWanted: (String) -> Boolean): IntArray {
+        val rows = IntArray(countRowsWhere(column, isWanted))
         var found = 0
         for (row in 0 until size) {
-            if (isWanted(authorUids[row])) {
+            if (isWanted(column[row])) {
                 rows[found] = row
                 found++
             }
@@ -126,10 +142,10 @@ class PostTable private constructor(
         return rows
     }
 
-    private inline fun countRowsWhere(isWanted: (authorUid: String) -> Boolean): Int {
+    private inline fun countRowsWhere(column: Array<String>, isWanted: (String) -> Boolean): Int {
         var count = 0
         for (row in 0 until size) {
-            if (isWanted(authorUids[row])) {
+            if (isWanted(column[row])) {
                 count++
             }
         }

@@ -1,21 +1,24 @@
 package edu.csuci.tweeter.ui.feed
 
+import edu.csuci.tweeter.data.PostRows
 import edu.csuci.tweeter.data.PostTable
+import java.util.Arrays
 
 /**
  * The feed's posts in the [order] the user picked, ranked once when they picked it. Newer tables
  * keep that ranking ([withPosts]), so a post doesn't move while the user looks at it, as when they
  * like it.
  *
- * @property posts The posts, newest first.
- * @property order The order the user picked, which [rows] are in.
- * @property rows Every row of [posts], in the order the feed shows them.
+ * @property listedPosts Every post, in the order the feed shows them.
+ * @property order The order the user picked, which [listedPosts] are in.
  */
 class RankedPosts private constructor(
-    val posts: PostTable,
+    val listedPosts: PostRows,
     val order: FeedOrder,
-    val rows: IntArray,
-    private val rankByPostId: Map<String, Int>
+    // Each post's rank, as two arrays rather than a map, which would hold objects per post: the
+    // ranked posts' IDs in sorted order, to search, and the rank of each in the same order.
+    private val sortedPostIds: Array<String>,
+    private val ranksOfSortedIds: IntArray
 ) {
     /**
      * [newPosts] in this ranking: posts it ranked keep their order, posts shared since come first,
@@ -23,12 +26,15 @@ class RankedPosts private constructor(
      */
     fun withPosts(newPosts: PostTable): RankedPosts {
         val rows = newPosts.rowsByDescending { row -> scoreOf(newPosts.id(row)) }
-        return RankedPosts(newPosts, order, rows, rankByPostId)
+        return RankedPosts(PostRows(newPosts, rows), order, sortedPostIds, ranksOfSortedIds)
     }
 
     // Higher for posts ranked higher, and highest for posts shared after the ranking.
-    private fun scoreOf(postId: String): Double =
-        rankByPostId[postId]?.let { rank -> -rank.toDouble() } ?: Double.POSITIVE_INFINITY
+    private fun scoreOf(postId: String): Double {
+        val index = Arrays.binarySearch(sortedPostIds, postId)
+        val wasRanked = index >= 0
+        return if (wasRanked) -ranksOfSortedIds[index].toDouble() else Double.POSITIVE_INFINITY
+    }
 
     companion object {
         /**
@@ -38,9 +44,11 @@ class RankedPosts private constructor(
          */
         fun of(posts: PostTable, order: FeedOrder, nowMillis: Long): RankedPosts {
             val rows = order.rowsOf(posts, nowMillis)
-            val rankByPostId = HashMap<String, Int>(rows.size)
-            rows.forEachIndexed { rank, row -> rankByPostId[posts.id(row)] = rank }
-            return RankedPosts(posts, order, rows, rankByPostId)
+            val idsByRank = Array(rows.size) { rank -> posts.id(rows[rank]) }
+            val ranksOfSortedIds = idsByRank.indices.sortedBy { rank -> idsByRank[rank] }
+                .toIntArray()
+            val sortedPostIds = Array(rows.size) { index -> idsByRank[ranksOfSortedIds[index]] }
+            return RankedPosts(PostRows(posts, rows), order, sortedPostIds, ranksOfSortedIds)
         }
     }
 }

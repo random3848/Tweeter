@@ -29,6 +29,10 @@ class FakeFollowRepository : FollowRepository {
     var openReadCount = 0
         private set
 
+    /** How many reads have been started, each of them a listener opened on the server. */
+    var startedReadCount = 0
+        private set
+
     /** Makes [followerUid] a follower of [followedUid]. */
     fun addFollow(followerUid: String, followedUid: String) {
         follows.update { it + Follow(followerUid, followedUid) }
@@ -69,7 +73,10 @@ class FakeFollowRepository : FollowRepository {
         }
         emitAll(follows.map(answer).distinctUntilChanged())
     }
-        .onStart { openReadCount++ }
+        .onStart {
+            startedReadCount++
+            openReadCount++
+        }
         .onCompletion { openReadCount-- }
 
     private data class Follow(val followerUid: String, val followedUid: String)

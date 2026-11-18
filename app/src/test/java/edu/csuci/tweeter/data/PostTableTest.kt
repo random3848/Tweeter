@@ -117,6 +117,19 @@ class PostTableTest {
     }
 
     @Test
+    fun rowsByDescending_scoresEachRowOnce() {
+        val table = PostTable.of(SAMPLE_POSTS)
+        var scoreCount = 0
+
+        table.rowsByDescending { row ->
+            scoreCount++
+            row.toDouble()
+        }
+
+        assertEquals(table.size, scoreCount)
+    }
+
+    @Test
     fun rowsByLikeCount_noPosts_returnsNoRows() {
         assertArrayEquals(intArrayOf(), PostTable.EMPTY.rowsByLikeCount())
     }
@@ -147,6 +160,26 @@ class PostTableTest {
     @Test
     fun rowsBy_noAuthors_returnsNoRows() {
         assertArrayEquals(intArrayOf(), PostTable.of(SAMPLE_POSTS).rowsBy(emptySet()))
+    }
+
+    @Test
+    fun rowsOfAnimal_matchesAnimalIgnoringCaseAndSurroundingSpaces() {
+        val table = PostTable.of(
+            listOf(
+                SAMPLE_POSTS[0].copy(id = "spaced", animalType = " Island fox "),
+                SAMPLE_POSTS[1].copy(id = "other", animalType = "Coyote"),
+                SAMPLE_POSTS[2].copy(id = "lower", animalType = "island fox")
+            )
+        )
+
+        assertArrayEquals(intArrayOf(0, 2), table.rowsOfAnimal("Island Fox"))
+    }
+
+    @Test
+    fun rowsOfAnimal_blankAnimal_matchesNoPosts() {
+        val table = PostTable.of(listOf(SAMPLE_POSTS[0].copy(animalType = "")))
+
+        assertArrayEquals(intArrayOf(), table.rowsOfAnimal(" "))
     }
 
     @Test
@@ -220,7 +253,6 @@ class PostTableTest {
         assertSamePosts(PostTable.of(listOf(SAMPLE_POSTS[0])), table)
     }
 
-    // A builder holding [post], with room for one more.
     // A table with one post per like count, in the order given.
     private fun tableOfLikeCounts(vararg likeCounts: Int): PostTable = PostTable.of(
         likeCounts.mapIndexed { row, likeCount ->
@@ -228,6 +260,7 @@ class PostTableTest {
         }
     )
 
+    // A builder holding [post], with room for one more.
     private fun builderWithRoomAfter(post: Post): PostTable.Builder {
         val builder = PostTable.Builder(capacity = 2)
         builder.add(post)

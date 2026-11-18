@@ -592,6 +592,8 @@ class EditProfileViewModelTest {
             flowOf(profile)
         }
 
+        override fun getProfiles(): Flow<List<UserProfile>> = flowOf(listOf(profile))
+
         override suspend fun saveProfile(profile: UserProfile) {
             saveFinished?.await()
             if (failsToSave) {

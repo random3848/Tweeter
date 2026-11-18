@@ -42,6 +42,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -102,6 +103,15 @@ class FeedViewModelTest {
     }
 
     @Test
+    fun uiState_afterFirstTable_listsEveryRowOnce() = runTest {
+        val viewModel = collectedFeedViewModel()
+
+        val rows = viewModel.uiState.value.listedPosts.rows
+
+        assertArrayEquals(SAMPLE_POSTS.indices.toList().toIntArray(), rows.sortedArray())
+    }
+
+    @Test
     fun uiState_afterAddPost_hasNewPostFirst() = runTest {
         val repository = FakePostRepository()
         val viewModel = collectedFeedViewModel(repository)
@@ -153,11 +163,11 @@ class FeedViewModelTest {
     }
 
     @Test
-    fun uiState_best_ranksRecentLikesAboveOldLikesAndNoLikes() = runTest {
+    fun uiState_best_ranksRecentLikesFirstAndNewPostsAboveOldLikes() = runTest {
         val viewModel = collectedFeedViewModel(FakePostRepository(rankedPosts))
 
         assertEquals(
-            listOf(RECENT_LIKED_ID, OLD_POPULAR_ID, NEW_UNLIKED_ID),
+            listOf(RECENT_LIKED_ID, NEW_UNLIKED_ID, OLD_POPULAR_ID),
             viewModel.uiState.value.shownPostIds()
         )
     }
@@ -320,7 +330,7 @@ class FeedViewModelTest {
 
         val uiState = viewModel.uiState.value
         assertEquals(FeedChoice.BEST, uiState.choice)
-        assertEquals(postsByFriendAndOthers.size, uiState.rows.size)
+        assertEquals(postsByFriendAndOthers.size, uiState.listedPosts.rows.size)
     }
 
     @Test
@@ -392,6 +402,52 @@ class FeedViewModelTest {
         viewModel.toggleLike(unlikedPostId)
 
         assertEquals(emptySet<String>(), viewModel.uiState.value.likedPostIds)
+    }
+
+    @Test
+    fun toggleLike_tappedAgainBeforeSaved_likesOnce() = runTest {
+        val likes = SlowLikeRepository()
+        val viewModel = collectedFeedViewModel(likes = likes)
+
+        viewModel.toggleLike(unlikedPostId)
+        viewModel.toggleLike(unlikedPostId)
+
+        assertEquals(1, likes.changeCount)
+    }
+
+    @Test
+    fun toggleLike_afterLikeSaved_unlikes() = runTest {
+        val likes = SlowLikeRepository()
+        val viewModel = collectedFeedViewModel(likes = likes)
+        viewModel.toggleLike(unlikedPostId)
+        likes.finishChanges()
+
+        viewModel.toggleLike(unlikedPostId)
+        likes.finishChanges()
+
+        assertEquals(emptySet<String>(), viewModel.uiState.value.likedPostIds)
+    }
+
+    @Test
+    fun toggleLike_afterLikeNotSaved_triesAgain() = runTest {
+        val likes = UnsavableLikeRepository()
+        val viewModel = collectedFeedViewModel(likes = likes)
+        viewModel.toggleLike(unlikedPostId)
+
+        viewModel.toggleLike(unlikedPostId)
+
+        assertEquals(2, likes.attemptCount)
+    }
+
+    @Test
+    fun toggleLike_otherPostWhileOneIsSaving_changesBoth() = runTest {
+        val likes = SlowLikeRepository()
+        val viewModel = collectedFeedViewModel(likes = likes)
+
+        viewModel.toggleLike(unlikedPostId)
+        viewModel.toggleLike(likedPostId)
+
+        assertEquals(2, likes.changeCount)
     }
 
     @Test
@@ -500,12 +556,49 @@ class FeedViewModelTest {
         likeCount = likeCount
     )
 
-    private fun FeedUiState.shownPostIds(): List<String> = rows.map(posts::id)
+    private fun FeedUiState.shownPostIds(): List<String> = listedPosts.rows.map(posts::id)
 
     // Likes that can't be saved, as when the Firestore rules refuse them.
     private class UnsavableLikeRepository : LikeRepository by FakeLikeRepository() {
-        override suspend fun like(postId: String): Unit =
+        var attemptCount = 0
+            private set
+
+        override suspend fun like(postId: String) {
+            attemptCount++
             throw LikeException(IllegalStateException("Refused"))
+        }
+    }
+
+    // Likes that aren't saved until the test calls [finishChanges], as on a slow network.
+    private class SlowLikeRepository : LikeRepository {
+        private val saved = FakeLikeRepository()
+        private var pendingNetwork = CompletableDeferred<Unit>()
+
+        var changeCount = 0
+            private set
+
+        override fun getLikedPostIds(): Flow<Set<String>> = saved.getLikedPostIds()
+
+        override suspend fun like(postId: String) {
+            awaitNetwork()
+            saved.like(postId)
+        }
+
+        override suspend fun unlike(postId: String) {
+            awaitNetwork()
+            saved.unlike(postId)
+        }
+
+        fun finishChanges() {
+            val finished = pendingNetwork
+            pendingNetwork = CompletableDeferred()
+            finished.complete(Unit)
+        }
+
+        private suspend fun awaitNetwork() {
+            changeCount++
+            pendingNetwork.await()
+        }
     }
 
     // Posts whose like counts a test changes, as other users' likes do.

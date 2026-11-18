@@ -15,6 +15,7 @@ import edu.csuci.tweeter.data.LikeException
 import edu.csuci.tweeter.data.LikeRepository
 import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
+import edu.csuci.tweeter.data.PostRows
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.observeFriendUids
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
@@ -33,6 +34,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.retryWhen
@@ -43,39 +45,40 @@ import kotlinx.coroutines.launch
 
 private const val TAG = "FeedViewModel"
 
-/**
- * What the feed shows: the [choice] in effect, and the [authors] whose posts it shows.
- */
+/** What the feed shows: the [choice] in effect, and the [authors] whose posts it shows. */
 private data class ShownChoice(val choice: FeedChoice, val authors: FeedAuthors)
 
 /**
  * The UI state of the home feed screen.
  *
- * @property posts The posts to display, newest first.
+ * @property listedPosts The posts the feed shows, in order: ranked when the user picked [choice],
+ *     so posts don't move as their likes change.
  * @property choice What the user picked to see, shown checked.
  * @property offeredChoices The choices on the chips: Friends only for users who are logged in.
  * @property authors Whose posts the feed shows, as [choice] decides.
- * @property rows The rows of [posts] the feed shows, in order: ranked when the user picked
- *     [choice], so posts don't move as their likes change.
  * @property isLoading Whether the first posts are still being loaded from the repository.
- * @property positionToShow Where in [rows] the post another screen asked the feed to show is, such
- *     as Map's popup's, which the feed scrolls to, then calls [FeedViewModel.clearPostToShow]. Null
- *     if none was asked for, or [rows] don't hold it, as while the feed shows the posts it had
- *     before that one was shared, or when its author isn't among the friends shown.
+ * @property positionToShow Where in [listedPosts] the post another screen asked the feed to show
+ *     is, such as Map's popup's, which the feed scrolls to, then calls
+ *     [FeedViewModel.clearPostToShow]. Null if none was asked for, or [listedPosts] don't hold it,
+ *     as while the feed shows the posts it had before that one was shared, or when its author
+ *     isn't among the friends shown.
  * @property likedPostIds The IDs of the posts the user liked, whose hearts are filled.
  * @property canLike Whether the user can like posts: they're logged in, not a guest.
  */
 data class FeedUiState(
-    val posts: PostTable = PostTable.EMPTY,
+    val listedPosts: PostRows = PostRows.EMPTY,
     val choice: FeedChoice = FeedChoice.BEST,
     val offeredChoices: List<FeedChoice> = FeedChoice.offeredTo(isLoggedIn = false),
     val authors: FeedAuthors = FeedAuthors.Everyone,
-    val rows: IntArray = IntArray(0),
     val isLoading: Boolean = true,
     val positionToShow: Int? = null,
     val likedPostIds: Set<String> = emptySet(),
     val canLike: Boolean = false
-)
+) {
+    /** Every post, newest first, of which the feed shows [listedPosts]. */
+    val posts: PostTable
+        get() = listedPosts.table
+}
 
 /**
  * Holds posts for [FeedScreen], as the user chooses to see them, the user's likes of them, and
@@ -110,6 +113,12 @@ class FeedViewModel(
 
     // How many times the user asked to read their friends again after reading them failed.
     private val friendsRetryCount = MutableStateFlow(0)
+
+    // The IDs of the posts whose like change the server hasn't saved yet. Their hearts ignore taps
+    // until it has: a tap reads whether the post is liked from [uiState], which shows the change
+    // only once Firestore's listener reports it, so a second tap before then would repeat the
+    // first.
+    private val postsWithLikeChanging = MutableStateFlow(emptySet<String>())
 
     // What the user chose and whose posts it shows. Guests, who have no friends, see Best instead
     // of Friends; their choice is kept for when they log in.
@@ -151,15 +160,14 @@ class FeedViewModel(
             likeRepository.getLikedPostIds(),
             accountRepository.loggedInUid
         ) { ranked, shown, postToShow, likedPostIds, loggedInUid ->
-            val rows = shown.authors.rowsIn(ranked.posts, ranked.rows)
+            val listedPosts = shown.authors.listedIn(ranked.listedPosts)
             FeedUiState(
-                posts = ranked.posts,
+                listedPosts = listedPosts,
                 choice = shown.choice,
                 offeredChoices = FeedChoice.offeredTo(isLoggedIn = loggedInUid != null),
                 authors = shown.authors,
-                rows = rows,
                 isLoading = false,
-                positionToShow = postToShow?.let { postId -> positionOf(postId, ranked, rows) },
+                positionToShow = postToShow?.let { postId -> listedPosts.positionOf(postId) },
                 likedPostIds = likedPostIds,
                 canLike = loggedInUid != null
             )
@@ -203,9 +211,9 @@ class FeedViewModel(
             true
         }
 
-    // Where in [rows] the post with [postId] is, or null if they don't hold it.
-    private fun positionOf(postId: String, ranked: RankedPosts, rows: IntArray): Int? {
-        val row = ranked.posts.rowOf(postId) ?: return null
+    // Where in these rows the post with [postId] is, or null if they don't hold it.
+    private fun PostRows.positionOf(postId: String): Int? {
+        val row = table.rowOf(postId) ?: return null
         return rows.indexOf(row).takeIf { position -> position >= 0 }
     }
 
@@ -215,17 +223,28 @@ class FeedViewModel(
     }
 
     /**
-     * Likes the post with [postId], or takes the like back if the user liked it. A change that
-     * can't be saved is logged; the heart then shows the like as it was.
+     * Likes the post with [postId], or takes the like back if the user liked it, unless a change
+     * to its like is still being saved. A change that can't be saved is logged; the heart then
+     * shows the like as it was.
      */
     fun toggleLike(postId: String) {
+        val isAlreadyChanging = postId in postsWithLikeChanging.getAndUpdate { it + postId }
+        if (isAlreadyChanging) {
+            return
+        }
         val isLiked = postId in uiState.value.likedPostIds
-        viewModelScope.launch {
-            try {
-                if (isLiked) likeRepository.unlike(postId) else likeRepository.like(postId)
-            } catch (error: LikeException) {
-                Log.e(TAG, "Could not change the like of post $postId", error)
-            }
+        val change = if (isLiked) likeRepository::unlike else likeRepository::like
+        viewModelScope.launch { saveLikeChange(postId, change) }
+    }
+
+    // Saves [change] to the like of the post with [postId], then lets its heart take taps again.
+    private suspend fun saveLikeChange(postId: String, change: suspend (postId: String) -> Unit) {
+        try {
+            change(postId)
+        } catch (error: LikeException) {
+            Log.e(TAG, "Could not change the like of post $postId", error)
+        } finally {
+            postsWithLikeChanging.update { it - postId }
         }
     }
 

@@ -4,11 +4,8 @@ import edu.csuci.tweeter.data.PostTable
 
 /** Whose posts the map pins, as the filter shown selected above it picks them. */
 sealed interface PinnedAuthors {
-    /**
-     * The filter that picked these authors, shown selected, or null while nobody is logged in and
-     * the map offers no filter.
-     */
-    val filter: PinFilter?
+    /** The filter that picks these authors, shown selected while the map offers a filter. */
+    val filter: PinFilter
 
     /** The rows of [posts] holding the posts the map pins, in table order. */
     fun rowsIn(posts: PostTable): IntArray
@@ -19,18 +16,11 @@ sealed interface PinnedAuthors {
      */
     fun replacing(pinned: PinnedAuthors): PinnedAuthors = this
 
-    /** Everyone, for a guest: the map pins every post and offers no filter. */
-    data object EveryoneForGuests : PinnedAuthors {
-        override val filter: PinFilter? = null
-
-        override fun rowsIn(posts: PostTable): IntArray = everyRowOf(posts)
-    }
-
-    /** Everyone, as [PinFilter.ALL] picks: the map pins every post. */
+    /** Everyone, as [PinFilter.ALL] picks, and for guests, who get no filter: every post. */
     data object Everyone : PinnedAuthors {
         override val filter: PinFilter = PinFilter.ALL
 
-        override fun rowsIn(posts: PostTable): IntArray = everyRowOf(posts)
+        override fun rowsIn(posts: PostTable): IntArray = IntArray(posts.size) { row -> row }
     }
 
     /**
@@ -79,5 +69,3 @@ sealed interface PinnedAuthors {
         override fun rowsIn(posts: PostTable): IntArray = IntArray(0)
     }
 }
-
-private fun everyRowOf(posts: PostTable): IntArray = IntArray(posts.size) { row -> row }

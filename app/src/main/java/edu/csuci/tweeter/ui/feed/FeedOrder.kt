@@ -4,7 +4,7 @@ import edu.csuci.tweeter.data.PostTable
 
 /** An order the feed can show its posts in, as the [FeedChoice] the user picks puts them. */
 enum class FeedOrder {
-    /** Recent posts with likes first, ranked by [bestScoreOf]. */
+    /** Recent posts first, lifted by their likes, ranked by [bestScoreOf]. */
     BEST {
         override fun rowsOf(posts: PostTable, nowMillis: Long): IntArray =
             posts.rowsByDescending { row ->

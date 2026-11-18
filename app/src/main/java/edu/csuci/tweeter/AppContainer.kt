@@ -85,9 +85,17 @@ class AppContainer(private val context: Context) {
         )
     }
 
-    /** Every user's profile, stored in Firestore. */
+    /**
+     * Every user's profile, stored in Firestore. Search's list of every profile signs a guest in
+     * first if nobody is, one sign-in at a time with the post repository's, and is parsed on
+     * [Dispatchers.Default].
+     */
     val profileRepository: ProfileRepository by lazy {
-        FirestoreProfileRepository(firestore = FirebaseFirestore.getInstance())
+        FirestoreProfileRepository(
+            guestSignIn = guestSignIn,
+            firestore = FirebaseFirestore.getInstance(),
+            dispatcher = Dispatchers.Default
+        )
     }
 
     /** Reads and changes follower relationships in Firestore. */
@@ -105,11 +113,16 @@ class AppContainer(private val context: Context) {
         FirebaseAccountRepository(auth = FirebaseAuth.getInstance(), guestSignIn = guestSignIn)
     }
 
-    /** The logged-in user's likes of posts, stored in Firestore with the posts' like counts. */
+    /**
+     * The logged-in user's likes of posts, stored in Firestore with the posts' like counts, and
+     * read on [Dispatchers.Default].
+     */
     val likeRepository: LikeRepository by lazy {
         FirestoreLikeRepository(
             accountRepository = accountRepository,
-            firestore = FirebaseFirestore.getInstance()
+            guestSignIn = guestSignIn,
+            firestore = FirebaseFirestore.getInstance(),
+            dispatcher = Dispatchers.Default
         )
     }
 

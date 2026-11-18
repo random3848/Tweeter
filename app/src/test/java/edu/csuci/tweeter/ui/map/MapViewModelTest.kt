@@ -319,6 +319,27 @@ class MapViewModelTest {
     }
 
     @Test
+    fun uiState_guestLogsIn_keepsThePinsItWrote() = runTest {
+        accountRepository.logOut()
+        val viewModel = mapViewModelOfPostsByEach()
+        val pinnedPosts = viewModel.uiState.value.pinnedPosts
+
+        accountRepository.logInAs(USER)
+
+        assertSame(pinnedPosts, viewModel.uiState.value.pinnedPosts)
+    }
+
+    @Test
+    fun uiState_guestLogsIn_offersFilterOnAll() = runTest {
+        accountRepository.logOut()
+        val viewModel = mapViewModelOfPostsByEach()
+
+        accountRepository.logInAs(USER)
+
+        assertEquals(PinFilter.ALL, viewModel.uiState.value.pinFilter)
+    }
+
+    @Test
     fun choosePinFilter_mine_pinsUsersOwnPostsOnly() = runTest {
         val viewModel = mapViewModelOfPostsByEach()
 
@@ -437,19 +458,32 @@ class MapViewModelTest {
     }
 
     @Test
-    fun uiState_otherUserLogsInWhileMapIsHidden_pinsNoneOfFirstUsersFriends() = runTest {
+    fun uiState_otherUserLogsInWhileMapIsHidden_startsOnAllWithEveryPost() = runTest {
         followEachOther(USER, FRIEND)
         val viewModel = mapViewModelOfPostsByEach()
         viewModel.choosePinFilter(PinFilter.FRIENDS)
         viewModel.setMapShown(false)
         accountRepository.logOut()
         accountRepository.logInAs(OTHER_USER)
-        followRepository.readsAnswered = CompletableDeferred()
 
         viewModel.setMapShown(true)
 
         assertEquals(
-            PinFilter.FRIENDS to emptyList<String>(),
+            PinFilter.ALL to postsByEach.map { it.id },
+            viewModel.uiState.value.filterAndPinnedPostIds()
+        )
+    }
+
+    @Test
+    fun uiState_sameUserLogsBackIn_keepsTheirFilter() = runTest {
+        val viewModel = mapViewModelOfPostsByEach()
+        viewModel.choosePinFilter(PinFilter.MINE)
+        accountRepository.logOut()
+
+        accountRepository.logInAs(USER)
+
+        assertEquals(
+            PinFilter.MINE to listOf(usersPost.id),
             viewModel.uiState.value.filterAndPinnedPostIds()
         )
     }
