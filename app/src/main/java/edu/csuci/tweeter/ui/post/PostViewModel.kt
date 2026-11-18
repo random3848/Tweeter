@@ -39,6 +39,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import edu.csuci.tweeter.data.CameraFile
+import edu.csuci.tweeter.data.CameraFileStore
 
 private const val UPLOADED_PHOTO_URL_KEY = "uploadedPhotoUrl"
 
@@ -58,6 +60,7 @@ class PostViewModel(
     private val photoLocator: PhotoLocator<Uri>,
     private val photo: ChosenPhoto,
     private val cameraCapture: CameraCapture,
+    private val cameraFileStore: CameraFileStore,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel(cameraCapture),
     CameraControls by cameraCapture {
@@ -121,6 +124,38 @@ class PostViewModel(
      */
     fun choosePhoto(uri: String) {
         photo.chooseFromCameraRoll(uri)
+    }
+    /**
+     * Creates the file the in-app camera saves a picture into, off the main thread.
+     *
+     * @throws java.io.IOException If the file can't be created.
+     */
+    suspend fun createCameraFile(): CameraFile = cameraFileStore.create()
+
+    /** Deletes [file], which the in-app camera failed to save a picture into. */
+    fun discardCameraFile(file: CameraFile) {
+        cameraFileStore.discard(file.path)
+    }
+
+    /**
+     * Makes [file], which the in-app camera saved a picture into, the post's photo. It's deleted
+     * instead while the photo uploads.
+     */
+    fun cameraPictureCaptured(file: CameraFile) {
+        photo.chooseCameraPicture(file)
+    }
+
+    /** Forgets the photo, to take another. Ignored while it uploads. */
+    fun retakePhoto() {
+        if (isUploading) {
+            return
+        }
+
+        locateJob?.cancel()
+        location = null
+        isLocating = false
+        photo.clear()
+        photoAskedToLocate = null
     }
 
     /** Stops asking to find [photoToLocate], whose permissions the screen has asked for. */
@@ -268,6 +303,7 @@ class PostViewModel(
                         photo,
                         savedStateHandle
                     ),
+                    cameraFileStore = cameraFileStore,
                     savedStateHandle = savedStateHandle
                 )
             }

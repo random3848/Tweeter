@@ -3,10 +3,7 @@
 
     <string name="navigation_home">Home</string>
     <string name="navigation_search">Search</string>
-<<<<<<< HEAD
     <string name="navigation_camera">Camera</string>
-=======
->>>>>>> origin/development
     <string name="navigation_create_post">Create post</string>
     <string name="navigation_map">Map</string>
     <string name="navigation_profile">Profile</string>

@@ -48,5 +48,9 @@ private fun ActivityResultLauncher<Uri>.openCamera(uri: String, camera: CameraCo
     } catch (error: ActivityNotFoundException) {
         Log.e("CameraOpener", "No camera app", error)
         camera.cameraUnavailable()
+    } catch (error: SecurityException) {
+        // Thrown when the app declares CAMERA but the user hasn't granted it.
+        Log.e("CameraOpener", "Camera permission not granted", error)
+        camera.cameraUnavailable()
     }
 }
