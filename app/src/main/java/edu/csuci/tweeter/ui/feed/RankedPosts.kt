@@ -29,10 +29,6 @@ class RankedPosts private constructor(
         return RankedPosts(PostRows(newPosts, rows), order, sortedPostIds, ranksOfSortedIds)
     }
 
-    /** Where in [listedPosts] the post with [postId] is, or null if they don't hold it. */
-    fun positionOf(postId: String): Int? =
-        listedPosts.table.rowOf(postId)?.let(listedPosts.rows::indexOf)
-
     // Higher for posts ranked higher, and highest for posts shared after the ranking.
     private fun scoreOf(postId: String): Double {
         val index = Arrays.binarySearch(sortedPostIds, postId)

@@ -36,6 +36,10 @@
     <string name="feed_order_best">Best</string>
     <string name="feed_order_newest">Newest</string>
     <string name="feed_order_top">Top</string>
+    <string name="feed_friends">Friends</string>
+    <string name="feed_friends_empty">No posts from friends yet. Friends are people you follow who follow you back.</string>
+    <string name="feed_friends_unknown">Could not load your friends.</string>
+    <string name="feed_friends_retry">Retry</string>
     <plurals name="feed_like_count">
         <item quantity="one">%1$d like</item>
         <item quantity="other">%1$d likes</item>

@@ -199,8 +199,7 @@ class MapViewModel internal constructor(
     // the same table or a new listener's, keeps their pins, since writing them takes a while.
     private fun pinnedPosts(): Flow<PinnedPosts> =
         combine(postRepository.getPostTable(), pinFilterChoice.pinnedAuthors(), ::Pair)
-            .scan(uiState.value.pinnedPosts) { pinned, (table, arrivingAuthors) ->
-                val authors = arrivingAuthors.replacing(pinned.authors)
+            .scan(uiState.value.pinnedPosts) { pinned, (table, authors) ->
                 if (pinned.pinsSamePosts(table, authors)) pinned else PinnedPosts(table, authors)
             }
             .distinctUntilChanged()

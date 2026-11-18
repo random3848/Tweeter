@@ -1,32 +1,31 @@
 package edu.csuci.tweeter.ui.feed
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
+import edu.csuci.tweeter.ui.CenteredMessage
 import edu.csuci.tweeter.ui.navigation.TweeterTopBar
 
 /**
  * The home feed, the screen the app opens to, under the app's top bar.
  *
- * Displays posts from [FeedViewModel] in a clean scrolling layout, in the order the user picks
- * with the chips above them: Best, Newest or Top. Picking one shows its first post. A label
+ * Displays posts from [FeedViewModel] in a clean scrolling layout, as the user picks with the chips
+ * above them: everyone's by Best, Newest or Top, or, for users who are logged in, their friends'.
+ * Picking one shows its first post. A label
  * on each post's photo shows the post on Map, and a heart under it likes the post, or opens Log in
  * for guests, who can't. When another screen asks the feed to show a post, as Map's popup does,
  * the feed scrolls to it. The logged-in user's own posts have a delete button, which asks before
@@ -50,9 +49,9 @@ fun FeedScreen(
 ) {
     val uiState by feedViewModel.uiState.collectAsStateWithLifecycle()
     val loggedInUid by feedViewModel.loggedInUid.collectAsStateWithLifecycle()
-    // A new list state for each order, which starts at its first post. One list state kept across
-    // orders would keep the post at the top in view, wherever the new order puts it.
-    val listState = rememberSaveable(uiState.order, saver = LazyListState.Saver) {
+    // A new list state for each choice, which starts at its first post. One list state kept across
+    // choices would keep the post at the top in view, wherever the new choice puts it.
+    val listState = rememberSaveable(uiState.choice, saver = LazyListState.Saver) {
         LazyListState()
     }
 
@@ -72,39 +71,52 @@ fun FeedScreen(
     val likePost = if (uiState.canLike) feedViewModel::toggleLike else { _: String -> onLogIn() }
     Column(modifier = modifier.fillMaxSize()) {
         TweeterTopBar(actions = topBarActions)
-        FeedOrderChips(selected = uiState.order, onSelect = feedViewModel::selectOrder)
-        PostList(
-            listedPosts = uiState.listedPosts,
-            isLoading = uiState.isLoading,
-            emptyMessage = stringResource(R.string.feed_empty_message),
-            loggedInUid = loggedInUid,
-            onShowOnMap = showPostOnMap,
-            onDelete = feedViewModel::deletePost,
-            onOpenProfile = onOpenProfile,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            listState = listState,
-            likes = PostLikes(likedPostIds = uiState.likedPostIds, onLike = likePost)
+        FeedChoiceChips(
+            choices = uiState.offeredChoices,
+            selected = uiState.choice,
+            onSelect = feedViewModel::choose
         )
-    }
-}
+        val bodyModifier = Modifier.weight(1f).fillMaxWidth()
 
-/**
- * A chip for each [FeedOrder], the [selected] one checked.
- *
- * @param onSelect Shows the posts in the order of the chip pressed.
- */
-@Composable
-private fun FeedOrderChips(selected: FeedOrder, onSelect: (FeedOrder) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        for (order in FeedOrder.entries) {
-            FilterChip(
-                selected = order == selected,
-                onClick = { onSelect(order) },
-                label = { Text(stringResource(order.labelRes)) }
+        // The posts, a spinner while they're read, or [emptyMessage] when there are none.
+        @Composable
+        fun FeedPosts(isLoading: Boolean, @StringRes emptyMessage: Int) {
+            PostList(
+                listedPosts = uiState.listedPosts,
+                isLoading = isLoading,
+                emptyMessage = stringResource(emptyMessage),
+                loggedInUid = loggedInUid,
+                onShowOnMap = showPostOnMap,
+                onDelete = feedViewModel::deletePost,
+                onOpenProfile = onOpenProfile,
+                modifier = bodyModifier,
+                listState = listState,
+                likes = PostLikes(likedPostIds = uiState.likedPostIds, onLike = likePost)
             )
+        }
+        when (uiState.authors) {
+            FeedAuthors.Everyone -> {
+                FeedPosts(isLoading = uiState.isLoading, emptyMessage = R.string.feed_empty_message)
+            }
+
+            is FeedAuthors.Friends -> {
+                FeedPosts(isLoading = uiState.isLoading, emptyMessage = R.string.feed_friends_empty)
+            }
+
+            FeedAuthors.LoadingFriends -> {
+                FeedPosts(isLoading = true, emptyMessage = R.string.feed_friends_empty)
+            }
+
+            FeedAuthors.UnknownFriends -> {
+                CenteredMessage(
+                    text = stringResource(R.string.feed_friends_unknown),
+                    modifier = bodyModifier
+                ) {
+                    TextButton(onClick = feedViewModel::retryFriends) {
+                        Text(stringResource(R.string.feed_friends_retry))
+                    }
+                }
+            }
         }
     }
 }

@@ -10,12 +10,6 @@ sealed interface PinnedAuthors {
     /** The rows of [posts] holding the posts the map pins, in table order. */
     fun rowsIn(posts: PostTable): IntArray
 
-    /**
-     * The authors to pin when these arrive while [pinned] are pinned: these, unless they are still
-     * being read and [pinned] can stand in for them meanwhile.
-     */
-    fun replacing(pinned: PinnedAuthors): PinnedAuthors = this
-
     /** Everyone, as [PinFilter.ALL] picks, and for guests, who get no filter: every post. */
     data object Everyone : PinnedAuthors {
         override val filter: PinFilter = PinFilter.ALL
@@ -35,31 +29,24 @@ sealed interface PinnedAuthors {
     }
 
     /**
-     * A user's friends, as [PinFilter.FRIENDS] picks: the map pins their posts.
+     * The user's friends, as [PinFilter.FRIENDS] picks: the map pins their posts.
      *
-     * @property userUid The user whose friends they are.
      * @property uids The friends' IDs.
      */
-    data class Friends(val userUid: String, val uids: Set<String>) : PinnedAuthors {
+    data class Friends(val uids: Set<String>) : PinnedAuthors {
         override val filter: PinFilter = PinFilter.FRIENDS
 
         override fun rowsIn(posts: PostTable): IntArray = posts.rowsBy(uids)
     }
 
     /**
-     * A user's friends, while they are read: the map pins no posts yet.
-     *
-     * @property userUid The user whose friends are read.
+     * The user's friends, while they are first read: the map pins no posts yet. When they are read
+     * again, as when Map is shown again, the friends read last stay pinned meanwhile instead.
      */
-    data class LoadingFriends(val userUid: String) : PinnedAuthors {
+    data object LoadingFriends : PinnedAuthors {
         override val filter: PinFilter = PinFilter.FRIENDS
 
         override fun rowsIn(posts: PostTable): IntArray = IntArray(0)
-
-        // The same user's friends already pinned, as when Map is shown again, stay pinned while
-        // they're read again. Another user's, as after logging in as someone else, don't.
-        override fun replacing(pinned: PinnedAuthors): PinnedAuthors =
-            if (pinned is Friends && pinned.userUid == userUid) pinned else this
     }
 
     /** The user's friends, who couldn't be read: the map pins no posts. */
