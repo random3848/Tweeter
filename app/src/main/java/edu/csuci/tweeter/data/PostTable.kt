@@ -102,8 +102,14 @@ class PostTable private constructor(
      * Every row, the most liked post ([Post.likeCount]) first; posts liked equally keep their
      * table order, newest first. It sorts the whole table, so it's a pass over every post.
      */
-    fun rowsByLikeCount(): IntArray =
-        (0 until size).sortedByDescending { row -> likeCounts[row] }.toIntArray()
+    fun rowsByLikeCount(): IntArray = rowsByDescending { row -> likeCounts[row].toDouble() }
+
+    /**
+     * Every row, the post with the highest [score] first; posts that score the same keep their
+     * table order, newest first. It sorts the whole table, so it's a pass over every post.
+     */
+    fun rowsByDescending(score: (row: Int) -> Double): IntArray =
+        (0 until size).sortedByDescending(score).toIntArray()
 
     /**
      * Whether [other] holds the same posts as this table, in the same rows. It compares every

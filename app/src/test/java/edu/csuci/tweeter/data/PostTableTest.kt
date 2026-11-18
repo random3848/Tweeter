@@ -108,6 +108,14 @@ class PostTableTest {
     }
 
     @Test
+    fun rowsByDescending_highestScoreFirst() {
+        val table = tableOfLikeCounts(0, 0, 0)
+        val scores = doubleArrayOf(0.5, 2.0, 1.0)
+
+        assertArrayEquals(intArrayOf(1, 2, 0), table.rowsByDescending { row -> scores[row] })
+    }
+
+    @Test
     fun rowsByLikeCount_noPosts_returnsNoRows() {
         assertArrayEquals(intArrayOf(), PostTable.EMPTY.rowsByLikeCount())
     }
