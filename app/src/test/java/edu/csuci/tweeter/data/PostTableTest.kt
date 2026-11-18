@@ -117,6 +117,19 @@ class PostTableTest {
     }
 
     @Test
+    fun rowsByDescending_scoresEachRowOnce() {
+        val table = PostTable.of(SAMPLE_POSTS)
+        var scoreCount = 0
+
+        table.rowsByDescending { row ->
+            scoreCount++
+            row.toDouble()
+        }
+
+        assertEquals(table.size, scoreCount)
+    }
+
+    @Test
     fun rowsByLikeCount_noPosts_returnsNoRows() {
         assertArrayEquals(intArrayOf(), PostTable.EMPTY.rowsByLikeCount())
     }
@@ -240,7 +253,6 @@ class PostTableTest {
         assertSamePosts(PostTable.of(listOf(SAMPLE_POSTS[0])), table)
     }
 
-    // A builder holding [post], with room for one more.
     // A table with one post per like count, in the order given.
     private fun tableOfLikeCounts(vararg likeCounts: Int): PostTable = PostTable.of(
         likeCounts.mapIndexed { row, likeCount ->
@@ -248,6 +260,7 @@ class PostTableTest {
         }
     )
 
+    // A builder holding [post], with room for one more.
     private fun builderWithRoomAfter(post: Post): PostTable.Builder {
         val builder = PostTable.Builder(capacity = 2)
         builder.add(post)

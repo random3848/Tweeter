@@ -26,8 +26,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.runningFold
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 private const val TAG = "FeedViewModel"
@@ -88,6 +90,12 @@ class FeedViewModel(
 ) : ViewModel() {
     private val order = MutableStateFlow(FeedOrder.BEST)
 
+    // The IDs of the posts whose like change the server hasn't saved yet. Their hearts ignore taps
+    // until it has: a tap reads whether the post is liked from [uiState], which shows the change
+    // only once Firestore's listener reports it, so a second tap before then would repeat the
+    // first.
+    private val postsWithLikeChanging = MutableStateFlow(emptySet<String>())
+
     // Ranked when the user picks an order, and kept for every new table until they pick another.
     private val rankedPosts: Flow<RankedPosts> =
         combine(postRepository.getPostTable(), order, ::Pair)
@@ -141,17 +149,28 @@ class FeedViewModel(
     }
 
     /**
-     * Likes the post with [postId], or takes the like back if the user liked it. A change that
-     * can't be saved is logged; the heart then shows the like as it was.
+     * Likes the post with [postId], or takes the like back if the user liked it, unless a change
+     * to its like is still being saved. A change that can't be saved is logged; the heart then
+     * shows the like as it was.
      */
     fun toggleLike(postId: String) {
+        val isAlreadyChanging = postId in postsWithLikeChanging.getAndUpdate { it + postId }
+        if (isAlreadyChanging) {
+            return
+        }
         val isLiked = postId in uiState.value.likedPostIds
-        viewModelScope.launch {
-            try {
-                if (isLiked) likeRepository.unlike(postId) else likeRepository.like(postId)
-            } catch (error: LikeException) {
-                Log.e(TAG, "Could not change the like of post $postId", error)
-            }
+        val change = if (isLiked) likeRepository::unlike else likeRepository::like
+        viewModelScope.launch { saveLikeChange(postId, change) }
+    }
+
+    // Saves [change] to the like of the post with [postId], then lets its heart take taps again.
+    private suspend fun saveLikeChange(postId: String, change: suspend (postId: String) -> Unit) {
+        try {
+            change(postId)
+        } catch (error: LikeException) {
+            Log.e(TAG, "Could not change the like of post $postId", error)
+        } finally {
+            postsWithLikeChanging.update { it - postId }
         }
     }
 

@@ -10,7 +10,7 @@ import edu.csuci.tweeter.data.PostTable
  * @property labelRes The name of the order on its chip.
  */
 enum class FeedOrder(@StringRes val labelRes: Int) {
-    /** Recent posts with likes first, ranked by [bestScoreOf]. */
+    /** Recent posts first, lifted by their likes, ranked by [bestScoreOf]. */
     BEST(R.string.feed_order_best) {
         override fun rowsOf(posts: PostTable, nowMillis: Long): IntArray =
             posts.rowsByDescending { row ->

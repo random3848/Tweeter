@@ -111,10 +111,13 @@ class PostTable private constructor(
 
     /**
      * Every row, the post with the highest [score] first; posts that score the same keep their
-     * table order, newest first. It sorts the whole table, so it's a pass over every post.
+     * table order, newest first. It sorts the whole table, so it's a pass over every post, and
+     * calls [score] once per row.
      */
-    fun rowsByDescending(score: (row: Int) -> Double): IntArray =
-        (0 until size).sortedByDescending(score).toIntArray()
+    fun rowsByDescending(score: (row: Int) -> Double): IntArray {
+        val scores = DoubleArray(size) { row -> score(row) }
+        return (0 until size).sortedByDescending { row -> scores[row] }.toIntArray()
+    }
 
     /**
      * Whether [other] holds the same posts as this table, in the same rows. It compares every

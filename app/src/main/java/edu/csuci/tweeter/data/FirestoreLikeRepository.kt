@@ -7,12 +7,12 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.WriteBatch
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 
@@ -32,10 +32,16 @@ private const val LIKES = "likes"
  * server refuses it.
  *
  * @param accountRepository Who is logged in, whose likes these are.
+ * @param guestSignIn Signs a guest in if nobody is signed in, which [signedInSnapshots] does
+ *     before setting up a listener. The likes listener runs only while a user is logged in, so
+ *     it never signs a guest in.
+ * @param dispatcher Where the listener delivers snapshots and they are read, off the main thread.
  */
 class FirestoreLikeRepository(
     private val accountRepository: AccountRepository,
-    private val firestore: FirebaseFirestore
+    private val guestSignIn: GuestSignIn,
+    private val firestore: FirebaseFirestore,
+    private val dispatcher: CoroutineDispatcher
 ) : LikeRepository {
     private val posts = firestore.collection(PostDocument.COLLECTION)
 
@@ -59,27 +65,11 @@ class FirestoreLikeRepository(
         }
     }
 
-    private fun likedPostIdsOf(uid: String): Flow<Set<String>> = snapshotsOf(likesOf(uid))
-        .retryWithBackoff(TAG, resetsBackoff = ::isFromServer)
-        .map { snapshot -> snapshot.documents.mapTo(HashSet()) { it.id } }
-
-    private fun snapshotsOf(likes: CollectionReference): Flow<QuerySnapshot> = callbackFlow {
-        val registration = likes.addSnapshotListener { snapshot, error ->
-            if (error != null) {
-                // The listener stops after an error; retrying sets up a new one.
-                close(error)
-                return@addSnapshotListener
-            }
-            if (snapshot != null) {
-                trySend(snapshot)
-            }
-        }
-        awaitClose { registration.remove() }
-    }
-
-    // Whether [snapshot] came from the server, rather than the phone's cache, which can answer
-    // before the server refuses the listener.
-    private fun isFromServer(snapshot: QuerySnapshot): Boolean = !snapshot.metadata.isFromCache
+    private fun likedPostIdsOf(uid: String): Flow<Set<String>> =
+        likesOf(uid).signedInSnapshots(guestSignIn, dispatcher)
+            .retryWithBackoff(TAG, resetsBackoff = QuerySnapshot::isFromServer)
+            .map { snapshot -> snapshot.documents.mapTo(HashSet()) { it.id } }
+            .flowOn(dispatcher)
 
     // Saves what [write] does to the logged-in user's like of the post with [postId] and to the
     // post itself, both or neither.
