@@ -84,6 +84,9 @@ class PostTable private constructor(
     /** The rows of the posts shared by user [authorUid] ([Post.authorUid]), in table order. */
     fun rowsBy(authorUid: String): IntArray = rowsWhere(authorUids) { it == authorUid }
 
+    /** The rows of the posts shared by any of the users [authorUids], in table order. */
+    fun rowsBy(authorUids: Set<String>): IntArray = rowsWhere(this.authorUids, authorUids::contains)
+
     /**
      * The rows of the posts of [animal] ([Post.animalType]), in table order: the posts naming it
      * the same way, ignoring case and the spaces around it. A blank [animal] matches no post.

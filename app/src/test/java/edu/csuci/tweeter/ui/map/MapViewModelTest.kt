@@ -3,11 +3,13 @@
 package edu.csuci.tweeter.ui.map
 
 import androidx.lifecycle.SavedStateHandle
+import edu.csuci.tweeter.data.FakeAccountRepository
+import edu.csuci.tweeter.data.FakeFollowRepository
 import edu.csuci.tweeter.data.FakePostRepository
 import edu.csuci.tweeter.data.PostRepository
-import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.SAMPLE_POSTS
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
@@ -18,22 +20,43 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.maplibre.compose.sources.GeoJsonData
+import org.maplibre.spatialk.geojson.FeatureCollection
+import org.maplibre.spatialk.geojson.Geometry
 import org.maplibre.spatialk.geojson.Position
 
 private const val UNKNOWN_POST_ID = "no-such-post"
 
 private const val ONLY_ROW = 0
 
+// The logged-in user, a friend of theirs, and a user they follow who doesn't follow them back.
+private const val USER = "user"
+private const val FRIEND = "friend"
+private const val FOLLOWED = "followed"
+
+// Another user, who logs in on the same phone.
+private const val OTHER_USER = "other user"
+
 class MapViewModelTest {
     private val showOnMapRequest = ShowPostRequest()
     private val showInFeedRequest = ShowPostRequest()
+    private val accountRepository = FakeAccountRepository(initialUid = USER)
+    private val followRepository = FakeFollowRepository()
+
+    private val usersPost = SAMPLE_POSTS[0].copy(id = "user's", authorUid = USER)
+    private val friendsPost = SAMPLE_POSTS[1].copy(id = "friend's", authorUid = FRIEND)
+    private val followedUsersPost = SAMPLE_POSTS[2].copy(id = "followed's", authorUid = FOLLOWED)
+    private val postsByEach = listOf(usersPost, friendsPost, followedUsersPost)
 
     @Before
     fun useTestMainDispatcher() {
@@ -195,10 +218,7 @@ class MapViewModelTest {
 
         repository.addPost(post)
 
-        assertEquals(
-            GeoJsonData.JsonString(pinsJsonOf(PostTable.of(listOf(post)))),
-            viewModel.uiState.value.pinnedPosts.pins
-        )
+        assertEquals(listOf(post.id), viewModel.uiState.value.pinnedPostIds())
     }
 
     @Test
@@ -282,6 +302,225 @@ class MapViewModelTest {
         assertNull(viewModel.uiState.value.selectedPosition)
     }
 
+    @Test
+    fun uiState_loggedIn_pinsEveryPostUnderAll() = runTest {
+        val viewModel = mapViewModelOfPostsByEach()
+
+        val state = viewModel.uiState.value
+
+        assertEquals(PinFilter.ALL to postsByEach.map { it.id }, state.filterAndPinnedPostIds())
+    }
+
+    @Test
+    fun uiState_loggedOut_offersNoFilter() = runTest {
+        accountRepository.logOut()
+
+        assertNull(mapViewModel().uiState.value.pinFilter)
+    }
+
+    @Test
+    fun uiState_guestLogsIn_keepsThePinsItWrote() = runTest {
+        accountRepository.logOut()
+        val viewModel = mapViewModelOfPostsByEach()
+        val pinnedPosts = viewModel.uiState.value.pinnedPosts
+
+        accountRepository.logInAs(USER)
+
+        assertSame(pinnedPosts, viewModel.uiState.value.pinnedPosts)
+    }
+
+    @Test
+    fun uiState_guestLogsIn_offersFilterOnAll() = runTest {
+        accountRepository.logOut()
+        val viewModel = mapViewModelOfPostsByEach()
+
+        accountRepository.logInAs(USER)
+
+        assertEquals(PinFilter.ALL, viewModel.uiState.value.pinFilter)
+    }
+
+    @Test
+    fun choosePinFilter_mine_pinsUsersOwnPostsOnly() = runTest {
+        val viewModel = mapViewModelOfPostsByEach()
+
+        viewModel.choosePinFilter(PinFilter.MINE)
+
+        assertEquals(
+            PinFilter.MINE to listOf(usersPost.id),
+            viewModel.uiState.value.filterAndPinnedPostIds()
+        )
+    }
+
+    @Test
+    fun choosePinFilter_friends_pinsPostsOfUsersWhoFollowUserBackOnly() = runTest {
+        followEachOther(USER, FRIEND)
+        followRepository.addFollow(followerUid = USER, followedUid = FOLLOWED)
+        val viewModel = mapViewModelOfPostsByEach()
+
+        viewModel.choosePinFilter(PinFilter.FRIENDS)
+
+        assertEquals(
+            PinFilter.FRIENDS to listOf(friendsPost.id),
+            viewModel.uiState.value.filterAndPinnedPostIds()
+        )
+    }
+
+    @Test
+    fun choosePinFilter_friendsUnfollowUser_unpinsTheirPosts() = runTest {
+        followEachOther(USER, FRIEND)
+        val viewModel = mapViewModelOfPostsByEach()
+        viewModel.choosePinFilter(PinFilter.FRIENDS)
+
+        followRepository.removeFollow(followerUid = FRIEND, followedUid = USER)
+
+        assertEquals(emptyList<String>(), viewModel.uiState.value.pinnedPostIds())
+    }
+
+    @Test
+    fun choosePinFilter_friendsCannotBeRead_pinsNoPostsAndSaysSo() = runTest {
+        followRepository.failsReads = true
+        val viewModel = mapViewModelOfPostsByEach()
+
+        viewModel.choosePinFilter(PinFilter.FRIENDS)
+
+        val state = viewModel.uiState.value
+        assertTrue(state.friendsUnknown)
+        assertEquals(emptyList<String>(), state.pinnedPostIds())
+    }
+
+    @Test
+    fun choosePinFilter_allAfterFriendsCannotBeRead_pinsEveryPost() = runTest {
+        followRepository.failsReads = true
+        val viewModel = mapViewModelOfPostsByEach()
+        viewModel.choosePinFilter(PinFilter.FRIENDS)
+
+        viewModel.choosePinFilter(PinFilter.ALL)
+
+        val state = viewModel.uiState.value
+        assertEquals(
+            false to postsByEach.map { it.id },
+            state.friendsUnknown to state.pinnedPostIds()
+        )
+    }
+
+    @Test
+    fun retryFriends_afterReadFailed_pinsFriendsPosts() = runTest {
+        followRepository.failsReads = true
+        val viewModel = mapViewModelOfPostsByEach()
+        viewModel.choosePinFilter(PinFilter.FRIENDS)
+        followRepository.failsReads = false
+        followEachOther(USER, FRIEND)
+
+        viewModel.retryFriends()
+
+        val state = viewModel.uiState.value
+        assertEquals(false to listOf(friendsPost.id), state.friendsUnknown to state.pinnedPostIds())
+    }
+
+    @Test
+    fun retryFriends_untilFriendsAreRead_saysNothingFailed() = runTest {
+        followRepository.failsReads = true
+        val viewModel = mapViewModelOfPostsByEach()
+        viewModel.choosePinFilter(PinFilter.FRIENDS)
+        followRepository.readsAnswered = CompletableDeferred()
+
+        viewModel.retryFriends()
+
+        assertFalse(viewModel.uiState.value.friendsUnknown)
+    }
+
+    @Test
+    fun choosePinFilter_friendsNotReadYet_pinsNoPostsUnderFriends() = runTest {
+        followEachOther(USER, FRIEND)
+        followRepository.readsAnswered = CompletableDeferred()
+        val viewModel = mapViewModelOfPostsByEach()
+
+        viewModel.choosePinFilter(PinFilter.FRIENDS)
+
+        assertEquals(
+            PinFilter.FRIENDS to emptyList<String>(),
+            viewModel.uiState.value.filterAndPinnedPostIds()
+        )
+    }
+
+    @Test
+    fun uiState_mapShownAgainUnderFriends_keepsTheirPinsWhileReadingThem() = runTest {
+        followEachOther(USER, FRIEND)
+        val viewModel = mapViewModelOfPostsByEach()
+        viewModel.choosePinFilter(PinFilter.FRIENDS)
+        val pinnedPosts = viewModel.uiState.value.pinnedPosts
+        viewModel.setMapShown(false)
+        followRepository.readsAnswered = CompletableDeferred()
+
+        viewModel.setMapShown(true)
+
+        assertSame(pinnedPosts, viewModel.uiState.value.pinnedPosts)
+    }
+
+    @Test
+    fun uiState_otherUserLogsInWhileMapIsHidden_startsOnAllWithEveryPost() = runTest {
+        followEachOther(USER, FRIEND)
+        val viewModel = mapViewModelOfPostsByEach()
+        viewModel.choosePinFilter(PinFilter.FRIENDS)
+        viewModel.setMapShown(false)
+        accountRepository.logOut()
+        accountRepository.logInAs(OTHER_USER)
+
+        viewModel.setMapShown(true)
+
+        assertEquals(
+            PinFilter.ALL to postsByEach.map { it.id },
+            viewModel.uiState.value.filterAndPinnedPostIds()
+        )
+    }
+
+    @Test
+    fun uiState_sameUserLogsBackIn_keepsTheirFilter() = runTest {
+        val viewModel = mapViewModelOfPostsByEach()
+        viewModel.choosePinFilter(PinFilter.MINE)
+        accountRepository.logOut()
+
+        accountRepository.logInAs(USER)
+
+        assertEquals(
+            PinFilter.MINE to listOf(usersPost.id),
+            viewModel.uiState.value.filterAndPinnedPostIds()
+        )
+    }
+
+    @Test
+    fun uiState_mapHidden_stopsReadingFriends() = runTest {
+        val viewModel = mapViewModelOfPostsByEach()
+        viewModel.choosePinFilter(PinFilter.FRIENDS)
+
+        viewModel.setMapShown(false)
+
+        assertEquals(0, followRepository.openReadCount)
+    }
+
+    @Test
+    fun uiState_loggedOutWhileMineIsChosen_offersNoFilterAndPinsEveryPost() = runTest {
+        val viewModel = mapViewModelOfPostsByEach()
+        viewModel.choosePinFilter(PinFilter.MINE)
+
+        accountRepository.logOut()
+
+        assertEquals(
+            null to postsByEach.map { it.id },
+            viewModel.uiState.value.filterAndPinnedPostIds()
+        )
+    }
+
+    @Test
+    fun selectPost_postFilteredOut_opensItsPopupAnyway() = runTest {
+        val viewModel = mapViewModelOfPostsByEach()
+        viewModel.choosePinFilter(PinFilter.MINE)
+
+        viewModel.selectPost(friendsPost.id)
+
+        assertEquals(postsByEach.indexOf(friendsPost), viewModel.uiState.value.selectedRow)
+    }
+
     // The map is shown and follows its posts while the test collects its state, as it does in the
     // app while Map shows it. No test draws the map, which needs MapLibre's native engine.
     private fun TestScope.mapViewModel(
@@ -289,6 +528,7 @@ class MapViewModelTest {
     ): MapViewModel {
         val viewModel = MapViewModel(
             postRepository = repository,
+            pinFilterChoice = PinFilterChoice(accountRepository, followRepository),
             showOnMapRequest = showOnMapRequest,
             showInFeedRequest = showInFeedRequest,
             savedStateHandle = SavedStateHandle(),
@@ -303,6 +543,25 @@ class MapViewModelTest {
         return viewModel
     }
 
+    // A map of posts by the user, by their friend, and by a user they follow.
+    private fun TestScope.mapViewModelOfPostsByEach(): MapViewModel =
+        mapViewModel(FakePostRepository(initialPosts = postsByEach))
+
+    private fun followEachOther(oneUid: String, otherUid: String) {
+        followRepository.addFollow(followerUid = oneUid, followedUid = otherUid)
+        followRepository.addFollow(followerUid = otherUid, followedUid = oneUid)
+    }
+
     // The selected post's row and where the map moves next.
     private fun MapUiState.selection(): Pair<Int?, MapMove?> = selectedRow to pendingMove
+
+    // The IDs of the posts the map pins, read from the GeoJSON it draws, in the pins' order.
+    private fun MapUiState.pinnedPostIds(): List<String> {
+        val json = (pinnedPosts.pins as GeoJsonData.JsonString).json
+        return FeatureCollection.fromJson<Geometry, JsonObject?>(json).features
+            .mapNotNull { it.id?.contentOrNull }
+    }
+
+    private fun MapUiState.filterAndPinnedPostIds(): Pair<PinFilter?, List<String>> =
+        pinFilter to pinnedPostIds()
 }
