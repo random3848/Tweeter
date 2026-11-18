@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug builds only. The Firebase Emulator Suite serves plain HTTP, which Android refuses unless
+  it's allowed for the emulators' host: this device's own address, which `adb reverse` forwards
+  to the computer running them. Every other host still needs HTTPS.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

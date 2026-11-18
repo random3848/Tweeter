@@ -1,3 +1,4 @@
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 
 plugins {
@@ -7,6 +8,18 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.google.services)
 }
+
+// Each developer's own settings, which git ignores. With firebase.emulatorHost=127.0.0.1, debug
+// builds use the Firebase Emulator Suite that `firebase emulators:start` runs on this computer,
+// instead of the live project the whole team shares. `adb reverse` forwards the device's ports to
+// it (see the README); 10.0.2.2 doesn't work, as apps on the Android emulator can't reach it.
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) {
+        file.inputStream().use(::load)
+    }
+}
+val firebaseEmulatorHost: String? = localProperties.getProperty("firebase.emulatorHost")
 
 android {
     namespace = "edu.csuci.tweeter"
@@ -28,12 +41,21 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField(
+                "String",
+                "FIREBASE_EMULATOR_HOST",
+                firebaseEmulatorHost?.let { "\"$it\"" } ?: "null"
+            )
+        }
         // R8 shrinks and optimizes release builds; Compose's release performance depends on it.
         // The libraries ship their own keep rules, and the app reads nothing by reflection.
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            // Release builds always use the live project.
+            buildConfigField("String", "FIREBASE_EMULATOR_HOST", "null")
         }
     }
 

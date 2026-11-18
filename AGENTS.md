@@ -67,6 +67,11 @@ Build and checks:
   standard rules plus this repo's `android-style` rules in `ktlint-rules/`, configured in
   `.editorconfig`, over every `.kt`/`.kts` file outside `build/`. This is what the `ktlint` check
   in `.github/workflows/lint.yml` runs. `./gradlew ktlintFormat` fixes what it can.
+- Firebase emulators: with `firebase.emulatorHost=127.0.0.1` in `local.properties`, debug builds
+  use the Firebase Emulator Suite (`firebase.json`) instead of the live project; `AppContainer`
+  points Firebase at it. The README has the steps, including the `adb reverse` the device needs
+  and `scripts/seed-firebase-emulators.mjs`, which fills it with sample data. Try changes to the
+  rules there before anyone publishes them to the live project.
 
 ## Code style
 

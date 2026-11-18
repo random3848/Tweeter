@@ -33,6 +33,11 @@ import kotlinx.coroutines.launch
 // takes to be recreated for a rotation.
 private const val SHARING_STOP_TIMEOUT_MILLIS = 5_000L
 
+// The ports the Firebase Emulator Suite serves each service on, set in firebase.json.
+private const val AUTH_EMULATOR_PORT = 9099
+private const val FIRESTORE_EMULATOR_PORT = 8080
+private const val STORAGE_EMULATOR_PORT = 9199
+
 /**
  * The objects the whole app shares, created once by [TweeterApplication].
  *
@@ -65,9 +70,32 @@ class AppContainer(private val context: Context) {
     // creation of the repositories ahead of the first screen.
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    // The Firebase services every repository shares. A debug build with firebase.emulatorHost set
+    // in local.properties uses the Firebase Emulator Suite there instead of the live project; each
+    // is pointed at it here, before anything reads or writes through it, as Firebase requires.
+    private val emulatorHost: String? = BuildConfig.FIREBASE_EMULATOR_HOST
+
+    private val auth: FirebaseAuth by lazy {
+        FirebaseAuth.getInstance().apply {
+            emulatorHost?.let { host -> useEmulator(host, AUTH_EMULATOR_PORT) }
+        }
+    }
+
+    private val firestore: FirebaseFirestore by lazy {
+        FirebaseFirestore.getInstance().apply {
+            emulatorHost?.let { host -> useEmulator(host, FIRESTORE_EMULATOR_PORT) }
+        }
+    }
+
+    private val storage: FirebaseStorage by lazy {
+        FirebaseStorage.getInstance().apply {
+            emulatorHost?.let { host -> useEmulator(host, STORAGE_EMULATOR_PORT) }
+        }
+    }
+
     // Signs guests in for the post and account repositories, one sign-in at a time between them.
     private val guestSignIn: GuestSignIn by lazy {
-        GuestSignIn.to(FirebaseAuth.getInstance(), scope = applicationScope)
+        GuestSignIn.to(auth, scope = applicationScope)
     }
 
     /**
@@ -77,7 +105,7 @@ class AppContainer(private val context: Context) {
     val postRepository: PostRepository by lazy {
         FirestorePostRepository(
             guestSignIn = guestSignIn,
-            firestore = FirebaseFirestore.getInstance(),
+            firestore = firestore,
             scope = applicationScope,
             dispatcher = Dispatchers.Default
         )
@@ -85,14 +113,14 @@ class AppContainer(private val context: Context) {
 
     /** Every user's profile, stored in Firestore. */
     val profileRepository: ProfileRepository by lazy {
-        FirestoreProfileRepository(firestore = FirebaseFirestore.getInstance())
+        FirestoreProfileRepository(firestore = firestore)
     }
 
     /** Reads and changes follower relationships in Firestore. */
     val followRepository: FollowRepository by lazy {
         FirestoreFollowRepository(
-            auth = FirebaseAuth.getInstance(),
-            firestore = FirebaseFirestore.getInstance()
+            auth = auth,
+            firestore = firestore
         )
     }
 
@@ -100,14 +128,14 @@ class AppContainer(private val context: Context) {
      * Shared authentication operations and the registered user's identity.
      */
     val accountRepository: AccountRepository by lazy {
-        FirebaseAccountRepository(auth = FirebaseAuth.getInstance(), guestSignIn = guestSignIn)
+        FirebaseAccountRepository(auth = auth, guestSignIn = guestSignIn)
     }
 
     /** Uploads post and profile photos to Firebase Storage. */
     val photoRepository: PhotoRepository by lazy {
         FirebasePhotoRepository(
-            auth = FirebaseAuth.getInstance(),
-            storage = FirebaseStorage.getInstance(),
+            auth = auth,
+            storage = storage,
             locationTagRemover = LocationTagRemover(
                 context,
                 scope = applicationScope,
