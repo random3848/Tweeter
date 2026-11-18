@@ -15,20 +15,23 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
@@ -36,7 +39,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
-import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.ui.navigation.TweeterTopBar
 import edu.csuci.tweeter.ui.postDetailsText
 
@@ -46,33 +48,41 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
 /**
  * The home feed, the screen the app opens to, under the app's top bar.
  *
- * Displays posts from [FeedViewModel], newest first, in a clean scrolling layout. A label
- * on each post's photo shows the post on Map. When another screen asks the feed to show a post,
- * as Map's popup does, the feed scrolls to it. The logged-in user's own posts have a delete
- * button, which asks before deleting.
+ * Displays posts from [FeedViewModel] in a clean scrolling layout, in the order the user picks
+ * with the chips above them: Best, Newest or Top. Picking one shows its first post. A label
+ * on each post's photo shows the post on Map, and a heart under it likes the post, or opens Log in
+ * for guests, who can't. When another screen asks the feed to show a post, as Map's popup does,
+ * the feed scrolls to it. The logged-in user's own posts have a delete button, which asks before
+ * deleting.
  *
  * @param onShowOnMap Opens Map, once the post the user chose is requested there.
+ * @param onOpenProfile Opens the selected author's profile.
+ * @param onLogIn Opens Log in, for a guest who tries to like a post.
  * @param modifier Applied to the whole screen.
  * @param topBarActions Buttons on the right of the top bar, such as the profile button.
  * @param feedViewModel Supplies posts and UI state for the feed.
- * @param onOpenProfile Opens the selected author's profile.
  */
 @Composable
 fun FeedScreen(
     onShowOnMap: () -> Unit,
     onOpenProfile: (String) -> Unit,
+    onLogIn: () -> Unit,
     modifier: Modifier = Modifier,
     topBarActions: @Composable RowScope.() -> Unit = {},
     feedViewModel: FeedViewModel = viewModel(factory = FeedViewModel.factory)
 ) {
     val uiState by feedViewModel.uiState.collectAsStateWithLifecycle()
     val loggedInUid by feedViewModel.loggedInUid.collectAsStateWithLifecycle()
-    val listState = rememberLazyListState()
+    // A new list state for each order, which starts at its first post. One list state kept across
+    // orders would keep the post at the top in view, wherever the new order puts it.
+    val listState = rememberSaveable(uiState.order, saver = LazyListState.Saver) {
+        LazyListState()
+    }
 
-    val rowToShow = uiState.rowToShow
-    LaunchedEffect(rowToShow) {
-        if (rowToShow != null) {
-            listState.scrollToItem(rowToShow)
+    val positionToShow = uiState.positionToShow
+    LaunchedEffect(positionToShow) {
+        if (positionToShow != null) {
+            listState.scrollToItem(positionToShow)
             feedViewModel.clearPostToShow()
         }
     }
@@ -82,12 +92,16 @@ fun FeedScreen(
         feedViewModel.showOnMap(postId)
         onShowOnMap()
     }
-    // Takes the post's ID for the same reason.
-    val deletePost = { postId: String ->
-        feedViewModel.deletePost(postId)
-    }
+    val likePost = if (uiState.canLike) feedViewModel::toggleLike else { _: String -> onLogIn() }
+    val controls = PostControls(
+        onShowOnMap = showPostOnMap,
+        onLike = likePost,
+        onDelete = feedViewModel::deletePost,
+        onOpenProfile = onOpenProfile
+    )
     Column(modifier = modifier.fillMaxSize()) {
         TweeterTopBar(actions = topBarActions)
+        FeedOrderChips(selected = uiState.order, onSelect = feedViewModel::selectOrder)
         val bodyModifier = Modifier.weight(1f).fillMaxWidth()
         when {
             uiState.isLoading -> {
@@ -108,12 +122,10 @@ fun FeedScreen(
 
             else -> {
                 FeedList(
-                    posts = uiState.posts,
+                    uiState = uiState,
                     listState = listState,
                     loggedInUid = loggedInUid,
-                    onShowOnMap = showPostOnMap,
-                    onDelete = deletePost,
-                    onOpenProfile = onOpenProfile,
+                    controls = controls,
                     modifier = bodyModifier
                 )
             }
@@ -122,37 +134,74 @@ fun FeedScreen(
 }
 
 /**
- * The posts of [posts] as a scrolling list, newest first, with a divider between posts.
+ * A chip for each [FeedOrder], the [selected] one checked.
+ *
+ * @param onSelect Shows the posts in the order of the chip pressed.
+ */
+@Composable
+private fun FeedOrderChips(selected: FeedOrder, onSelect: (FeedOrder) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        for (order in FeedOrder.entries) {
+            FilterChip(
+                selected = order == selected,
+                onClick = { onSelect(order) },
+                label = { Text(stringResource(order.labelRes)) }
+            )
+        }
+    }
+}
+
+/**
+ * What pressing a feed post's controls does, each called with the post's ID, or its author's for
+ * [onOpenProfile]. They take the ID rather than capturing the table, so they stay the same as new
+ * tables arrive.
+ *
+ * @property onShowOnMap Shows the post on Map.
+ * @property onLike Likes the post or takes the like back, or opens Log in for guests.
+ * @property onDelete Deletes the post, once the user confirms.
+ * @property onOpenProfile Opens the profile of the author with the given UID.
+ */
+private data class PostControls(
+    val onShowOnMap: (String) -> Unit,
+    val onLike: (String) -> Unit,
+    val onDelete: (String) -> Unit,
+    val onOpenProfile: (String) -> Unit
+)
+
+/**
+ * The posts of [uiState] as a scrolling list, in its order, with a divider between posts.
  *
  * This is where a feed item reads its post's row: the parts it's made of get the values they
  * show, so a part whose values didn't change is skipped when a new table arrives.
  *
- * @param posts The posts to list, in table order.
+ * @param uiState The posts to list, their rows in the order to list them, and which of them the
+ *     user liked.
  * @param listState The list's scroll position.
  * @param loggedInUid The logged-in user's ID, whose posts get a delete button, or null for guests.
- * @param onShowOnMap Shows the post with the given ID on Map. It takes the ID rather than
- *     capturing the table, so it stays the same as new tables arrive.
- * @param onDelete Deletes the post with the given ID. It takes the ID for the same reason.
+ * @param controls What pressing each post's controls does.
  * @param modifier Applied to the list.
- * @param onOpenProfile Opens the selected author's profile.
  */
 @Composable
 private fun FeedList(
-    posts: PostTable,
+    uiState: FeedUiState,
     listState: LazyListState,
     loggedInUid: String?,
-    onShowOnMap: (String) -> Unit,
-    onDelete: (String) -> Unit,
-    onOpenProfile: (String) -> Unit,
+    controls: PostControls,
     modifier: Modifier = Modifier
 ) {
-    val lastRow = posts.size - 1
+    val posts = uiState.posts
+    val rows = uiState.rows
+    val lastPosition = rows.size - 1
     LazyColumn(
         state = listState,
         modifier = modifier,
         contentPadding = PaddingValues(bottom = 16.dp)
     ) {
-        items(count = posts.size, key = { row -> posts.id(row) }) { row ->
+        items(count = rows.size, key = { position -> posts.id(rows[position]) }) { position ->
+            val row = rows[position]
             PostHeader(
                 postId = posts.id(row),
                 avatarInitials = posts.avatarInitials(row),
@@ -161,18 +210,24 @@ private fun FeedList(
                 // A guest's ID is null, and a post shared while logged out has no author, so
                 // neither matches.
                 isMine = loggedInUid != null && posts.authorUid(row) == loggedInUid,
-                onDelete = onDelete,
+                onDelete = controls.onDelete,
                 authorUid = posts.authorUid(row),
-                onOpenProfile = onOpenProfile
+                onOpenProfile = controls.onOpenProfile
             )
+            val postId = posts.id(row)
             PhotoWithMapLabel(
-                postId = posts.id(row),
+                postId = postId,
                 imageUri = posts.imageUri(row),
-                onShowOnMap = onShowOnMap
+                onShowOnMap = controls.onShowOnMap
+            )
+            LikeButton(
+                likeCount = posts.likeCount(row),
+                isLiked = postId in uiState.likedPostIds,
+                onClick = { controls.onLike(postId) }
             )
             PostCaption(caption = posts.caption(row))
             AnimalDetails(text = animalDetailsOf(posts.animalType(row), posts.confidence(row)))
-            if (row < lastRow) {
+            if (position < lastPosition) {
                 HorizontalDivider(
                     modifier = Modifier.padding(vertical = 12.dp),
                     thickness = 1.dp,
@@ -275,6 +330,40 @@ private fun PhotoWithMapLabel(postId: String, imageUri: String, onShowOnMap: (St
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(8.dp)
+        )
+    }
+}
+
+/**
+ * A heart that likes a feed post, filled once the user liked it, and how many users did.
+ *
+ * @param likeCount How many users liked the post.
+ * @param isLiked Whether the user liked the post.
+ * @param onClick Likes the post or takes the like back, or opens Log in for guests.
+ */
+@Composable
+private fun LikeButton(likeCount: Int, isLiked: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.padding(start = 4.dp, top = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconToggleButton(checked = isLiked, onCheckedChange = { onClick() }) {
+            Icon(
+                painter = painterResource(
+                    if (isLiked) R.drawable.ic_favorite else R.drawable.ic_favorite_border
+                ),
+                contentDescription = stringResource(R.string.feed_like),
+                tint = if (isLiked) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                }
+            )
+        }
+        Text(
+            text = pluralStringResource(R.plurals.feed_like_count, likeCount, likeCount),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }

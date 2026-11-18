@@ -13,16 +13,17 @@ Layout:
   from then on, so that Map shows it at once.
 - `app/src/main/java/edu/csuci/tweeter/data/`: the models (`Post`, `UserProfile`) and the
   repositories screens use through interfaces (`PostRepository`, `ProfileRepository`,
-  `AccountRepository`, `PhotoRepository`, `AnimalRepository`). `AppContainer` (owned by
-  `TweeterApplication`) creates one Firebase implementation of each, except `AnimalRepository`,
-  which is the in-memory `FakeAnimalRepository` until the iNaturalist one is built. Screens read
-  posts as one `PostTable`, a structure of arrays with one array per `Post` field that a screen
-  shows, and keep rows of it (`Int` indices) rather than `Post` objects; something that can
-  outlive its table, such as a map pin, keeps the post's ID instead. `PostDocument` and
-  `ProfileDocument` map the models to Firestore fields, and a field added to `PostDocument` also
-  goes into the `hasOnly` list in `firestore.rules`, and into a `PostTable` column once a screen
-  shows it. `FakePostRepository` is an in-memory `PostRepository` for tests and for working
-  offline.
+  `AccountRepository`, `PhotoRepository`, `AnimalRepository`, `LikeRepository`). `AppContainer`
+  (owned by `TweeterApplication`) creates one Firebase implementation of each, except
+  `AnimalRepository`, which is the in-memory `FakeAnimalRepository` until the iNaturalist one is
+  built. A user's likes are documents under `users/{uid}/likes`, saved in one batch with the post's
+  `likeCount`, which the rules check against each other. Screens read posts as one `PostTable`, a
+  structure of arrays with one array per `Post` field that a screen shows, and keep rows of it
+  (`Int` indices) rather than `Post` objects; something that can outlive its table, such as a map
+  pin, keeps the post's ID instead. `PostDocument` and `ProfileDocument` map the models to
+  Firestore fields, and a field added to `PostDocument` also goes into the `hasOnly` list in
+  `firestore.rules`, and into a `PostTable` column once a screen shows it. `FakePostRepository` is
+  an in-memory `PostRepository` for tests and for working offline.
 - `app/src/main/java/edu/csuci/tweeter/location/`: finding where a photo was taken
   (`PhotoLocator`, from its EXIF tags or the device) and removing its location tags before upload
   (`LocationTagRemover`).
