@@ -82,17 +82,10 @@ class PostTable private constructor(
     }
 
     /** The rows of the posts shared by user [authorUid] ([Post.authorUid]), in table order. */
-    fun rowsBy(authorUid: String): IntArray {
-        val rows = IntArray(countRowsBy(authorUid))
-        var found = 0
-        for (row in 0 until size) {
-            if (authorUids[row] == authorUid) {
-                rows[found] = row
-                found++
-            }
-        }
-        return rows
-    }
+    fun rowsBy(authorUid: String): IntArray = rowsWhere { it == authorUid }
+
+    /** The rows of the posts shared by any of the users [authorUids], in table order. */
+    fun rowsBy(authorUids: Set<String>): IntArray = rowsWhere(authorUids::contains)
 
     /**
      * Whether [other] holds the same posts as this table, in the same rows. It compares every
@@ -103,10 +96,23 @@ class PostTable private constructor(
 
     override fun toString(): String = "PostTable(ids=${ids.asList().subList(0, size)})"
 
-    private fun countRowsBy(authorUid: String): Int {
+    // Counts first, so the rows go straight into an array of their size.
+    private inline fun rowsWhere(isWanted: (authorUid: String) -> Boolean): IntArray {
+        val rows = IntArray(countRowsWhere(isWanted))
+        var found = 0
+        for (row in 0 until size) {
+            if (isWanted(authorUids[row])) {
+                rows[found] = row
+                found++
+            }
+        }
+        return rows
+    }
+
+    private inline fun countRowsWhere(isWanted: (authorUid: String) -> Boolean): Int {
         var count = 0
         for (row in 0 until size) {
-            if (authorUids[row] == authorUid) {
+            if (isWanted(authorUids[row])) {
                 count++
             }
         }

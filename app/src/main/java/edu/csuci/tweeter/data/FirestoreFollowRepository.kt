@@ -2,12 +2,15 @@ package edu.csuci.tweeter.data
 
 import com.google.firebase.FirebaseException
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentReference
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.MetadataChanges
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.tasks.await
 
 private const val FOLLOWERS = "followers"
@@ -84,6 +87,22 @@ class FirestoreFollowRepository(
         awaitClose { registration.remove() }
     }
 
+    // Each snapshot holds every follower, so only the newest of those not collected yet is kept.
+    override fun observeFollowerUids(followedUid: String): Flow<Set<String>> = callbackFlow {
+        val registration = followersOf(followedUid).addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                close(FollowException(error))
+                return@addSnapshotListener
+            }
+
+            if (snapshot != null) {
+                trySend(snapshot.documents.mapTo(HashSet(), DocumentSnapshot::getId))
+            }
+        }
+
+        awaitClose { registration.remove() }
+    }.conflate()
+
     override suspend fun follow(userUid: String) {
         try {
             createRelationship(userUid)
@@ -130,9 +149,9 @@ class FirestoreFollowRepository(
     }
 
     private fun relationship(followerUid: String, followedUid: String): DocumentReference =
-        firestore
-            .collection(ProfileDocument.COLLECTION)
-            .document(followedUid)
-            .collection(FOLLOWERS)
-            .document(followerUid)
+        followersOf(followedUid).document(followerUid)
+
+    // The documents of the users who follow user [uid], one per follower, named by their ID.
+    private fun followersOf(uid: String): CollectionReference =
+        firestore.collection(ProfileDocument.COLLECTION).document(uid).collection(FOLLOWERS)
 }
