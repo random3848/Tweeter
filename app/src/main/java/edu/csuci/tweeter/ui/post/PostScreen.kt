@@ -383,7 +383,6 @@ private fun CameraRollButton(onClick: () -> Unit, modifier: Modifier = Modifier)
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
-                // Replace with your gallery/photo icon in res/drawable (e.g. R.drawable.ic_photo_library)
                 painter = painterResource(R.drawable.ic_photo_library),
                 contentDescription = stringResource(R.string.choose_from_camera_roll),
                 tint = contentColor,

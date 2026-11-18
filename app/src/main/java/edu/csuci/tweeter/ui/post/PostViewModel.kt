@@ -129,11 +129,6 @@ class PostViewModel(
      * Makes the photo at [uri], chosen from the camera roll, the post's photo. Ignored while it
      * uploads.
      */
-
-    /**
-     * Makes the photo at [uri], chosen from the camera roll, the post's photo. Ignored while it
-     * uploads.
-     */
     fun choosePhoto(uri: String) {
         clearMessages()
         photo.chooseFromCameraRoll(uri)
