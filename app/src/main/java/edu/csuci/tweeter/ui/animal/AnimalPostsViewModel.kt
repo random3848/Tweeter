@@ -94,7 +94,9 @@ class AnimalPostsViewModel(
      */
     fun toggleLike(postId: String) {
         val isLiked = postId in uiState.value.likedPostIds
-        viewModelScope.launch { postLiker.toggleLike(postId, isLiked) }
+        viewModelScope.launch {
+            if (isLiked) postLiker.unlike(postId) else postLiker.like(postId)
+        }
     }
 
     /** Asks Map to show the post with [postId], which opens its popup when Map opens. */

@@ -28,18 +28,27 @@ class PostLiker(private val likeRepository: LikeRepository) {
     fun likedPostIds(): Flow<Set<String>> = likeRepository.getLikedPostIds()
 
     /**
-     * Likes the post with [postId], or takes the like back if [isLiked], unless a change to its
-     * like is still being saved. A change that can't be saved is logged; the heart then shows the
-     * like as it was.
-     *
-     * @param isLiked Whether the user liked the post when they tapped its heart.
+     * Likes the post with [postId], unless a change to its like is still being saved. A like that
+     * can't be saved is logged; the heart then shows the post unliked.
      */
-    suspend fun toggleLike(postId: String, isLiked: Boolean) {
+    suspend fun like(postId: String) {
+        changeLike(postId, likeRepository::like)
+    }
+
+    /**
+     * Takes back the user's like of the post with [postId], unless a change to its like is still
+     * being saved. A change that can't be saved is logged; the heart then shows the post liked.
+     */
+    suspend fun unlike(postId: String) {
+        changeLike(postId, likeRepository::unlike)
+    }
+
+    // Saves [change] to the like of the post with [postId], unless another is still being saved.
+    private suspend fun changeLike(postId: String, change: suspend (postId: String) -> Unit) {
         val isAlreadyChanging = postId in postsWithLikeChanging.getAndUpdate { it + postId }
         if (isAlreadyChanging) {
             return
         }
-        val change = if (isLiked) likeRepository::unlike else likeRepository::like
         saveLikeChange(postId, change)
     }
 
