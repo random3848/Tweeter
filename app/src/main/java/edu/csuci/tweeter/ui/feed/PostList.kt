@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -29,37 +30,75 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.data.PostRows
+import edu.csuci.tweeter.ui.CenteredMessage
 import edu.csuci.tweeter.ui.postDetailsText
 
 // Between a post's animal type and its confidence rating.
 private const val ANIMAL_DETAILS_SEPARATOR = " · "
 
 /**
- * The posts of [listedPosts] as a scrolling list, in the order of its rows, with a divider
- * between posts: each with its author, photo, caption and animal, as Feed shows them. The
- * logged-in user's own posts have a delete button, which asks before deleting.
- *
- * This is where an item reads its post's row: the parts it's made of get the values they show, so
- * a part whose values didn't change is skipped when a new table arrives.
+ * A screen's posts: a spinner while they are read, [emptyMessage] when there are none, and
+ * otherwise the posts of [listedPosts] as a scrolling list, in the order of its rows, with a
+ * divider between posts. Each has its author, photo, caption and animal, as Feed shows them, and
+ * the logged-in user's own posts have a delete button, which asks before deleting.
  *
  * @param listedPosts The posts to list.
+ * @param isLoading Whether the posts are still being read.
+ * @param emptyMessage What to say when there are no posts to list.
  * @param loggedInUid The logged-in user's ID, whose posts get a delete button, or null for guests.
  * @param onShowOnMap Shows the post with the given ID on Map. It takes the ID rather than
  *     capturing the table, so it stays the same as new tables arrive.
  * @param onDelete Deletes the post with the given ID. It takes the ID for the same reason.
  * @param onOpenProfile Opens the profile of the author with the given ID.
- * @param modifier Applied to the list.
+ * @param modifier Applied to the space the posts take.
  * @param listState The list's scroll position.
  */
 @Composable
 internal fun PostList(
     listedPosts: PostRows,
+    isLoading: Boolean,
+    emptyMessage: String,
     loggedInUid: String?,
     onShowOnMap: (String) -> Unit,
     onDelete: (String) -> Unit,
     onOpenProfile: (String) -> Unit,
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState()
+) {
+    when {
+        isLoading -> {
+            Box(modifier = modifier, contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        }
+
+        listedPosts.rows.isEmpty() -> CenteredMessage(text = emptyMessage, modifier = modifier)
+
+        else -> {
+            PostItems(
+                listedPosts = listedPosts,
+                loggedInUid = loggedInUid,
+                onShowOnMap = onShowOnMap,
+                onDelete = onDelete,
+                onOpenProfile = onOpenProfile,
+                listState = listState,
+                modifier = modifier
+            )
+        }
+    }
+}
+
+// This is where an item reads its post's row: the parts it's made of get the values they show, so
+// a part whose values didn't change is skipped when a new table arrives.
+@Composable
+private fun PostItems(
+    listedPosts: PostRows,
+    loggedInUid: String?,
+    onShowOnMap: (String) -> Unit,
+    onDelete: (String) -> Unit,
+    onOpenProfile: (String) -> Unit,
+    listState: LazyListState,
+    modifier: Modifier = Modifier
 ) {
     val posts = listedPosts.table
     val rows = listedPosts.rows

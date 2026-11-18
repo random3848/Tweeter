@@ -16,19 +16,23 @@ import kotlinx.coroutines.tasks.await
  * A [ProfileRepository] that stores profiles in Cloud Firestore, as described by
  * [ProfileDocument].
  *
- * It reads profiles for users who are already signed in to Firebase and saves the logged-in
- * user's own, so unlike [FirestorePostRepository] it doesn't sign in itself. It reads only
- * [ProfileDocument]'s fields, into an array, instead of copying each document into a map.
+ * [getProfile] reads profiles for users who are already signed in to Firebase, and
+ * [saveProfile] saves the logged-in user's own. [getProfiles] can be the first read of a fresh
+ * install, so like [FirestorePostRepository] it signs a guest in with [guestSignIn] first when
+ * nobody is signed in. It reads only [ProfileDocument]'s fields, into an array, instead of
+ * copying each document into a map.
  *
  * [getProfiles] parses its snapshots on [dispatcher], off the main thread, one at a time in the
- * order they arrive, keeping only the newest of those that arrive during a parse. When its
- * listener fails, as it does before a guest is signed in, it's set up again with
- * [retryWithBackoff], while collectors keep the last profiles.
+ * order they arrive, keeping only the newest of those that arrive during a parse. When signing in
+ * or its listener fails, both are set up again with [retryWithBackoff], while collectors keep the
+ * last profiles.
  *
+ * @param guestSignIn Signs a guest in before [getProfiles] reads, when nobody is signed in.
  * @param firestore Where the profiles are stored.
  * @param dispatcher Where [getProfiles] parses every profile.
  */
 class FirestoreProfileRepository(
+    private val guestSignIn: GuestSignIn,
     firestore: FirebaseFirestore,
     private val dispatcher: CoroutineDispatcher
 ) : ProfileRepository {
@@ -49,10 +53,11 @@ class FirestoreProfileRepository(
         awaitClose { registration.remove() }
     }
 
-    override fun getProfiles(): Flow<List<UserProfile>> = profiles.snapshotsOn(dispatcher)
-        .retryWithBackoff(TAG, resetsBackoff = QuerySnapshot::isFromServer)
-        .map(::profilesOf)
-        .flowOn(dispatcher)
+    override fun getProfiles(): Flow<List<UserProfile>> =
+        profiles.signedInSnapshots(guestSignIn, dispatcher)
+            .retryWithBackoff(TAG, resetsBackoff = QuerySnapshot::isFromServer)
+            .map(::profilesOf)
+            .flowOn(dispatcher)
 
     private fun profilesOf(snapshot: QuerySnapshot): List<UserProfile> =
         snapshot.documents.map { document ->

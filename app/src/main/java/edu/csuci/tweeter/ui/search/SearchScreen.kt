@@ -91,9 +91,9 @@ fun SearchScreen(
     }
 }
 
-// Whether nothing was found, once the people have been read.
+// Whether nothing was found, once both the people and the animals have been read.
 private fun SearchResults.isEmpty(): Boolean =
-    !isLoadingPeople && people.isEmpty() && animals.isEmpty()
+    !isLoadingPeople && !isLoadingAnimals && people.isEmpty() && animals.isEmpty()
 
 /**
  * The field the user types the names they search for into. The keyboard's search key closes the
@@ -122,8 +122,8 @@ private fun SearchField(
 }
 
 /**
- * The people found, then the animals, each under its heading. While the people are still being
- * read, their heading says so.
+ * The people found, then the animals, each under its heading. While either is still being read,
+ * its heading says so.
  *
  * @param results What was found.
  * @param onOpenProfile Opens the profile of the user with the given ID.
@@ -146,7 +146,9 @@ private fun SearchResultsList(
                 PersonResult(profile = profile, onOpenProfile = onOpenProfile)
             }
         }
-        if (results.animals.isNotEmpty()) {
+        if (results.isLoadingAnimals) {
+            sectionHeading(R.string.search_animals_loading)
+        } else if (results.animals.isNotEmpty()) {
             sectionHeading(R.string.search_animals)
             items(results.animals, key = { "animal:${it.name}" }) { animal ->
                 AnimalResult(animal = animal, onOpenAnimal = onOpenAnimal)

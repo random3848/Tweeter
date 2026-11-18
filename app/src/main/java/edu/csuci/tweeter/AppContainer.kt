@@ -84,11 +84,13 @@ class AppContainer(private val context: Context) {
     }
 
     /**
-     * Every user's profile, stored in Firestore. Search's list of every profile is parsed on
+     * Every user's profile, stored in Firestore. Search's list of every profile signs a guest in
+     * first if nobody is, one sign-in at a time with the post repository's, and is parsed on
      * [Dispatchers.Default].
      */
     val profileRepository: ProfileRepository by lazy {
         FirestoreProfileRepository(
+            guestSignIn = guestSignIn,
             firestore = FirebaseFirestore.getInstance(),
             dispatcher = Dispatchers.Default
         )

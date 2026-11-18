@@ -10,8 +10,6 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
@@ -41,7 +39,7 @@ class FirestorePostRepository(
     private val posts = firestore.collection(PostDocument.COLLECTION)
     private val newestFirst =
         posts.orderBy(PostDocument.Field.TIMESTAMP.key, Query.Direction.DESCENDING)
-    private val postTable = snapshotsOf(newestFirst)
+    private val postTable = newestFirst.signedInSnapshots(guestSignIn, dispatcher)
         .retryWithBackoff(TAG, resetsBackoff = QuerySnapshot::isFromServer)
         .map(::tableOf)
         .flowOn(dispatcher)
@@ -59,13 +57,6 @@ class FirestorePostRepository(
     // anyone else, guests included.
     override suspend fun deletePost(postId: String) {
         posts.document(postId).delete().await()
-    }
-
-    // Each snapshot of [query], as [snapshotsOn] delivers them, once a guest is signed in if nobody
-    // is.
-    private fun snapshotsOf(query: Query): Flow<QuerySnapshot> = flow {
-        guestSignIn.signInIfSignedOut()
-        emitAll(query.snapshotsOn(dispatcher))
     }
 
     // The well-formed posts of [snapshot], in order; the others are logged and left out.

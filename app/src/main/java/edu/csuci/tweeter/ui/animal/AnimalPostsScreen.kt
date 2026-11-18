@@ -1,19 +1,15 @@
 package edu.csuci.tweeter.ui.animal
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
-import edu.csuci.tweeter.ui.CenteredMessage
 import edu.csuci.tweeter.ui.feed.PostList
 import edu.csuci.tweeter.ui.navigation.BackTopBar
 
@@ -48,32 +44,16 @@ fun AnimalPostsScreen(
     }
     Column(modifier = modifier.fillMaxSize()) {
         BackTopBar(title = animal, onBack = onBack)
-        val bodyModifier = Modifier.weight(1f).fillMaxWidth()
-        when {
-            uiState.isLoading -> {
-                Box(modifier = bodyModifier, contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            }
-
-            // Every post naming the animal was deleted or renamed since Search found it.
-            uiState.listedPosts.rows.isEmpty() -> {
-                CenteredMessage(
-                    text = stringResource(R.string.animal_posts_empty),
-                    modifier = bodyModifier
-                )
-            }
-
-            else -> {
-                PostList(
-                    listedPosts = uiState.listedPosts,
-                    loggedInUid = loggedInUid,
-                    onShowOnMap = showPostOnMap,
-                    onDelete = viewModel::deletePost,
-                    onOpenProfile = onOpenProfile,
-                    modifier = bodyModifier
-                )
-            }
-        }
+        PostList(
+            listedPosts = uiState.listedPosts,
+            isLoading = uiState.isLoading,
+            // None are left when every post naming the animal was deleted since Search found it.
+            emptyMessage = stringResource(R.string.animal_posts_empty),
+            loggedInUid = loggedInUid,
+            onShowOnMap = showPostOnMap,
+            onDelete = viewModel::deletePost,
+            onOpenProfile = onOpenProfile,
+            modifier = Modifier.weight(1f).fillMaxWidth()
+        )
     }
 }

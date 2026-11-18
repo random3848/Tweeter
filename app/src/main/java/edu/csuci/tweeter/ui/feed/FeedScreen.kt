@@ -1,22 +1,18 @@
 package edu.csuci.tweeter.ui.feed
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
-import edu.csuci.tweeter.ui.CenteredMessage
 import edu.csuci.tweeter.ui.navigation.TweeterTopBar
 
 /**
@@ -65,32 +61,16 @@ fun FeedScreen(
     }
     Column(modifier = modifier.fillMaxSize()) {
         TweeterTopBar(actions = topBarActions)
-        val bodyModifier = Modifier.weight(1f).fillMaxWidth()
-        when {
-            uiState.isLoading -> {
-                Box(modifier = bodyModifier, contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            }
-
-            uiState.posts.size == 0 -> {
-                CenteredMessage(
-                    text = stringResource(R.string.feed_empty_message),
-                    modifier = bodyModifier
-                )
-            }
-
-            else -> {
-                PostList(
-                    listedPosts = uiState.listedPosts,
-                    loggedInUid = loggedInUid,
-                    onShowOnMap = showPostOnMap,
-                    onDelete = deletePost,
-                    onOpenProfile = onOpenProfile,
-                    modifier = bodyModifier,
-                    listState = listState
-                )
-            }
-        }
+        PostList(
+            listedPosts = uiState.listedPosts,
+            isLoading = uiState.isLoading,
+            emptyMessage = stringResource(R.string.feed_empty_message),
+            loggedInUid = loggedInUid,
+            onShowOnMap = showPostOnMap,
+            onDelete = deletePost,
+            onOpenProfile = onOpenProfile,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            listState = listState
+        )
     }
 }
