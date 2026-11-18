@@ -42,8 +42,8 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
  * A screen's posts: a spinner while they are read, [emptyMessage] when there are none, and
  * otherwise the posts of [listedPosts] as a scrolling list, in the order of its rows, with a
  * divider between posts. Each has its author, photo, caption and animal, as Feed shows them, and
- * the logged-in user's own posts have a delete button, which asks before deleting. Given [likes],
- * each also has a like button and its like count.
+ * the logged-in user's own posts have a delete button, which asks before deleting. Each also has
+ * a like button and its like count.
  *
  * @param listedPosts The posts to list.
  * @param isLoading Whether the posts are still being read.
@@ -53,10 +53,10 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
  *     capturing the table, so it stays the same as new tables arrive.
  * @param onDelete Deletes the post with the given ID. It takes the ID for the same reason.
  * @param onOpenProfile Opens the profile of the author with the given ID.
+ * @param likes Which posts the user liked and what pressing a like button does. It's required, so
+ *     no screen listing posts leaves out their likes.
  * @param modifier Applied to the space the posts take.
  * @param listState The list's scroll position.
- * @param likes Which posts the user liked and what pressing a like button does, or null for no
- *     like buttons.
  */
 @Composable
 internal fun PostList(
@@ -67,9 +67,9 @@ internal fun PostList(
     onShowOnMap: (String) -> Unit,
     onDelete: (String) -> Unit,
     onOpenProfile: (String) -> Unit,
+    likes: PostLikes,
     modifier: Modifier = Modifier,
-    listState: LazyListState = rememberLazyListState(),
-    likes: PostLikes? = null
+    listState: LazyListState = rememberLazyListState()
 ) {
     when {
         isLoading -> {
@@ -105,7 +105,7 @@ private fun PostItems(
     onDelete: (String) -> Unit,
     onOpenProfile: (String) -> Unit,
     listState: LazyListState,
-    likes: PostLikes?,
+    likes: PostLikes,
     modifier: Modifier = Modifier
 ) {
     val posts = listedPosts.table
@@ -136,13 +136,11 @@ private fun PostItems(
                 imageUri = posts.imageUri(row),
                 onShowOnMap = onShowOnMap
             )
-            if (likes != null) {
-                LikeButton(
-                    likeCount = posts.likeCount(row),
-                    isLiked = postId in likes.likedPostIds,
-                    onClick = { likes.onLike(postId) }
-                )
-            }
+            LikeButton(
+                likeCount = posts.likeCount(row),
+                isLiked = postId in likes.likedPostIds,
+                onClick = { likes.onLike(postId) }
+            )
             PostCaption(caption = posts.caption(row))
             AnimalDetails(text = animalDetailsOf(posts.animalType(row), posts.confidence(row)))
             if (index < lastIndex) {
