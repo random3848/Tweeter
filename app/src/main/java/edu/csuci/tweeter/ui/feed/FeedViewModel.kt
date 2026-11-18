@@ -9,7 +9,6 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
-import edu.csuci.tweeter.data.FollowException
 import edu.csuci.tweeter.data.FollowRepository
 import edu.csuci.tweeter.data.LikeException
 import edu.csuci.tweeter.data.LikeRepository
@@ -17,7 +16,10 @@ import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostRows
 import edu.csuci.tweeter.data.PostTable
-import edu.csuci.tweeter.data.observeFriendUids
+import edu.csuci.tweeter.ui.ChoicePerUser
+import edu.csuci.tweeter.ui.UserChoice
+import edu.csuci.tweeter.ui.friends.FriendsReader
+import edu.csuci.tweeter.ui.friends.UserFriends
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 import java.time.Clock
 import kotlinx.coroutines.CoroutineDispatcher
@@ -30,14 +32,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onStart
-import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.runningFold
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -102,17 +101,16 @@ class FeedViewModel(
     private val likeRepository: LikeRepository,
     private val postDeleter: PostDeleter,
     accountRepository: AccountRepository,
-    private val followRepository: FollowRepository,
+    followRepository: FollowRepository,
     private val showInFeedRequest: ShowPostRequest,
     private val showOnMapRequest: ShowPostRequest,
     postsDispatcher: CoroutineDispatcher,
     private val clock: Clock,
     sharing: SharingStarted
 ) : ViewModel() {
-    private val chosen = MutableStateFlow(FeedChoice.BEST)
+    private val choice = ChoicePerUser(accountRepository, default = FeedChoice.BEST)
 
-    // How many times the user asked to read their friends again after reading them failed.
-    private val friendsRetryCount = MutableStateFlow(0)
+    private val friendsReader = FriendsReader(followRepository)
 
     // The IDs of the posts whose like change the server hasn't saved yet. Their hearts ignore taps
     // until it has: a tap reads whether the post is liked from [uiState], which shows the change
@@ -120,20 +118,19 @@ class FeedViewModel(
     // first.
     private val postsWithLikeChanging = MutableStateFlow(emptySet<String>())
 
-    // What the user chose and whose posts it shows. Guests, who have no friends, see Best instead
-    // of Friends; their choice is kept for when they log in.
+    // What the user chose and whose posts it shows, reading their friends for Friends. Collected
+    // once, in [uiState], so the friends are read once. Guests, who have no choice, see Best.
     @OptIn(ExperimentalCoroutinesApi::class)
-    private val shown: Flow<ShownChoice> =
-        combine(accountRepository.loggedInUid, chosen, ::Pair)
-            .flatMapLatest { (uid, chosen) ->
-                if (uid == null && chosen.showsOnlyFriends) {
-                    flowOf(ShownChoice(FeedChoice.BEST, FeedAuthors.Everyone))
-                } else {
-                    authorsFor(chosen, uid).map { authors -> ShownChoice(chosen, authors) }
-                }
-            }
+    private val shown: Flow<ShownChoice> = choice.loggedInUsersChoice().flatMapLatest { chosen ->
+        val shownChoice = chosen?.value ?: FeedChoice.BEST
+        authorsFor(chosen).map { authors -> ShownChoice(shownChoice, authors) }
+    }
 
-    private val order: Flow<FeedOrder> = shown.map { it.choice.order }.distinctUntilChanged()
+    // The order alone, which doesn't depend on who the user's friends are, so it's found without
+    // reading them.
+    private val order: Flow<FeedOrder> = choice.loggedInUsersChoice()
+        .map { chosen -> (chosen?.value ?: FeedChoice.BEST).order }
+        .distinctUntilChanged()
 
     // Ranked when the user picks an order, and kept for every new table until they pick another.
     private val rankedPosts: Flow<RankedPosts> =
@@ -184,32 +181,26 @@ class FeedViewModel(
 
     /** Shows the posts as [choice] picks them from now on, ranked again in its order. */
     fun choose(choice: FeedChoice) {
-        chosen.value = choice
+        this.choice.choose(choice)
     }
 
     /** Reads the user's friends again, if reading them failed. */
     fun retryFriends() {
-        friendsRetryCount.update { it + 1 }
+        friendsReader.retry()
     }
 
-    private fun authorsFor(choice: FeedChoice, uid: String?): Flow<FeedAuthors> =
-        if (choice.showsOnlyFriends && uid != null) friendsOf(uid) else flowOf(FeedAuthors.Everyone)
-
-    // Loading until they are read. Once they can't be, unknown until the user asks to retry.
-    private fun friendsOf(uid: String): Flow<FeedAuthors> = followRepository.observeFriendUids(uid)
-        .map<Set<String>, FeedAuthors> { friendUids -> FeedAuthors.Friends(friendUids) }
-        .onStart { emit(FeedAuthors.LoadingFriends) }
-        .retryWhen { error, _ ->
-            if (error !is FollowException) {
-                return@retryWhen false
-            }
-            Log.e(TAG, "Could not read the user's friends", error)
-            // Read before saying so, so a retry asked for once the user sees it isn't missed.
-            val retriesSoFar = friendsRetryCount.value
-            emit(FeedAuthors.UnknownFriends)
-            friendsRetryCount.first { it > retriesSoFar }
-            true
+    private fun authorsFor(chosen: UserChoice<FeedChoice>?): Flow<FeedAuthors> =
+        if (chosen != null && chosen.value.showsOnlyFriends) {
+            friendsReader.friendsOf(chosen.uid).map(::feedAuthorsOf)
+        } else {
+            flowOf(FeedAuthors.Everyone)
         }
+
+    private fun feedAuthorsOf(friends: UserFriends): FeedAuthors = when (friends) {
+        is UserFriends.Known -> FeedAuthors.Friends(friends.uids)
+        UserFriends.Loading -> FeedAuthors.LoadingFriends
+        UserFriends.Unknown -> FeedAuthors.UnknownFriends
+    }
 
     // Where in these rows the post with [postId] is, or null if they don't hold it.
     private fun PostRows.positionOf(postId: String): Int? {

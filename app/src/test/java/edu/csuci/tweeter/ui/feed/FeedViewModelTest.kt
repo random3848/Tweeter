@@ -317,6 +317,29 @@ class FeedViewModelTest {
     }
 
     @Test
+    fun choose_friends_readsThemOnce() = runTest {
+        val follows = followsOfUser()
+        val viewModel = collectedFeedViewModel(follows = follows)
+
+        viewModel.choose(FeedChoice.FRIENDS)
+
+        // One listener on the user's followers, and one on whether the user follows back their
+        // one follower.
+        assertEquals(2, follows.openReadCount)
+    }
+
+    @Test
+    fun uiState_otherUserLogsInAfterFriendsWereChosen_startsOnBest() = runTest {
+        val account = FakeAccountRepository(USER_UID)
+        val viewModel = collectedFeedViewModel(account = account, follows = followsOfUser())
+        viewModel.choose(FeedChoice.FRIENDS)
+
+        account.logInAs(FRIEND_UID)
+
+        assertEquals(FeedChoice.BEST, viewModel.uiState.value.choice)
+    }
+
+    @Test
     fun uiState_logOutOnFriends_showsBestOfEveryone() = runTest {
         val account = FakeAccountRepository(USER_UID)
         val viewModel = collectedFeedViewModel(
@@ -488,26 +511,23 @@ class FeedViewModelTest {
         account: AccountRepository = FakeAccountRepository(USER_UID),
         follows: FollowRepository = FakeFollowRepository(),
         postsDispatcher: CoroutineDispatcher = UnconfinedTestDispatcher()
-    ): FeedViewModel {
-        val accountRepository = account
-        return FeedViewModel(
+    ): FeedViewModel = FeedViewModel(
+        postRepository = repository,
+        likeRepository = likes,
+        postDeleter = PostDeleter(
             postRepository = repository,
-            likeRepository = likes,
-            postDeleter = PostDeleter(
-                postRepository = repository,
-                photoRepository = FakePhotoRepository(),
-                accountRepository = accountRepository,
-                scope = CoroutineScope(postsDispatcher)
-            ),
-            accountRepository = accountRepository,
-            followRepository = follows,
-            showInFeedRequest = showInFeedRequest,
-            showOnMapRequest = showOnMapRequest,
-            postsDispatcher = postsDispatcher,
-            clock = clock,
-            sharing = SharingStarted.WhileSubscribed()
-        )
-    }
+            photoRepository = FakePhotoRepository(),
+            accountRepository = account,
+            scope = CoroutineScope(postsDispatcher)
+        ),
+        accountRepository = account,
+        followRepository = follows,
+        showInFeedRequest = showInFeedRequest,
+        showOnMapRequest = showOnMapRequest,
+        postsDispatcher = postsDispatcher,
+        clock = clock,
+        sharing = SharingStarted.WhileSubscribed()
+    )
 
     // The feed's state follows the repository while the test collects it, as it does in the app
     // while Feed collects it.

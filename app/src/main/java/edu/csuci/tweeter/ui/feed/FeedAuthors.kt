@@ -28,7 +28,10 @@ sealed interface FeedAuthors {
         }
     }
 
-    /** The user's friends, while they are read: the feed shows no posts yet. */
+    /**
+     * The user's friends, while they are first read: the feed shows no posts yet. When they are
+     * read again, as when Feed is shown again, the friends read last are shown meanwhile instead.
+     */
     data object LoadingFriends : FeedAuthors {
         override fun listedIn(ranked: PostRows): PostRows = PostRows(ranked.table, IntArray(0))
     }

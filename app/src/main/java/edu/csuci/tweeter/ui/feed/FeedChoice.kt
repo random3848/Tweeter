@@ -18,7 +18,7 @@ enum class FeedChoice(
     val order: FeedOrder,
     val showsOnlyFriends: Boolean = false
 ) {
-    /** Everyone's posts, recent posts with likes first. */
+    /** Everyone's posts, recent posts first, lifted by their likes. */
     BEST(R.string.feed_order_best, FeedOrder.BEST),
 
     /** Everyone's posts, newest first. */

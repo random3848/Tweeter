@@ -1,6 +1,5 @@
 package edu.csuci.tweeter.ui.feed
 
-import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -77,7 +76,28 @@ fun FeedScreen(
             onSelect = feedViewModel::choose
         )
         val bodyModifier = Modifier.weight(1f).fillMaxWidth()
-        when (val authors = uiState.authors) {
+        // The posts, a spinner while they're read, or what to say when there are none.
+        val posts = @Composable { isLoading: Boolean, emptyMessage: Int ->
+            PostList(
+                listedPosts = uiState.listedPosts,
+                isLoading = isLoading,
+                emptyMessage = stringResource(emptyMessage),
+                loggedInUid = loggedInUid,
+                onShowOnMap = showPostOnMap,
+                onDelete = feedViewModel::deletePost,
+                onOpenProfile = onOpenProfile,
+                modifier = bodyModifier,
+                listState = listState,
+                likes = PostLikes(likedPostIds = uiState.likedPostIds, onLike = likePost)
+            )
+        }
+        when (uiState.authors) {
+            FeedAuthors.Everyone -> posts(uiState.isLoading, R.string.feed_empty_message)
+
+            is FeedAuthors.Friends -> posts(uiState.isLoading, R.string.feed_friends_empty)
+
+            FeedAuthors.LoadingFriends -> posts(true, R.string.feed_friends_empty)
+
             FeedAuthors.UnknownFriends -> {
                 CenteredMessage(
                     text = stringResource(R.string.feed_friends_unknown),
@@ -88,26 +108,6 @@ fun FeedScreen(
                     }
                 }
             }
-
-            FeedAuthors.Everyone, FeedAuthors.LoadingFriends, is FeedAuthors.Friends -> {
-                PostList(
-                    listedPosts = uiState.listedPosts,
-                    isLoading = uiState.isLoading || authors == FeedAuthors.LoadingFriends,
-                    emptyMessage = stringResource(emptyMessageOf(authors)),
-                    loggedInUid = loggedInUid,
-                    onShowOnMap = showPostOnMap,
-                    onDelete = feedViewModel::deletePost,
-                    onOpenProfile = onOpenProfile,
-                    modifier = bodyModifier,
-                    listState = listState,
-                    likes = PostLikes(likedPostIds = uiState.likedPostIds, onLike = likePost)
-                )
-            }
         }
     }
 }
-
-// What the feed says when it shows no posts: that nobody, or none of the user's friends, posted.
-@StringRes
-private fun emptyMessageOf(authors: FeedAuthors): Int =
-    if (authors is FeedAuthors.Friends) R.string.feed_friends_empty else R.string.feed_empty_message
