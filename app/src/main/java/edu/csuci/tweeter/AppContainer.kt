@@ -5,15 +5,20 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import edu.csuci.tweeter.data.AccountRepository
+import edu.csuci.tweeter.data.AnimalRepository
 import edu.csuci.tweeter.data.CameraFileStore
+import edu.csuci.tweeter.data.FakeAnimalRepository
 import edu.csuci.tweeter.data.FirebaseAccountRepository
 import edu.csuci.tweeter.data.FirebasePhotoRepository
+import edu.csuci.tweeter.data.FirestoreFollowRepository
 import edu.csuci.tweeter.data.FirestoreLikeRepository
 import edu.csuci.tweeter.data.FirestorePostRepository
 import edu.csuci.tweeter.data.FirestoreProfileRepository
+import edu.csuci.tweeter.data.FollowRepository
 import edu.csuci.tweeter.data.GuestSignIn
 import edu.csuci.tweeter.data.LikeRepository
 import edu.csuci.tweeter.data.PhotoRepository
+import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.ProfileSaver
@@ -85,6 +90,14 @@ class AppContainer(private val context: Context) {
         FirestoreProfileRepository(firestore = FirebaseFirestore.getInstance())
     }
 
+    /** Reads and changes follower relationships in Firestore. */
+    val followRepository: FollowRepository by lazy {
+        FirestoreFollowRepository(
+            auth = FirebaseAuth.getInstance(),
+            firestore = FirebaseFirestore.getInstance()
+        )
+    }
+
     /**
      * Shared authentication operations and the registered user's identity.
      */
@@ -114,11 +127,30 @@ class AppContainer(private val context: Context) {
     }
 
     /**
+     * The animals a post can be tagged with: a fixed list in memory until the iNaturalist
+     * repository is built; that work replaces this.
+     */
+    val animalRepository: AnimalRepository = FakeAnimalRepository()
+
+    /**
      * Saves profiles and deletes the photos the saves leave unused, waiting for the server in
      * the app's scope, so leaving Edit profile doesn't stop that.
      */
     val profileSaver: ProfileSaver by lazy {
         ProfileSaver(profileRepository, photoRepository, scope = applicationScope)
+    }
+
+    /**
+     * Deletes the logged-in user's posts and their photos in the app's scope, so leaving Feed or
+     * Profile doesn't stop that.
+     */
+    val postDeleter: PostDeleter by lazy {
+        PostDeleter(
+            postRepository = postRepository,
+            photoRepository = photoRepository,
+            accountRepository = accountRepository,
+            scope = applicationScope
+        )
     }
 
     /**

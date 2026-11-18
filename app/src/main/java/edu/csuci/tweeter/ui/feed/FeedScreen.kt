@@ -50,9 +50,11 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
  * Displays posts from [FeedViewModel], newest first, in a clean scrolling layout. A label
  * on each post's photo shows the post on Map, and a heart under it likes the post, or opens Log in
  * for guests, who can't. When another screen asks the feed to show a post, as Map's popup does,
- * the feed scrolls to it.
+ * the feed scrolls to it. The logged-in user's own posts have a delete button, which asks before
+ * deleting.
  *
  * @param onShowOnMap Opens Map, once the post the user chose is requested there.
+ * @param onOpenProfile Opens the selected author's profile.
  * @param onLogIn Opens Log in, for a guest who tries to like a post.
  * @param modifier Applied to the whole screen.
  * @param topBarActions Buttons on the right of the top bar, such as the profile button.
@@ -61,12 +63,14 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
 @Composable
 fun FeedScreen(
     onShowOnMap: () -> Unit,
+    onOpenProfile: (String) -> Unit,
     onLogIn: () -> Unit,
     modifier: Modifier = Modifier,
     topBarActions: @Composable RowScope.() -> Unit = {},
     feedViewModel: FeedViewModel = viewModel(factory = FeedViewModel.factory)
 ) {
     val uiState by feedViewModel.uiState.collectAsStateWithLifecycle()
+    val loggedInUid by feedViewModel.loggedInUid.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
 
     val rowToShow = uiState.rowToShow
@@ -83,6 +87,12 @@ fun FeedScreen(
         onShowOnMap()
     }
     val likePost = if (uiState.canLike) feedViewModel::toggleLike else { _: String -> onLogIn() }
+    val controls = PostControls(
+        onShowOnMap = showPostOnMap,
+        onLike = likePost,
+        onDelete = feedViewModel::deletePost,
+        onOpenProfile = onOpenProfile
+    )
     Column(modifier = modifier.fillMaxSize()) {
         TweeterTopBar(actions = topBarActions)
         val bodyModifier = Modifier.weight(1f).fillMaxWidth()
@@ -107,7 +117,8 @@ fun FeedScreen(
                 FeedList(
                     uiState = uiState,
                     listState = listState,
-                    controls = PostControls(onShowOnMap = showPostOnMap, onLike = likePost),
+                    loggedInUid = loggedInUid,
+                    controls = controls,
                     modifier = bodyModifier
                 )
             }
@@ -116,13 +127,21 @@ fun FeedScreen(
 }
 
 /**
- * What pressing a feed post's controls does, each called with the post's ID. They take the ID
- * rather than capturing the table, so they stay the same as new tables arrive.
+ * What pressing a feed post's controls does, each called with the post's ID, or its author's for
+ * [onOpenProfile]. They take the ID rather than capturing the table, so they stay the same as new
+ * tables arrive.
  *
  * @property onShowOnMap Shows the post on Map.
  * @property onLike Likes the post or takes the like back, or opens Log in for guests.
+ * @property onDelete Deletes the post, once the user confirms.
+ * @property onOpenProfile Opens the profile of the author with the given UID.
  */
-private data class PostControls(val onShowOnMap: (String) -> Unit, val onLike: (String) -> Unit)
+private data class PostControls(
+    val onShowOnMap: (String) -> Unit,
+    val onLike: (String) -> Unit,
+    val onDelete: (String) -> Unit,
+    val onOpenProfile: (String) -> Unit
+)
 
 /**
  * The posts of [uiState] as a scrolling list, newest first, with a divider between posts.
@@ -132,6 +151,7 @@ private data class PostControls(val onShowOnMap: (String) -> Unit, val onLike: (
  *
  * @param uiState The posts to list, in table order, and which of them the user liked.
  * @param listState The list's scroll position.
+ * @param loggedInUid The logged-in user's ID, whose posts get a delete button, or null for guests.
  * @param controls What pressing each post's controls does.
  * @param modifier Applied to the list.
  */
@@ -139,6 +159,7 @@ private data class PostControls(val onShowOnMap: (String) -> Unit, val onLike: (
 private fun FeedList(
     uiState: FeedUiState,
     listState: LazyListState,
+    loggedInUid: String?,
     controls: PostControls,
     modifier: Modifier = Modifier
 ) {
@@ -151,9 +172,16 @@ private fun FeedList(
     ) {
         items(count = posts.size, key = { row -> posts.id(row) }) { row ->
             PostHeader(
+                postId = posts.id(row),
                 avatarInitials = posts.avatarInitials(row),
                 username = posts.username(row),
-                details = postDetailsText(posts.locationName(row), posts.timestampMillis(row))
+                details = postDetailsText(posts.locationName(row), posts.timestampMillis(row)),
+                // A guest's ID is null, and a post shared while logged out has no author, so
+                // neither matches.
+                isMine = loggedInUid != null && posts.authorUid(row) == loggedInUid,
+                onDelete = controls.onDelete,
+                authorUid = posts.authorUid(row),
+                onOpenProfile = controls.onOpenProfile
             )
             val postId = posts.id(row)
             PhotoWithMapLabel(
@@ -181,18 +209,39 @@ private fun FeedList(
 
 /**
  * The top of a feed post: the poster's avatar and name, where the post was shared and how long
- * ago. It takes the three texts it shows rather than the post's row, so it's skipped when the feed
- * recomposes with the same texts.
+ * ago. Pressing it opens the author's profile. On the logged-in user's own posts it also has a
+ * delete button, which asks before deleting. It receives the displayed texts and author UID
+ * separately from the post table.
  *
+ * @param postId The post's ID, which [onDelete] is called with.
  * @param avatarInitials The initials in the poster's avatar.
  * @param username The poster's name.
  * @param details Where the post was shared and how long ago, as [postDetailsText] puts it.
+ * @param authorUid The Firebase UID of the post's author.
+ * @param isMine Whether the logged-in user wrote the post, which shows the delete button.
+ * @param onOpenProfile Opens the profile of the author with the given UID.
+ * @param onDelete Deletes the post with the given ID, once the user confirms.
  */
 @Composable
-private fun PostHeader(avatarInitials: String, username: String, details: String) {
+private fun PostHeader(
+    postId: String,
+    avatarInitials: String,
+    username: String,
+    details: String,
+    authorUid: String,
+    isMine: Boolean,
+    onOpenProfile: (String) -> Unit,
+    onDelete: (String) -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(
+                enabled = authorUid.isNotBlank(),
+                onClickLabel = stringResource(R.string.feed_open_author_profile),
+                role = Role.Button,
+                onClick = { onOpenProfile(authorUid) }
+            )
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -211,7 +260,11 @@ private fun PostHeader(avatarInitials: String, username: String, details: String
             )
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        // Takes the leftover width, which puts the delete button at the right edge.
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
             Text(
                 text = username,
                 style = MaterialTheme.typography.titleMedium,
@@ -222,6 +275,10 @@ private fun PostHeader(avatarInitials: String, username: String, details: String
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+
+        if (isMine) {
+            DeletePostButton(postId = postId, onDelete = onDelete)
         }
     }
 }

@@ -2,12 +2,13 @@
 
 package edu.csuci.tweeter.ui.feed
 
-import edu.csuci.tweeter.data.AccountRepository
 import edu.csuci.tweeter.data.FakeAccountRepository
 import edu.csuci.tweeter.data.FakeLikeRepository
 import edu.csuci.tweeter.data.FakePostRepository
 import edu.csuci.tweeter.data.LikeException
 import edu.csuci.tweeter.data.LikeRepository
+import edu.csuci.tweeter.data.PhotoRepository
+import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.SAMPLE_POSTS
@@ -15,6 +16,7 @@ import edu.csuci.tweeter.data.assertSamePosts
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 import java.time.Instant
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
@@ -37,7 +39,7 @@ import org.junit.Before
 import org.junit.Test
 
 private const val NEW_POST_ID = "new"
-private const val MAYA = "maya"
+private const val USER_UID = "maya"
 
 class FeedViewModelTest {
     private val showInFeedRequest = ShowPostRequest()
@@ -125,14 +127,14 @@ class FeedViewModelTest {
 
     @Test
     fun uiState_userLoggedIn_canLike() = runTest {
-        val viewModel = collectedFeedViewModel(account = FakeAccountRepository(MAYA))
+        val viewModel = collectedFeedViewModel(loggedInUid = USER_UID)
 
         assertTrue(viewModel.uiState.value.canLike)
     }
 
     @Test
     fun uiState_guest_cannotLike() = runTest {
-        val viewModel = collectedFeedViewModel(account = FakeAccountRepository(initialUid = null))
+        val viewModel = collectedFeedViewModel(loggedInUid = null)
 
         assertFalse(viewModel.uiState.value.canLike)
     }
@@ -184,32 +186,52 @@ class FeedViewModelTest {
         assertEquals(SAMPLE_POSTS[0].id, showInFeedRequest.postId.value)
     }
 
+    @Test
+    fun deletePost_loggedInUsersPost_dropsItFromFeed() = runTest {
+        val mine = SAMPLE_POSTS.first().copy(id = NEW_POST_ID, authorUid = USER_UID)
+        val repository = FakePostRepository(initialPosts = listOf(mine) + SAMPLE_POSTS)
+        val viewModel = collectedFeedViewModel(repository, loggedInUid = USER_UID)
+
+        viewModel.deletePost(mine.id)
+
+        assertSamePosts(PostTable.of(SAMPLE_POSTS), viewModel.uiState.value.posts)
+    }
+
     private fun feedViewModel(
         repository: PostRepository = FakePostRepository(),
         likes: LikeRepository = FakeLikeRepository(),
-        account: AccountRepository = FakeAccountRepository(MAYA),
+        loggedInUid: String? = USER_UID,
         postsDispatcher: CoroutineDispatcher = UnconfinedTestDispatcher()
-    ) = FeedViewModel(
-        postRepository = repository,
-        likeRepository = likes,
-        accountRepository = account,
-        showInFeedRequest = showInFeedRequest,
-        showOnMapRequest = showOnMapRequest,
-        postsDispatcher = postsDispatcher,
-        sharing = SharingStarted.WhileSubscribed()
-    )
+    ): FeedViewModel {
+        val accountRepository = FakeAccountRepository(loggedInUid)
+        return FeedViewModel(
+            postRepository = repository,
+            likeRepository = likes,
+            postDeleter = PostDeleter(
+                postRepository = repository,
+                photoRepository = FakePhotoRepository(),
+                accountRepository = accountRepository,
+                scope = CoroutineScope(postsDispatcher)
+            ),
+            accountRepository = accountRepository,
+            showInFeedRequest = showInFeedRequest,
+            showOnMapRequest = showOnMapRequest,
+            postsDispatcher = postsDispatcher,
+            sharing = SharingStarted.WhileSubscribed()
+        )
+    }
 
     // The feed's state follows the repository while the test collects it, as it does in the app
     // while Feed collects it.
     private fun TestScope.collectedFeedViewModel(
         repository: PostRepository = FakePostRepository(),
         likes: LikeRepository = FakeLikeRepository(),
-        account: AccountRepository = FakeAccountRepository(MAYA)
+        loggedInUid: String? = USER_UID
     ): FeedViewModel {
         val viewModel = feedViewModel(
             repository,
             likes,
-            account,
+            loggedInUid,
             postsDispatcher = UnconfinedTestDispatcher(testScheduler)
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -227,5 +249,13 @@ class FeedViewModelTest {
     // A repository whose first table never arrives, as while Firestore is still answering.
     private class TablelessPostRepository : PostRepository by FakePostRepository() {
         override fun getPostTable(): Flow<PostTable> = flow { awaitCancellation() }
+    }
+
+    private class FakePhotoRepository : PhotoRepository {
+        override suspend fun uploadPhoto(photoUri: String): String = ""
+
+        override suspend fun uploadProfilePhoto(photoUri: String): String = ""
+
+        override suspend fun deletePhoto(photoUrl: String) = Unit
     }
 }

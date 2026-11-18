@@ -11,6 +11,7 @@ import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
 import edu.csuci.tweeter.data.LikeException
 import edu.csuci.tweeter.data.LikeRepository
+import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
@@ -46,11 +47,14 @@ data class FeedUiState(
 )
 
 /**
- * Holds posts for [FeedScreen], and the user's likes of them.
+ * Holds posts for [FeedScreen], the user's likes of them, and deletes the logged-in user's own
+ * posts.
  *
- * @param postRepository Where post data is read from.
+ * @param postRepository Where posts are read from.
  * @param likeRepository Which posts the user liked, and where [toggleLike] saves likes.
- * @param accountRepository Who is logged in: guests can't like posts.
+ * @param postDeleter Deletes the logged-in user's posts and their photos.
+ * @param accountRepository Who is logged in: guests can't like posts, and only the user's own posts
+ *     show a delete button.
  * @param showInFeedRequest The post another screen asks the feed to show, which it scrolls to.
  * @param showOnMapRequest Where [showOnMap] asks Map to show a post.
  * @param postsDispatcher Where the row of the post to show is found: off the main thread, since
@@ -60,6 +64,7 @@ data class FeedUiState(
 class FeedViewModel(
     postRepository: PostRepository,
     private val likeRepository: LikeRepository,
+    private val postDeleter: PostDeleter,
     accountRepository: AccountRepository,
     private val showInFeedRequest: ShowPostRequest,
     private val showOnMapRequest: ShowPostRequest,
@@ -92,6 +97,9 @@ class FeedViewModel(
                 initialValue = FeedUiState()
             )
 
+    /** The logged-in user's ID, or null for guests, who can't delete posts. */
+    val loggedInUid: StateFlow<String?> = accountRepository.loggedInUid
+
     /** Forgets the post to show once the feed has scrolled to it, so it doesn't scroll again. */
     fun clearPostToShow() {
         showInFeedRequest.clear()
@@ -117,6 +125,14 @@ class FeedViewModel(
         showOnMapRequest.send(postId)
     }
 
+    /**
+     * Deletes the post with [postId], then its photo, if the logged-in user wrote it. The feed
+     * drops the post on its own, since [uiState] follows the repository's posts.
+     */
+    fun deletePost(postId: String) {
+        postDeleter.deleteOwnPost(uiState.value.posts, postId)
+    }
+
     companion object {
         /** Creates a [FeedViewModel] that reads the app's shared posts, likes and requests. */
         val factory: ViewModelProvider.Factory = viewModelFactory {
@@ -125,6 +141,7 @@ class FeedViewModel(
                 FeedViewModel(
                     postRepository = application.container.postRepository,
                     likeRepository = application.container.likeRepository,
+                    postDeleter = application.container.postDeleter,
                     accountRepository = application.container.accountRepository,
                     showInFeedRequest = application.container.showInFeedRequest,
                     showOnMapRequest = application.container.showOnMapRequest,

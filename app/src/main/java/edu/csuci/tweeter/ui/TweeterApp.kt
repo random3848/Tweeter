@@ -44,8 +44,10 @@ import edu.csuci.tweeter.ui.post.addPostScreen
 import edu.csuci.tweeter.ui.profile.EditProfileRoute
 import edu.csuci.tweeter.ui.profile.ProfileButton
 import edu.csuci.tweeter.ui.profile.ProfileRoute
+import edu.csuci.tweeter.ui.profile.UserProfileRoute
 import edu.csuci.tweeter.ui.profile.addEditProfileScreen
 import edu.csuci.tweeter.ui.profile.addProfileScreen
+import edu.csuci.tweeter.ui.profile.addUserProfileScreen
 
 /**
  * Bottom-bar items in display order.
@@ -89,6 +91,8 @@ internal val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
  * not edit this file beyond those two lines; keep everything else in the feature's package
  *
  * Profile is not a tab: Feed's profile button opens it, and Home stays selected while it is open.
+ * Pressing Home always shows the feed itself, closing Profile or any screen opened from it, even
+ * from another tab. Pressing the selected Post or Map tab returns to the screen it opens to.
  * Every screen draws its own top bar, [edu.csuci.tweeter.ui.navigation.TweeterTopBar] on the tabs'
  * screens and [edu.csuci.tweeter.ui.navigation.BackTopBar] on screens opened from them, so a bar
  * comes and goes with its screen. Profile and Post open Log in and Create account for guests, and
@@ -130,7 +134,11 @@ fun TweeterApp(modifier: Modifier = Modifier) {
     } else {
         destination
     }
-    val selectedIndex = selectedTabIndex(BOTTOM_BAR_ITEMS, tabDestination)
+    val selectedIndex = if (tabDestination?.hasRoute(UserProfileRoute::class) == true) {
+        BOTTOM_BAR_ITEMS.indexOfFirst { it.route == FeedRoute }
+    } else {
+        selectedTabIndex(BOTTOM_BAR_ITEMS, tabDestination)
+    }
     val openLogIn = {
         navController.navigate(LogInRoute) {
             launchSingleTop = true
@@ -150,12 +158,11 @@ fun TweeterApp(modifier: Modifier = Modifier) {
                     selectedIndex = selectedIndex,
                     onSelect = { index ->
                         val route = BOTTOM_BAR_ITEMS[index].route
-                        if (route != null) {
-                            if (index == selectedIndex) {
-                                navController.returnToTab(route)
-                            } else {
-                                navController.navigateToTopLevel(route)
-                            }
+                        when {
+                            route == null -> Unit
+                            route == FeedRoute -> navController.navigateToFeed()
+                            index == selectedIndex -> navController.returnToTab(route)
+                            else -> navController.navigateToTopLevel(route)
                         }
                     }
                 )
@@ -213,6 +220,11 @@ private fun TweeterNavHost(
         addFeedScreen(
             onShowOnMap = { navController.navigateToTopLevel(MapRoute) },
             onLogIn = openLogIn,
+            onOpenProfile = { userUid ->
+                navController.navigate(UserProfileRoute(userUid)) {
+                    launchSingleTop = true
+                }
+            },
             topBarActions = {
                 ProfileButton(
                     onClick = {
@@ -226,6 +238,16 @@ private fun TweeterNavHost(
         addPostScreen(onLogIn = openLogIn, onCreateAccount = openCreateAccount)
         addMapScreen()
         addProfileScreen(
+            onBack = { navController.navigateUp() },
+            onLogIn = openLogIn,
+            onCreateAccount = openCreateAccount,
+            onEditProfile = {
+                navController.navigate(EditProfileRoute) {
+                    launchSingleTop = true
+                }
+            }
+        )
+        addUserProfileScreen(
             onBack = { navController.navigateUp() },
             onLogIn = openLogIn,
             onCreateAccount = openCreateAccount,
@@ -250,7 +272,8 @@ private fun TweeterNavHost(
 
 /**
  * Opens the Home tab on the feed itself, closing any screen opened from it, such as Profile or
- * Log in, which the tab would otherwise restore over the feed.
+ * Log in, which the tab would otherwise restore over the feed. Pressing Home and Map's popup both
+ * use it.
  */
 private fun NavHostController.navigateToFeed() {
     navigateToTopLevel(FeedRoute)
