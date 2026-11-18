@@ -274,4 +274,53 @@ private fun TweeterNavHost(
             onLogIn = openLogIn,
             onCreateAccount = openCreateAccount,
             onEditProfile = {
-                navController.navigate(EditProfileRoute)
+                navController.navigate(EditProfileRoute) {
+                    launchSingleTop = true
+                }
+            }
+        )
+        addEditProfileScreen(onClose = { navController.navigateUp() })
+        addLogInScreen(
+            onBack = { navController.navigateUp() },
+            onAuthenticated = { navController.popBackStack() }
+        )
+
+        addCreateAccountScreen(
+            onBack = { navController.navigateUp() },
+            onAuthenticated = { navController.popBackStack() }
+        )
+    }
+}
+
+/**
+ * Opens the Home tab on the feed itself, closing any screen opened from it, such as Profile or
+ * Log in, which the tab would otherwise restore over the feed. Pressing Home and Map's popup both
+ * use it.
+ */
+private fun NavHostController.navigateToFeed() {
+    navigateToTopLevel(FeedRoute)
+    returnToTab(FeedRoute)
+}
+
+/**
+ * Switches to the tab of [route], keeping the screens opened in each tab while another is open,
+ * without stacking a second copy of a screen that is already on top.
+ */
+private fun NavHostController.navigateToTopLevel(route: Any) {
+    navigate(route) {
+        popUpTo(graph.findStartDestination().id) {
+            saveState = true
+        }
+        launchSingleTop = true
+        restoreState = true
+    }
+}
+
+/**
+ * Shows the screen the tab of [route] opens to, closing the screens opened from it, such as
+ * Profile on Home or Log in on Post: what tapping the tab that is already selected does.
+ * [navigateToTopLevel] would restore those screens instead.
+ */
+private fun NavHostController.returnToTab(route: Any) {
+    popBackStack(route, inclusive = false)
+}
