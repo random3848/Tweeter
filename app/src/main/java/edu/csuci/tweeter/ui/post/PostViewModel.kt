@@ -31,9 +31,8 @@ import edu.csuci.tweeter.location.GeoPoint
 import edu.csuci.tweeter.location.LocationFix
 import edu.csuci.tweeter.location.LocationSource
 import edu.csuci.tweeter.location.PhotoLocator
-import edu.csuci.tweeter.ui.camera.CameraCapture
-import edu.csuci.tweeter.ui.camera.CameraControls
 import edu.csuci.tweeter.ui.camera.ChosenPhoto
+import java.io.IOException
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
@@ -49,21 +48,17 @@ private const val UPLOADED_PHOTO_URL_KEY = "uploadedPhotoUrl"
  * was taken, uploads it, shares it as a post, and holds the state the post screen displays.
  *
  * @param photo The post's photo. It isn't replaced while it uploads.
- * @param cameraCapture Takes pictures with the camera app into [photo], for the screen to control
- *     through this ViewModel; it's closed with the ViewModel.
  */
 class PostViewModel(
     private val photoRepository: PhotoRepository,
     private val postRepository: PostRepository,
     private val profileRepository: ProfileRepository,
     private val accountRepository: AccountRepository,
-    private val photoLocator: PhotoLocator<Uri>,
+    private val photoLocator: PhotoLocator<String>,
     private val photo: ChosenPhoto,
-    private val cameraCapture: CameraCapture,
     private val cameraFileStore: CameraFileStore,
     private val savedStateHandle: SavedStateHandle
-) : ViewModel(cameraCapture),
-    CameraControls by cameraCapture {
+) : ViewModel() {
     private var locateJob: Job? = null
 
     // The photo whose latest upload failed, or null.
@@ -99,6 +94,18 @@ class PostViewModel(
     var isLocating by mutableStateOf(false)
         private set
 
+    /** Whether the in-app camera is currently taking a picture. */
+    var isCapturing by mutableStateOf(false)
+        private set
+
+    /** Whether the last attempt to take a picture with the in-app camera failed. */
+    var captureFailed by mutableStateOf(false)
+        private set
+
+    /** The file the in-app camera should save its next picture into, or null when idle. */
+    var pendingCaptureFile by mutableStateOf<CameraFile?>(null)
+        private set
+
     /**
      * The URI of the photo to share: a `content://` URI on the phone, or null until the user
      * takes or chooses one, and again once it is shared.
@@ -122,28 +129,60 @@ class PostViewModel(
      * Makes the photo at [uri], chosen from the camera roll, the post's photo. Ignored while it
      * uploads.
      */
+
+    /**
+     * Makes the photo at [uri], chosen from the camera roll, the post's photo. Ignored while it
+     * uploads.
+     */
     fun choosePhoto(uri: String) {
+        clearMessages()
         photo.chooseFromCameraRoll(uri)
     }
 
-    /**
-     * Creates the file the in-app camera saves a picture into, off the main thread.
-     *
-     * @throws java.io.IOException If the file can't be created.
-     */
-    suspend fun createCameraFile(): CameraFile = cameraFileStore.create()
+    /** Clears status banners from an earlier capture or upload. */
+    fun clearMessages() {
+        captureFailed = false
+        clearUploadedPhotoUrl()
+    }
 
-    /** Deletes [file], which the in-app camera failed to save a picture into. */
-    fun discardCameraFile(file: CameraFile) {
-        cameraFileStore.discard(file.path)
+    /**
+     * Prepares a temporary file off the main thread for the in-app camera to save a picture into.
+     * Ignored while a capture or upload is already running.
+     */
+    fun requestPhotoCapture() {
+        if (isCapturing || isUploading) {
+            return
+        }
+
+        isCapturing = true
+        clearMessages()
+        viewModelScope.launch {
+            try {
+                pendingCaptureFile = cameraFileStore.create()
+            } catch (error: IOException) {
+                Log.e("PostViewModel", "Could not create camera photo file", error)
+                captureFailed = true
+                isCapturing = false
+            }
+        }
     }
 
     /**
      * Makes [file], which the in-app camera saved a picture into, the post's photo. It's deleted
      * instead while the photo uploads.
      */
-    fun cameraPictureCaptured(file: CameraFile) {
+    fun onPhotoCaptured(file: CameraFile) {
+        pendingCaptureFile = null
+        isCapturing = false
         photo.chooseCameraPicture(file)
+    }
+
+    /** Marks the in-app capture into [file] as failed and deletes the unused file. */
+    fun onCaptureFailed(file: CameraFile) {
+        pendingCaptureFile = null
+        isCapturing = false
+        captureFailed = true
+        cameraFileStore.discard(file.path)
     }
 
     /** Forgets the photo, to take another. Ignored while it uploads. */
@@ -155,8 +194,20 @@ class PostViewModel(
         locateJob?.cancel()
         location = null
         isLocating = false
+        clearMessages()
         photo.clear()
         photoAskedToLocate = null
+    }
+
+    override fun onCleared() {
+        pendingCaptureFile?.let { cameraFileStore.discard(it.path) }
+        pendingCaptureFile = null
+        super.onCleared()
+    }
+
+    private fun clearUploadedPhotoUrl() {
+        uploadedPhotoUrl = null
+        savedStateHandle[UPLOADED_PHOTO_URL_KEY] = null
     }
 
     /** Stops asking to find [photoToLocate], whose permissions the screen has asked for. */
@@ -176,7 +227,7 @@ class PostViewModel(
         location = null
         isLocating = true
         locateJob = viewModelScope.launch {
-            location = photoLocator.locate(Uri.parse(uri), capturedInApp)
+            location = photoLocator.locate(uri, capturedInApp)
             isLocating = false
         }
     }
@@ -294,16 +345,11 @@ class PostViewModel(
                     profileRepository = application.container.profileRepository,
                     accountRepository = application.container.accountRepository,
                     photoLocator = PhotoLocator(
-                        readExif = ExifLocationReader(application)::read,
+                        readExif = { ExifLocationReader(application).read(Uri.parse(it)) },
                         currentDeviceFix = DeviceLocationProvider(application)::currentFix,
                         ioDispatcher = Dispatchers.IO
                     ),
                     photo = photo,
-                    cameraCapture = CameraCapture.onMainThread(
-                        cameraFileStore,
-                        photo,
-                        savedStateHandle
-                    ),
                     cameraFileStore = cameraFileStore,
                     savedStateHandle = savedStateHandle
                 )
