@@ -15,9 +15,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconToggleButton
@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,7 +48,8 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
 /**
  * The home feed, the screen the app opens to, under the app's top bar.
  *
- * Displays posts from [FeedViewModel], newest first, in a clean scrolling layout. A label
+ * Displays posts from [FeedViewModel] in a clean scrolling layout, in the order the user picks
+ * with the chips above them: Best, Newest or Top. Picking one shows its first post. A label
  * on each post's photo shows the post on Map, and a heart under it likes the post, or opens Log in
  * for guests, who can't. When another screen asks the feed to show a post, as Map's popup does,
  * the feed scrolls to it. The logged-in user's own posts have a delete button, which asks before
@@ -71,12 +73,16 @@ fun FeedScreen(
 ) {
     val uiState by feedViewModel.uiState.collectAsStateWithLifecycle()
     val loggedInUid by feedViewModel.loggedInUid.collectAsStateWithLifecycle()
-    val listState = rememberLazyListState()
+    // A new list state for each order, which starts at its first post. One list state kept across
+    // orders would keep the post at the top in view, wherever the new order puts it.
+    val listState = rememberSaveable(uiState.order, saver = LazyListState.Saver) {
+        LazyListState()
+    }
 
-    val rowToShow = uiState.rowToShow
-    LaunchedEffect(rowToShow) {
-        if (rowToShow != null) {
-            listState.scrollToItem(rowToShow)
+    val positionToShow = uiState.positionToShow
+    LaunchedEffect(positionToShow) {
+        if (positionToShow != null) {
+            listState.scrollToItem(positionToShow)
             feedViewModel.clearPostToShow()
         }
     }
@@ -95,6 +101,7 @@ fun FeedScreen(
     )
     Column(modifier = modifier.fillMaxSize()) {
         TweeterTopBar(actions = topBarActions)
+        FeedOrderChips(selected = uiState.order, onSelect = feedViewModel::selectOrder)
         val bodyModifier = Modifier.weight(1f).fillMaxWidth()
         when {
             uiState.isLoading -> {
@@ -127,6 +134,27 @@ fun FeedScreen(
 }
 
 /**
+ * A chip for each [FeedOrder], the [selected] one checked.
+ *
+ * @param onSelect Shows the posts in the order of the chip pressed.
+ */
+@Composable
+private fun FeedOrderChips(selected: FeedOrder, onSelect: (FeedOrder) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        for (order in FeedOrder.entries) {
+            FilterChip(
+                selected = order == selected,
+                onClick = { onSelect(order) },
+                label = { Text(stringResource(order.labelRes)) }
+            )
+        }
+    }
+}
+
+/**
  * What pressing a feed post's controls does, each called with the post's ID, or its author's for
  * [onOpenProfile]. They take the ID rather than capturing the table, so they stay the same as new
  * tables arrive.
@@ -144,12 +172,13 @@ private data class PostControls(
 )
 
 /**
- * The posts of [uiState] as a scrolling list, newest first, with a divider between posts.
+ * The posts of [uiState] as a scrolling list, in its order, with a divider between posts.
  *
  * This is where a feed item reads its post's row: the parts it's made of get the values they
  * show, so a part whose values didn't change is skipped when a new table arrives.
  *
- * @param uiState The posts to list, in table order, and which of them the user liked.
+ * @param uiState The posts to list, their rows in the order to list them, and which of them the
+ *     user liked.
  * @param listState The list's scroll position.
  * @param loggedInUid The logged-in user's ID, whose posts get a delete button, or null for guests.
  * @param controls What pressing each post's controls does.
@@ -164,13 +193,15 @@ private fun FeedList(
     modifier: Modifier = Modifier
 ) {
     val posts = uiState.posts
-    val lastRow = posts.size - 1
+    val rows = uiState.rows
+    val lastPosition = rows.size - 1
     LazyColumn(
         state = listState,
         modifier = modifier,
         contentPadding = PaddingValues(bottom = 16.dp)
     ) {
-        items(count = posts.size, key = { row -> posts.id(row) }) { row ->
+        items(count = rows.size, key = { position -> posts.id(rows[position]) }) { position ->
+            val row = rows[position]
             PostHeader(
                 postId = posts.id(row),
                 avatarInitials = posts.avatarInitials(row),
@@ -196,7 +227,7 @@ private fun FeedList(
             )
             PostCaption(caption = posts.caption(row))
             AnimalDetails(text = animalDetailsOf(posts.animalType(row), posts.confidence(row)))
-            if (row < lastRow) {
+            if (position < lastPosition) {
                 HorizontalDivider(
                     modifier = Modifier.padding(vertical = 12.dp),
                     thickness = 1.dp,

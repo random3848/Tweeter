@@ -15,12 +15,17 @@ import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
+import java.time.Clock
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.runningFold
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -29,10 +34,13 @@ private const val TAG = "FeedViewModel"
 /**
  * The UI state of the home feed screen.
  *
- * @property posts The posts to display, newest first; the feed shows the table's rows in order.
+ * @property posts The posts to display, newest first.
+ * @property order The order the user picked, which [rows] are in.
+ * @property rows Every row of [posts], in the order the feed shows them: ranked when the user
+ *     picked [order], so posts don't move as their likes change.
  * @property isLoading Whether the first posts are still being loaded from the repository.
- * @property rowToShow The row in [posts] of the post another screen asked the feed to show, such
- *     as Map's popup, which the feed scrolls to, then calls [FeedViewModel.clearPostToShow]. Null
+ * @property positionToShow Where in [rows] the post another screen asked the feed to show is, such
+ *     as Map's popup's, which the feed scrolls to, then calls [FeedViewModel.clearPostToShow]. Null
  *     if none was asked for, or [posts] doesn't hold it yet, as while the feed shows the posts it
  *     had before that one was shared.
  * @property likedPostIds The IDs of the posts the user liked, whose hearts are filled.
@@ -40,8 +48,10 @@ private const val TAG = "FeedViewModel"
  */
 data class FeedUiState(
     val posts: PostTable = PostTable.EMPTY,
+    val order: FeedOrder = FeedOrder.BEST,
+    val rows: IntArray = IntArray(0),
     val isLoading: Boolean = true,
-    val rowToShow: Int? = null,
+    val positionToShow: Int? = null,
     val likedPostIds: Set<String> = emptySet(),
     val canLike: Boolean = false
 )
@@ -57,8 +67,9 @@ data class FeedUiState(
  *     show a delete button.
  * @param showInFeedRequest The post another screen asks the feed to show, which it scrolls to.
  * @param showOnMapRequest Where [showOnMap] asks Map to show a post.
- * @param postsDispatcher Where the row of the post to show is found: off the main thread, since
- *     finding it is a pass over the posts.
+ * @param postsDispatcher Where posts are put in order and the post to show is found: off the main
+ *     thread, since each is a pass over the posts.
+ * @param clock The time posts are aged by for [FeedOrder.BEST].
  * @param sharing When [uiState] follows the posts: while Feed collects it, in the app.
  */
 class FeedViewModel(
@@ -69,23 +80,40 @@ class FeedViewModel(
     private val showInFeedRequest: ShowPostRequest,
     private val showOnMapRequest: ShowPostRequest,
     postsDispatcher: CoroutineDispatcher,
+    private val clock: Clock,
     sharing: SharingStarted
 ) : ViewModel() {
+    private val order = MutableStateFlow(FeedOrder.BEST)
+
+    // Ranked when the user picks an order, and kept for every new table until they pick another.
+    private val rankedPosts: Flow<RankedPosts> =
+        combine(postRepository.getPostTable(), order, ::Pair)
+            .runningFold(null as RankedPosts?) { previous, (posts, order) ->
+                if (previous?.order == order) {
+                    previous.withPosts(posts)
+                } else {
+                    RankedPosts.of(posts, order, clock.millis())
+                }
+            }
+            .filterNotNull()
+
     /**
-     * The current state of the feed, updated whenever posts change, another screen asks the feed
-     * to show a post, or the user likes a post or logs in or out.
+     * The current state of the feed, updated whenever posts change, the user picks an order,
+     * another screen asks the feed to show a post, or the user likes a post or logs in or out.
      */
     val uiState: StateFlow<FeedUiState> =
         combine(
-            postRepository.getPostTable(),
+            rankedPosts,
             showInFeedRequest.postId,
             likeRepository.getLikedPostIds(),
             accountRepository.loggedInUid
-        ) { posts, postToShow, likedPostIds, loggedInUid ->
+        ) { ranked, postToShow, likedPostIds, loggedInUid ->
             FeedUiState(
-                posts = posts,
+                posts = ranked.posts,
+                order = ranked.order,
+                rows = ranked.rows,
                 isLoading = false,
-                rowToShow = postToShow?.let(posts::rowOf),
+                positionToShow = postToShow?.let(ranked::positionOf),
                 likedPostIds = likedPostIds,
                 canLike = loggedInUid != null
             )
@@ -99,6 +127,11 @@ class FeedViewModel(
 
     /** The logged-in user's ID, or null for guests, who can't delete posts. */
     val loggedInUid: StateFlow<String?> = accountRepository.loggedInUid
+
+    /** Ranks the posts in [order] and shows them so from now on. */
+    fun selectOrder(order: FeedOrder) {
+        this.order.value = order
+    }
 
     /** Forgets the post to show once the feed has scrolled to it, so it doesn't scroll again. */
     fun clearPostToShow() {
@@ -146,6 +179,7 @@ class FeedViewModel(
                     showInFeedRequest = application.container.showInFeedRequest,
                     showOnMapRequest = application.container.showOnMapRequest,
                     postsDispatcher = Dispatchers.Default,
+                    clock = Clock.systemUTC(),
                     sharing = application.container.whileScreenCollects
                 )
             }

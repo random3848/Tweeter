@@ -16,6 +16,9 @@
     <string name="feed_confidence_rating">Confidence: %1$d of 5</string>
     <string name="feed_show_on_map">Show on map</string>
     <string name="feed_like">Like</string>
+    <string name="feed_order_best">Best</string>
+    <string name="feed_order_newest">Newest</string>
+    <string name="feed_order_top">Top</string>
     <plurals name="feed_like_count">
         <item quantity="one">%1$d like</item>
         <item quantity="other">%1$d likes</item>
