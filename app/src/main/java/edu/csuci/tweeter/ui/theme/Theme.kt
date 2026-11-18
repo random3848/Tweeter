@@ -20,7 +20,7 @@ fun TweeterTheme(content: @Composable () -> Unit) {
 // Roles the designs don't show use the same neutral grays, so Material's default purple never
 // appears.
 private val lightColors = lightColorScheme(
-    primary = INK,
+    primary = BLUE,
     onPrimary = WHITE,
     primaryContainer = LIGHT_GRAY,
     onPrimaryContainer = INK,

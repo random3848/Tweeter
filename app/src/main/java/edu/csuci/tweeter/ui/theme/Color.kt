@@ -8,6 +8,9 @@ import androidx.compose.ui.graphics.Color
 /** Text, icons, and filled buttons, chips and switches. */
 val INK = Color(0xFF111614)
 
+/** Filled buttons, and the Tweeter logo. */
+val BLUE = Color(0xFF174A5D)
+
 /** Screens, cards, and the bars at the top and bottom. */
 val WHITE = Color(0xFFFFFFFF)
 
