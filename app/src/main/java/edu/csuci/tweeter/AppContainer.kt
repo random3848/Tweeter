@@ -11,11 +11,14 @@ import edu.csuci.tweeter.data.FakeAnimalRepository
 import edu.csuci.tweeter.data.FirebaseAccountRepository
 import edu.csuci.tweeter.data.FirebasePhotoRepository
 import edu.csuci.tweeter.data.FirestoreFollowRepository
+import edu.csuci.tweeter.data.FirestoreLikeRepository
 import edu.csuci.tweeter.data.FirestorePostRepository
 import edu.csuci.tweeter.data.FirestoreProfileRepository
 import edu.csuci.tweeter.data.FollowRepository
 import edu.csuci.tweeter.data.GuestSignIn
+import edu.csuci.tweeter.data.LikeRepository
 import edu.csuci.tweeter.data.PhotoRepository
+import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.ProfileSaver
@@ -82,9 +85,17 @@ class AppContainer(private val context: Context) {
         )
     }
 
-    /** Every user's profile, stored in Firestore. */
+    /**
+     * Every user's profile, stored in Firestore. Search's list of every profile signs a guest in
+     * first if nobody is, one sign-in at a time with the post repository's, and is parsed on
+     * [Dispatchers.Default].
+     */
     val profileRepository: ProfileRepository by lazy {
-        FirestoreProfileRepository(firestore = FirebaseFirestore.getInstance())
+        FirestoreProfileRepository(
+            guestSignIn = guestSignIn,
+            firestore = FirebaseFirestore.getInstance(),
+            dispatcher = Dispatchers.Default
+        )
     }
 
     /** Reads and changes follower relationships in Firestore. */
@@ -100,6 +111,19 @@ class AppContainer(private val context: Context) {
      */
     val accountRepository: AccountRepository by lazy {
         FirebaseAccountRepository(auth = FirebaseAuth.getInstance(), guestSignIn = guestSignIn)
+    }
+
+    /**
+     * The logged-in user's likes of posts, stored in Firestore with the posts' like counts, and
+     * read on [Dispatchers.Default].
+     */
+    val likeRepository: LikeRepository by lazy {
+        FirestoreLikeRepository(
+            accountRepository = accountRepository,
+            guestSignIn = guestSignIn,
+            firestore = FirebaseFirestore.getInstance(),
+            dispatcher = Dispatchers.Default
+        )
     }
 
     /** Uploads post and profile photos to Firebase Storage. */
@@ -127,6 +151,19 @@ class AppContainer(private val context: Context) {
      */
     val profileSaver: ProfileSaver by lazy {
         ProfileSaver(profileRepository, photoRepository, scope = applicationScope)
+    }
+
+    /**
+     * Deletes the logged-in user's posts and their photos in the app's scope, so leaving Feed or
+     * Profile doesn't stop that.
+     */
+    val postDeleter: PostDeleter by lazy {
+        PostDeleter(
+            postRepository = postRepository,
+            photoRepository = photoRepository,
+            accountRepository = accountRepository,
+            scope = applicationScope
+        )
     }
 
     /**

@@ -21,6 +21,12 @@ interface ProfileRepository {
     fun getProfile(uid: String): Flow<UserProfile>
 
     /**
+     * Every profile users have set up, in no particular order, emitted again whenever one
+     * changes. A user who hasn't set one up has none to list. Search finds people in it.
+     */
+    fun getProfiles(): Flow<List<UserProfile>>
+
+    /**
      * Stores [profile] as the profile of user [UserProfile.uid], replacing what was there.
      *
      * The new profile shows on the phone at once, but this returns only when the server has it.

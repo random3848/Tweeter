@@ -2,6 +2,31 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Whether someone is logged in, not a guest.
+    function isLoggedIn() {
+      return request.auth != null
+          && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    // Whether user [uid] is logged in, not a guest.
+    function isLoggedInAs(uid) {
+      return isLoggedIn() && request.auth.uid == uid;
+    }
+
+    // The path of the logged-in user's like of post [postId].
+    function likePath(postId) {
+      return /databases/$(database)/documents/users/$(request.auth.uid)/likes/$(postId);
+    }
+
+    // The like count of post [postId] before and after the request, which can be a batch.
+    function likeCountBefore(postId) {
+      return get(/databases/$(database)/documents/posts/$(postId)).data.get('likeCount', 0);
+    }
+
+    function likeCountAfter(postId) {
+      return getAfter(/databases/$(database)/documents/posts/$(postId)).data.get('likeCount', 0);
+    }
+
     // The fields and limits match ProfileDocument and UserProfile in the app.
     // Allows reading follower relationships across users for following counts.
     match /{path=**}/followers/{followerUid} {
@@ -10,18 +35,20 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if request.auth != null;
 
-      // Only the logged-in user (not a guest) can save their own profile.
-      allow create, update: if request.auth != null
-                            && request.auth.token.firebase.sign_in_provider != 'anonymous'
-                            && request.auth.uid == uid
-                            && request.resource.data.keys().hasOnly([
-                                 'displayName', 'bio', 'photoUrl'
-                               ])
-                            && request.resource.data.keys().hasAll([
-                                 'displayName', 'bio', 'photoUrl'
-                               ])
-                            && request.resource.data.displayName is string
-                            && request.resource.data.displayName.size() > 0
+        // Only the logged-in user (not a guest) can save their own profile.
+        allow create, update: if request.auth != null
+                              && request.auth.token.firebase.sign_in_provider != 'anonymous'
+                              && request.auth.uid == uid
+                              && request.resource.data.keys().hasOnly([
+                                   'displayName', 'bio', 'photoUrl'
+                                 ])
+                              && request.resource.data.keys().hasAll([
+                                   'displayName', 'bio', 'photoUrl'
+                                 ])
+                              && request.resource.data.displayName is string
+                              && request.resource.data.displayName.size() > 0
+                              && request.resource.data.displayName.size() <= 30
+                              && request.resource.data.bio is string
                             && request.resource.data.displayName.size() <= 30
                             && request.resource.data.bio is string
                             && request.resource.data.bio.size() <= 150
@@ -31,20 +58,31 @@ service cloud.firestore {
 
       // A follower document identifies who follows this user.
       match /followers/{followerUid} {
-                           allow read: if request.auth != null;
+        allow read: if request.auth != null;
 
-      // Registered users can follow others only as themselves.
-      allow create, update: if request.auth != null
-                             && request.auth.token.firebase.sign_in_provider != 'anonymous'
-                             && request.auth.uid == followerUid
-                             && followerUid != uid
-                             && request.resource.data.keys().hasOnly([]);
+        // Registered users can follow others only as themselves.
+        allow create: if request.auth != null
+                      && request.auth.token.firebase.sign_in_provider != 'anonymous'
+                      && request.auth.uid == followerUid
+                      && followerUid != uid
+                      && request.resource.data.keys().hasOnly([]);
 
-      // Users can remove only their own following relationship.
-       allow delete: if request.auth != null
-                             && request.auth.token.firebase.sign_in_provider != 'anonymous'
-                              && request.auth.uid == followerUid;
-                                  }
+        // Users can remove only their own following relationship.
+        allow delete: if request.auth != null
+                      && request.auth.token.firebase.sign_in_provider != 'anonymous'
+                      && request.auth.uid == followerUid;
+      }
+
+      // The posts the user liked: an empty document per post, named by its ID, which
+      // FirestoreLikeRepository adds or deletes in one batch with the post's like count.
+      match /likes/{postId} {
+        allow read: if isLoggedInAs(uid);
+        allow create: if isLoggedInAs(uid)
+                      && request.resource.data.keys().size() == 0
+                      && likeCountAfter(postId) == likeCountBefore(postId) + 1;
+        allow delete: if isLoggedInAs(uid)
+                      && likeCountAfter(postId) == likeCountBefore(postId) - 1;
+      }
     }
 
     // The fields match PostDocument in the app.
@@ -52,7 +90,13 @@ service cloud.firestore {
       // Guests (anonymous sessions) can read posts but not share them.
       allow read: if request.auth != null;
 
-      // Posts can't be edited or deleted yet.
+      // Posts can't be edited yet; liking one is the only change, which adds or takes
+      // one from its like count, in the same batch as the user's like (see /users/{uid}/likes).
+      allow update: if isLoggedIn()
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['likeCount'])
+                    && (isLiking(postId) || isUnliking(postId));
+
       allow create: if request.auth != null
                     && request.auth.token.firebase.sign_in_provider != 'anonymous'
                     && request.resource.data.keys().hasOnly([
@@ -78,6 +122,22 @@ service cloud.firestore {
                     && request.resource.data.get('commentCount', 0) == 0
                     // Set by Firestore when it receives the post, not by the phone's clock.
                     && request.resource.data.timestamp == request.time;
+                    // Only the post's author (not a guest) can delete it.
+      allow delete: if request.auth != null
+                    && request.auth.token.firebase.sign_in_provider != 'anonymous'
+                    && resource.data.authorUid == request.auth.uid;
+
+      function isLiking(postId) {
+        return request.resource.data.likeCount == resource.data.get('likeCount', 0) + 1
+            && !exists(likePath(postId))
+            && existsAfter(likePath(postId));
+      }
+
+      function isUnliking(postId) {
+        return request.resource.data.likeCount == resource.data.get('likeCount', 0) - 1
+            && exists(likePath(postId))
+            && !existsAfter(likePath(postId));
+      }
     }
   }
 }

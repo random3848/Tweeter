@@ -3,7 +3,10 @@
 
     <string name="navigation_home">Home</string>
     <string name="navigation_search">Search</string>
+<<<<<<< HEAD
     <string name="navigation_camera">Camera</string>
+=======
+>>>>>>> origin/development
     <string name="navigation_create_post">Create post</string>
     <string name="navigation_map">Map</string>
     <string name="navigation_profile">Profile</string>
@@ -13,6 +16,22 @@
     <string name="camera_close">Close camera</string>
     <string name="camera_retake">Retake photo</string>
 
+    <string name="search_field_label">Search people and animals</string>
+    <string name="search_prompt">Find people by their name, and animals that posts name.</string>
+    <string name="search_no_results">Nothing matches “%1$s”.</string>
+    <string name="search_people">People</string>
+    <string name="search_people_loading">Finding people…</string>
+    <string name="search_animals">Animals</string>
+    <string name="search_animals_loading">Finding animals…</string>
+    <string name="search_open_profile">View profile</string>
+    <string name="search_open_animal">See its posts</string>
+    <plurals name="search_animal_post_count">
+        <item quantity="one">%d post</item>
+        <item quantity="other">%d posts</item>
+    </plurals>
+
+    <string name="animal_posts_empty">No posts name this animal anymore.</string>
+
     <!-- Two details of a post on one line, such as its place and when it was shared. -->
     <string name="post_details">%1$s · %2$s</string>
 
@@ -21,10 +40,23 @@
     <string name="feed_no_photo">No photo</string>
     <string name="feed_confidence_rating">Confidence: %1$d of 5</string>
     <string name="feed_show_on_map">Show on map</string>
+    <string name="feed_like">Like</string>
+    <string name="feed_order_best">Best</string>
+    <string name="feed_order_newest">Newest</string>
+    <string name="feed_order_top">Top</string>
+    <plurals name="feed_like_count">
+        <item quantity="one">%1$d like</item>
+        <item quantity="other">%1$d likes</item>
+    </plurals>
 
     <string name="map_my_location">Show my location</string>
     <string name="map_post_photo_description">Photo taken here</string>
     <string name="map_popup_open">See the post on Home</string>
+    <string name="map_filter_all">All</string>
+    <string name="map_filter_friends">Friends</string>
+    <string name="map_filter_mine">Mine</string>
+    <string name="map_friends_unknown">Could not load your friends.</string>
+    <string name="map_friends_retry">Retry</string>
 
     <plurals name="profile_post_count">
         <item quantity="one">%d post</item>
@@ -111,6 +143,12 @@
     <string name="auth_reset_failed">Could not request a password reset. Check your email address and try again.</string>
 
     <string name="profile_log_out">Log out</string>
+
+    <string name="feed_delete_post">Delete post</string>
+    <string name="feed_delete_title">Delete post?</string>
+    <string name="feed_delete_message">This can\'t be undone.</string>
+    <string name="feed_delete_confirm">Delete</string>
+    <string name="feed_delete_cancel">Cancel</string>
     <string name="profile_follow">Follow</string>
     <string name="profile_unfollow">Unfollow</string>
     <string name="profile_log_in_to_follow">Log in to follow</string>
