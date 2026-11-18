@@ -21,6 +21,10 @@ import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.data.PostRows
 import edu.csuci.tweeter.ui.CenteredMessage
+import edu.csuci.tweeter.ui.comments.PostComments
 import edu.csuci.tweeter.ui.postDetailsText
 
 // Between a post's animal type and its confidence rating.
@@ -43,7 +48,8 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
  * otherwise the posts of [listedPosts] as a scrolling list, in the order of its rows, with a
  * divider between posts. Each has its author, photo, caption and animal, as Feed shows them, and
  * the logged-in user's own posts have a delete button, which asks before deleting. Each also has
- * a like button and its like count.
+ * a like button and its like count, and a button that opens its comments under it, where
+ * logged-in users can add one.
  *
  * @param listedPosts The posts to list.
  * @param isLoading Whether the posts are still being read.
@@ -53,6 +59,7 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
  *     capturing the table, so it stays the same as new tables arrive.
  * @param onDelete Deletes the post with the given ID. It takes the ID for the same reason.
  * @param onOpenProfile Opens the profile of the author with the given ID.
+ * @param onLogIn Opens Log in, for a guest who wants to comment.
  * @param likes Which posts the user liked and what pressing a like button does. It's required, so
  *     no screen listing posts leaves out their likes.
  * @param modifier Applied to the space the posts take.
@@ -67,6 +74,7 @@ internal fun PostList(
     onShowOnMap: (String) -> Unit,
     onDelete: (String) -> Unit,
     onOpenProfile: (String) -> Unit,
+    onLogIn: () -> Unit,
     likes: PostLikes,
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState()
@@ -87,6 +95,7 @@ internal fun PostList(
                 onShowOnMap = onShowOnMap,
                 onDelete = onDelete,
                 onOpenProfile = onOpenProfile,
+                onLogIn = onLogIn,
                 listState = listState,
                 likes = likes,
                 modifier = modifier
@@ -104,6 +113,7 @@ private fun PostItems(
     onShowOnMap: (String) -> Unit,
     onDelete: (String) -> Unit,
     onOpenProfile: (String) -> Unit,
+    onLogIn: () -> Unit,
     listState: LazyListState,
     likes: PostLikes,
     modifier: Modifier = Modifier
@@ -119,6 +129,8 @@ private fun PostItems(
         items(count = rows.size, key = { index -> posts.id(rows[index]) }) { index ->
             val row = rows[index]
             val postId = posts.id(row)
+            // Saved by post, so a post's comments stay open as the list scrolls and rotates.
+            var showsComments by rememberSaveable(postId) { mutableStateOf(false) }
             PostHeader(
                 postId = postId,
                 avatarInitials = posts.avatarInitials(row),
@@ -136,13 +148,22 @@ private fun PostItems(
                 imageUri = posts.imageUri(row),
                 onShowOnMap = onShowOnMap
             )
-            LikeButton(
-                likeCount = posts.likeCount(row),
-                isLiked = postId in likes.likedPostIds,
-                onClick = { likes.onLike(postId) }
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                LikeButton(
+                    likeCount = posts.likeCount(row),
+                    isLiked = postId in likes.likedPostIds,
+                    onClick = { likes.onLike(postId) }
+                )
+                CommentsButton(
+                    isOpen = showsComments,
+                    onClick = { showsComments = !showsComments }
+                )
+            }
             PostCaption(caption = posts.caption(row))
             AnimalDetails(text = animalDetailsOf(posts.animalType(row), posts.confidence(row)))
+            if (showsComments) {
+                PostComments(postId = postId, onLogIn = onLogIn)
+            }
             if (index < lastIndex) {
                 HorizontalDivider(
                     modifier = Modifier.padding(vertical = 12.dp),

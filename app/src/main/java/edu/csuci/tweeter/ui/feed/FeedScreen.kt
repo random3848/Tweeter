@@ -25,15 +25,15 @@ import edu.csuci.tweeter.ui.navigation.TweeterTopBar
  *
  * Displays posts from [FeedViewModel] in a clean scrolling layout, as the user picks with the chips
  * above them: everyone's by Best, Newest or Top, or, for users who are logged in, their friends'.
- * Picking one shows its first post. A label
- * on each post's photo shows the post on Map, and a heart under it likes the post, or opens Log in
- * for guests, who can't. When another screen asks the feed to show a post, as Map's popup does,
- * the feed scrolls to it. The logged-in user's own posts have a delete button, which asks before
- * deleting.
+ * Picking one shows its first post. A label on each post's photo shows the post on Map, and a
+ * heart under it likes the post, or opens Log in for guests, who can't, and a button beside it
+ * opens its comments, which guests can read. When another screen asks the feed to show a post, as
+ * Map's popup does, the feed scrolls to it. The logged-in user's own posts have a delete button,
+ * which asks before deleting.
  *
  * @param onShowOnMap Opens Map, once the post the user chose is requested there.
  * @param onOpenProfile Opens the selected author's profile.
- * @param onLogIn Opens Log in, for a guest who tries to like a post.
+ * @param onLogIn Opens Log in, for a guest who tries to like a post or wants to comment.
  * @param modifier Applied to the whole screen.
  * @param topBarActions Buttons on the right of the top bar, such as the profile button.
  * @param feedViewModel Supplies posts and UI state for the feed.
@@ -89,6 +89,7 @@ fun FeedScreen(
                 onShowOnMap = showPostOnMap,
                 onDelete = feedViewModel::deletePost,
                 onOpenProfile = onOpenProfile,
+                onLogIn = onLogIn,
                 modifier = bodyModifier,
                 listState = listState,
                 likes = PostLikes(likedPostIds = uiState.likedPostIds, onLike = likePost)

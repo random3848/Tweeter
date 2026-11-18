@@ -23,7 +23,7 @@ import edu.csuci.tweeter.ui.navigation.BackTopBar
  * @param onBack Returns to the screen it was opened from.
  * @param onShowOnMap Opens Map, once the post the user chose is requested there.
  * @param onOpenProfile Opens the profile of the user with the given ID.
- * @param onLogIn Opens Log in, for a guest who tries to like a post.
+ * @param onLogIn Opens Log in, for a guest who tries to like a post or wants to comment.
  * @param modifier Applied to the whole screen.
  * @param viewModel Supplies the animal's posts.
  */
@@ -58,6 +58,7 @@ fun AnimalPostsScreen(
             onShowOnMap = showPostOnMap,
             onDelete = viewModel::deletePost,
             onOpenProfile = onOpenProfile,
+            onLogIn = onLogIn,
             likes = PostLikes(likedPostIds = uiState.likedPostIds, onLike = likePost),
             modifier = Modifier.weight(1f).fillMaxWidth()
         )

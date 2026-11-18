@@ -7,9 +7,11 @@ import com.google.firebase.storage.FirebaseStorage
 import edu.csuci.tweeter.data.AccountRepository
 import edu.csuci.tweeter.data.AnimalRepository
 import edu.csuci.tweeter.data.CameraFileStore
+import edu.csuci.tweeter.data.CommentRepository
 import edu.csuci.tweeter.data.FakeAnimalRepository
 import edu.csuci.tweeter.data.FirebaseAccountRepository
 import edu.csuci.tweeter.data.FirebasePhotoRepository
+import edu.csuci.tweeter.data.FirestoreCommentRepository
 import edu.csuci.tweeter.data.FirestoreFollowRepository
 import edu.csuci.tweeter.data.FirestoreLikeRepository
 import edu.csuci.tweeter.data.FirestorePostRepository
@@ -104,6 +106,11 @@ class AppContainer(private val context: Context) {
             auth = FirebaseAuth.getInstance(),
             firestore = FirebaseFirestore.getInstance()
         )
+    }
+
+    /** Every comment on posts, stored in Firestore. */
+    val commentRepository: CommentRepository by lazy {
+        FirestoreCommentRepository(firestore = FirebaseFirestore.getInstance())
     }
 
     /**
