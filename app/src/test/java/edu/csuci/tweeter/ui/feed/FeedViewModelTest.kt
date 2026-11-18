@@ -368,7 +368,7 @@ class FeedViewModelTest {
         val accountRepository = FakeAccountRepository(loggedInUid)
         return FeedViewModel(
             postRepository = repository,
-            likeRepository = likes,
+            postLiker = PostLiker(likes),
             postDeleter = PostDeleter(
                 postRepository = repository,
                 photoRepository = FakePhotoRepository(),

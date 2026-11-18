@@ -1,6 +1,5 @@
 package edu.csuci.tweeter.ui.feed
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
@@ -9,8 +8,6 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
-import edu.csuci.tweeter.data.LikeException
-import edu.csuci.tweeter.data.LikeRepository
 import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostRows
@@ -26,13 +23,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.runningFold
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-
-private const val TAG = "FeedViewModel"
 
 /**
  * The UI state of the home feed screen.
@@ -66,7 +59,7 @@ data class FeedUiState(
  * posts.
  *
  * @param postRepository Where posts are read from.
- * @param likeRepository Which posts the user liked, and where [toggleLike] saves likes.
+ * @param postLiker Which posts the user liked, and saves the likes [toggleLike] makes.
  * @param postDeleter Deletes the logged-in user's posts and their photos.
  * @param accountRepository Who is logged in: guests can't like posts, and only the user's own posts
  *     show a delete button.
@@ -79,7 +72,7 @@ data class FeedUiState(
  */
 class FeedViewModel(
     postRepository: PostRepository,
-    private val likeRepository: LikeRepository,
+    private val postLiker: PostLiker,
     private val postDeleter: PostDeleter,
     accountRepository: AccountRepository,
     private val showInFeedRequest: ShowPostRequest,
@@ -89,12 +82,6 @@ class FeedViewModel(
     sharing: SharingStarted
 ) : ViewModel() {
     private val order = MutableStateFlow(FeedOrder.BEST)
-
-    // The IDs of the posts whose like change the server hasn't saved yet. Their hearts ignore taps
-    // until it has: a tap reads whether the post is liked from [uiState], which shows the change
-    // only once Firestore's listener reports it, so a second tap before then would repeat the
-    // first.
-    private val postsWithLikeChanging = MutableStateFlow(emptySet<String>())
 
     // Ranked when the user picks an order, and kept for every new table until they pick another.
     private val rankedPosts: Flow<RankedPosts> =
@@ -116,7 +103,7 @@ class FeedViewModel(
         combine(
             rankedPosts,
             showInFeedRequest.postId,
-            likeRepository.getLikedPostIds(),
+            postLiker.likedPostIds(),
             accountRepository.loggedInUid
         ) { ranked, postToShow, likedPostIds, loggedInUid ->
             FeedUiState(
@@ -154,24 +141,8 @@ class FeedViewModel(
      * shows the like as it was.
      */
     fun toggleLike(postId: String) {
-        val isAlreadyChanging = postId in postsWithLikeChanging.getAndUpdate { it + postId }
-        if (isAlreadyChanging) {
-            return
-        }
         val isLiked = postId in uiState.value.likedPostIds
-        val change = if (isLiked) likeRepository::unlike else likeRepository::like
-        viewModelScope.launch { saveLikeChange(postId, change) }
-    }
-
-    // Saves [change] to the like of the post with [postId], then lets its heart take taps again.
-    private suspend fun saveLikeChange(postId: String, change: suspend (postId: String) -> Unit) {
-        try {
-            change(postId)
-        } catch (error: LikeException) {
-            Log.e(TAG, "Could not change the like of post $postId", error)
-        } finally {
-            postsWithLikeChanging.update { it - postId }
-        }
+        viewModelScope.launch { postLiker.toggleLike(postId, isLiked) }
     }
 
     /** Asks Map to show the post with [postId], which opens its popup when Map opens. */
@@ -194,7 +165,7 @@ class FeedViewModel(
                 val application = this[APPLICATION_KEY] as TweeterApplication
                 FeedViewModel(
                     postRepository = application.container.postRepository,
-                    likeRepository = application.container.likeRepository,
+                    postLiker = PostLiker(application.container.likeRepository),
                     postDeleter = application.container.postDeleter,
                     accountRepository = application.container.accountRepository,
                     showInFeedRequest = application.container.showInFeedRequest,
