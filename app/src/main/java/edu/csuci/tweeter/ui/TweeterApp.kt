@@ -251,7 +251,8 @@ private fun TweeterNavHost(
         addAnimalPostsScreen(
             onBack = { navController.navigateUp() },
             onShowOnMap = { navController.navigateToTopLevel(MapRoute) },
-            onOpenProfile = openUserProfile
+            onOpenProfile = openUserProfile,
+            onLogIn = openLogIn
         )
         addPostScreen(onLogIn = openLogIn, onCreateAccount = openCreateAccount)
         addMapScreen()
