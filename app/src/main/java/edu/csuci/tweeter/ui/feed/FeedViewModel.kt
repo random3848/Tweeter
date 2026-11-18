@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import edu.csuci.tweeter.TweeterApplication
+import edu.csuci.tweeter.data.AccountRepository
+import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostRows
 import edu.csuci.tweeter.data.PostTable
@@ -41,9 +43,11 @@ data class FeedUiState(
 }
 
 /**
- * Holds posts for [FeedScreen].
+ * Holds posts for [FeedScreen], and deletes the logged-in user's own posts.
  *
- * @param postRepository Where post data is read from.
+ * @param postRepository Where posts are read from.
+ * @param postDeleter Deletes the logged-in user's posts and their photos.
+ * @param accountRepository Tells who is logged in, so only their posts show a delete button.
  * @param showInFeedRequest The post another screen asks the feed to show, which it scrolls to.
  * @param showOnMapRequest Where [showOnMap] asks Map to show a post.
  * @param postsDispatcher Where the rows are listed and the row of the post to show is found:
@@ -52,6 +56,8 @@ data class FeedUiState(
  */
 class FeedViewModel(
     postRepository: PostRepository,
+    private val postDeleter: PostDeleter,
+    accountRepository: AccountRepository,
     private val showInFeedRequest: ShowPostRequest,
     private val showOnMapRequest: ShowPostRequest,
     postsDispatcher: CoroutineDispatcher,
@@ -78,6 +84,9 @@ class FeedViewModel(
             initialValue = FeedUiState()
         )
 
+    /** The logged-in user's ID, or null for guests, who can't delete posts. */
+    val loggedInUid: StateFlow<String?> = accountRepository.loggedInUid
+
     /** Forgets the post to show once the feed has scrolled to it, so it doesn't scroll again. */
     fun clearPostToShow() {
         showInFeedRequest.clear()
@@ -88,6 +97,14 @@ class FeedViewModel(
         showOnMapRequest.send(postId)
     }
 
+    /**
+     * Deletes the post with [postId], then its photo, if the logged-in user wrote it. The feed
+     * drops the post on its own, since [uiState] follows the repository's posts.
+     */
+    fun deletePost(postId: String) {
+        postDeleter.deleteOwnPost(uiState.value.posts, postId)
+    }
+
     companion object {
         /** Creates a [FeedViewModel] that reads the app's shared posts and requests. */
         val factory: ViewModelProvider.Factory = viewModelFactory {
@@ -95,6 +112,8 @@ class FeedViewModel(
                 val application = this[APPLICATION_KEY] as TweeterApplication
                 FeedViewModel(
                     postRepository = application.container.postRepository,
+                    postDeleter = application.container.postDeleter,
+                    accountRepository = application.container.accountRepository,
                     showInFeedRequest = application.container.showInFeedRequest,
                     showOnMapRequest = application.container.showOnMapRequest,
                     postsDispatcher = Dispatchers.Default,

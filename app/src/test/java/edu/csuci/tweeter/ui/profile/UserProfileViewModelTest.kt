@@ -111,6 +111,8 @@ class UserProfileViewModelTest {
         }
 
         override suspend fun addPost(post: Post) = Unit
+
+        override suspend fun deletePost(postId: String) = Unit
     }
 
     private class FakeAccountRepository(uid: String?) : AccountRepository {

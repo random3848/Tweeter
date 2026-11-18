@@ -55,6 +55,12 @@ class FirestorePostRepository(
         posts.document(post.id).set(PostDocument.fieldsOf(post)).await()
     }
 
+    // No guest sign-in: only the post's author may delete it, and the Firestore rules refuse
+    // anyone else, guests included.
+    override suspend fun deletePost(postId: String) {
+        posts.document(postId).delete().await()
+    }
+
     // Each snapshot of [query], as [snapshotsOn] delivers them, once a guest is signed in if nobody
     // is.
     private fun snapshotsOf(query: Query): Flow<QuerySnapshot> = flow {

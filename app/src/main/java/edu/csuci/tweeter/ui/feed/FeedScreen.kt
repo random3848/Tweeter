@@ -24,7 +24,8 @@ import edu.csuci.tweeter.ui.navigation.TweeterTopBar
  *
  * Displays posts from [FeedViewModel], newest first, in a clean scrolling layout. A label
  * on each post's photo shows the post on Map. When another screen asks the feed to show a post,
- * as Map's popup does, the feed scrolls to it.
+ * as Map's popup does, the feed scrolls to it. The logged-in user's own posts have a delete
+ * button, which asks before deleting.
  *
  * @param onShowOnMap Opens Map, once the post the user chose is requested there.
  * @param modifier Applied to the whole screen.
@@ -41,6 +42,7 @@ fun FeedScreen(
     feedViewModel: FeedViewModel = viewModel(factory = FeedViewModel.factory)
 ) {
     val uiState by feedViewModel.uiState.collectAsStateWithLifecycle()
+    val loggedInUid by feedViewModel.loggedInUid.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
 
     val rowToShow = uiState.rowToShow
@@ -56,6 +58,10 @@ fun FeedScreen(
     val showPostOnMap = { postId: String ->
         feedViewModel.showOnMap(postId)
         onShowOnMap()
+    }
+    // Takes the post's ID for the same reason.
+    val deletePost = { postId: String ->
+        feedViewModel.deletePost(postId)
     }
     Column(modifier = modifier.fillMaxSize()) {
         TweeterTopBar(actions = topBarActions)
@@ -77,7 +83,9 @@ fun FeedScreen(
             else -> {
                 PostList(
                     listedPosts = uiState.listedPosts,
+                    loggedInUid = loggedInUid,
                     onShowOnMap = showPostOnMap,
+                    onDelete = deletePost,
                     onOpenProfile = onOpenProfile,
                     modifier = bodyModifier,
                     listState = listState

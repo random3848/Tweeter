@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import edu.csuci.tweeter.TweeterApplication
+import edu.csuci.tweeter.data.AccountRepository
+import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostRows
 import edu.csuci.tweeter.data.PostTable
@@ -31,10 +33,13 @@ data class AnimalPostsUiState(
 )
 
 /**
- * Holds the posts that name one animal, for [AnimalPostsScreen].
+ * Holds the posts that name one animal, for [AnimalPostsScreen], and deletes the logged-in user's
+ * own posts, as Feed does.
  *
  * @param animal The animal's name, as [PostTable.rowsOfAnimal] matches it.
  * @param postRepository Where the posts come from.
+ * @param postDeleter Deletes the logged-in user's posts and their photos.
+ * @param accountRepository Tells who is logged in, so only their posts show a delete button.
  * @param showOnMapRequest Where [showOnMap] asks Map to show a post.
  * @param rowsDispatcher Where the animal's rows are found: off the main thread, since finding
  *     them is a pass over every post.
@@ -43,6 +48,8 @@ data class AnimalPostsUiState(
 class AnimalPostsViewModel(
     animal: String,
     postRepository: PostRepository,
+    private val postDeleter: PostDeleter,
+    accountRepository: AccountRepository,
     private val showOnMapRequest: ShowPostRequest,
     rowsDispatcher: CoroutineDispatcher,
     sharing: SharingStarted
@@ -58,9 +65,20 @@ class AnimalPostsViewModel(
         .flowOn(rowsDispatcher)
         .stateIn(viewModelScope, sharing, AnimalPostsUiState())
 
+    /** The logged-in user's ID, or null for guests, who can't delete posts. */
+    val loggedInUid: StateFlow<String?> = accountRepository.loggedInUid
+
     /** Asks Map to show the post with [postId], which opens its popup when Map opens. */
     fun showOnMap(postId: String) {
         showOnMapRequest.send(postId)
+    }
+
+    /**
+     * Deletes the post with [postId], then its photo, if the logged-in user wrote it. The list
+     * drops the post on its own, since [uiState] follows the repository's posts.
+     */
+    fun deletePost(postId: String) {
+        postDeleter.deleteOwnPost(uiState.value.listedPosts.table, postId)
     }
 
     companion object {
@@ -75,6 +93,8 @@ class AnimalPostsViewModel(
                 AnimalPostsViewModel(
                     animal = animal,
                     postRepository = application.container.postRepository,
+                    postDeleter = application.container.postDeleter,
+                    accountRepository = application.container.accountRepository,
                     showOnMapRequest = application.container.showOnMapRequest,
                     rowsDispatcher = Dispatchers.Default,
                     sharing = application.container.whileScreenCollects

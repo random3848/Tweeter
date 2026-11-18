@@ -19,7 +19,7 @@ import edu.csuci.tweeter.ui.navigation.BackTopBar
 
 /**
  * The posts that name one animal, newest first, as Feed shows posts, under a top bar with the
- * animal's name. Search opens it.
+ * animal's name. Search opens it. As in Feed, the logged-in user's own posts have a delete button.
  *
  * @param animal The animal's name, as posts name it.
  * @param onBack Returns to the screen it was opened from.
@@ -40,6 +40,7 @@ fun AnimalPostsScreen(
     )
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val loggedInUid by viewModel.loggedInUid.collectAsStateWithLifecycle()
     // Takes the post's ID, so that it stays the same lambda as new tables arrive.
     val showPostOnMap = { postId: String ->
         viewModel.showOnMap(postId)
@@ -66,7 +67,9 @@ fun AnimalPostsScreen(
             else -> {
                 PostList(
                     listedPosts = uiState.listedPosts,
+                    loggedInUid = loggedInUid,
                     onShowOnMap = showPostOnMap,
+                    onDelete = viewModel::deletePost,
                     onOpenProfile = onOpenProfile,
                     modifier = bodyModifier
                 )

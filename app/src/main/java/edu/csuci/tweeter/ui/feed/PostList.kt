@@ -36,14 +36,17 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
 
 /**
  * The posts of [listedPosts] as a scrolling list, in the order of its rows, with a divider
- * between posts: each with its author, photo, caption and animal, as Feed shows them.
+ * between posts: each with its author, photo, caption and animal, as Feed shows them. The
+ * logged-in user's own posts have a delete button, which asks before deleting.
  *
  * This is where an item reads its post's row: the parts it's made of get the values they show, so
  * a part whose values didn't change is skipped when a new table arrives.
  *
  * @param listedPosts The posts to list.
+ * @param loggedInUid The logged-in user's ID, whose posts get a delete button, or null for guests.
  * @param onShowOnMap Shows the post with the given ID on Map. It takes the ID rather than
  *     capturing the table, so it stays the same as new tables arrive.
+ * @param onDelete Deletes the post with the given ID. It takes the ID for the same reason.
  * @param onOpenProfile Opens the profile of the author with the given ID.
  * @param modifier Applied to the list.
  * @param listState The list's scroll position.
@@ -51,7 +54,9 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
 @Composable
 internal fun PostList(
     listedPosts: PostRows,
+    loggedInUid: String?,
     onShowOnMap: (String) -> Unit,
+    onDelete: (String) -> Unit,
     onOpenProfile: (String) -> Unit,
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState()
@@ -67,11 +72,16 @@ internal fun PostList(
         items(count = rows.size, key = { index -> posts.id(rows[index]) }) { index ->
             val row = rows[index]
             PostHeader(
+                postId = posts.id(row),
                 avatarInitials = posts.avatarInitials(row),
                 username = posts.username(row),
                 details = postDetailsText(posts.locationName(row), posts.timestampMillis(row)),
                 authorUid = posts.authorUid(row),
-                onOpenProfile = onOpenProfile
+                // A guest's ID is null, and a post shared while logged out has no author, so
+                // neither matches.
+                isMine = loggedInUid != null && posts.authorUid(row) == loggedInUid,
+                onOpenProfile = onOpenProfile,
+                onDelete = onDelete
             )
             PhotoWithMapLabel(
                 postId = posts.id(row),
@@ -93,21 +103,29 @@ internal fun PostList(
 
 /**
  * The top of a post: the poster's avatar and name, where the post was shared and how long ago.
- * It receives the displayed texts and author UID separately from the post table.
+ * Pressing it opens the author's profile. On the logged-in user's own posts it also has a delete
+ * button, which asks before deleting. It receives the displayed texts and author UID separately
+ * from the post table.
  *
+ * @param postId The post's ID, which [onDelete] is called with.
  * @param avatarInitials The initials in the poster's avatar.
  * @param username The poster's name.
  * @param details Where the post was shared and how long ago, as [postDetailsText] puts it.
  * @param authorUid The Firebase UID of the post's author.
- * @param onOpenProfile Opens the profile of the author with the given ID.
+ * @param isMine Whether the logged-in user wrote the post, which shows the delete button.
+ * @param onOpenProfile Opens the profile of the author with the given UID.
+ * @param onDelete Deletes the post with the given ID, once the user confirms.
  */
 @Composable
 private fun PostHeader(
+    postId: String,
     avatarInitials: String,
     username: String,
     details: String,
     authorUid: String,
-    onOpenProfile: (String) -> Unit
+    isMine: Boolean,
+    onOpenProfile: (String) -> Unit,
+    onDelete: (String) -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -136,7 +154,11 @@ private fun PostHeader(
             )
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        // Takes the leftover width, which puts the delete button at the right edge.
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
             Text(
                 text = username,
                 style = MaterialTheme.typography.titleMedium,
@@ -147,6 +169,10 @@ private fun PostHeader(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+
+        if (isMine) {
+            DeletePostButton(postId = postId, onDelete = onDelete)
         }
     }
 }

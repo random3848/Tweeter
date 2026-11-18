@@ -20,8 +20,9 @@ import edu.csuci.tweeter.ui.auth.LogInPrompt
 import edu.csuci.tweeter.ui.navigation.BackTopBar
 
 /**
- * The logged-in user's profile: their picture, name and bio, then the posts they shared. While
- * nobody is logged in, it asks the user to log in instead.
+ * The logged-in user's profile: their picture, name and bio, then the posts they shared, each with
+ * a delete button that asks before deleting. While nobody is logged in, it asks the user to log
+ * in instead.
  *
  * It is opened from Feed and has its own top bar with a back arrow.
  *
@@ -74,7 +75,8 @@ fun ProfileScreen(
                 ProfileContent(
                     profile = state.profile,
                     table = state.table,
-                    rows = state.rows
+                    rows = state.rows,
+                    onDeletePost = profileViewModel::deletePost
                 ) {
                     FilledTonalButton(
                         onClick = onEditProfile,
