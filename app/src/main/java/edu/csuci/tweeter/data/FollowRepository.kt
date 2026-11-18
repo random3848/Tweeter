@@ -1,11 +1,9 @@
 package edu.csuci.tweeter.data
 
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 
 /**
  * Follower relationships between registered users.
@@ -39,7 +37,8 @@ interface FollowRepository {
     /**
      * The IDs of the users who follow [followedUid], updated as they follow and unfollow.
      *
-     * A failed read fails the flow.
+     * Unlike the counts, it emits the followers the phone has cached first, then the server's, so
+     * it works offline and shows a follow made on this phone at once. A failed read fails the flow.
      */
     fun observeFollowerUids(followedUid: String): Flow<Set<String>>
 
@@ -65,19 +64,19 @@ interface FollowRepository {
  * updated as either of them follows or unfollows. A failed read fails the flow.
  *
  * It reads only followers, which every follow is stored as: [userUid]'s followers, then, for each
- * of them, whether [userUid] is among theirs. That's one listener for [userUid]'s followers and
- * one per follower.
+ * of them, whether [userUid] is among theirs. That's one listener for [userUid]'s followers, and
+ * one per follower, opened when they start following and closed when they stop, so a follow or
+ * unfollow reads only that one relationship again. Friends are emitted once every follower's
+ * relationship has been read.
  */
-@OptIn(ExperimentalCoroutinesApi::class)
-fun FollowRepository.observeFriendUids(userUid: String): Flow<Set<String>> =
-    observeFollowerUids(userUid).flatMapLatest { followerUids ->
-        if (followerUids.isEmpty()) {
-            flowOf(emptySet())
-        } else {
-            val followedBack = followerUids.map { followerUid ->
-                observeFollowing(userUid, followerUid)
-                    .map { follows -> followerUid.takeIf { follows } }
-            }
-            combine(followedBack) { friendUids -> friendUids.filterNotNullTo(HashSet()) }
-        }
+fun FollowRepository.observeFriendUids(userUid: String): Flow<Set<String>> = channelFlow {
+    val followBacks = FollowBacks(
+        repository = this@observeFriendUids,
+        userUid = userUid,
+        scope = this
+    )
+    launch {
+        followBacks.friendUids().collect { friendUids -> send(friendUids) }
     }
+    observeFollowerUids(userUid).collect(followBacks::readFollowers)
+}.distinctUntilChanged()

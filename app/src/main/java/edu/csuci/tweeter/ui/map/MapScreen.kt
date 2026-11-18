@@ -120,7 +120,8 @@ fun MapScreen(
                         mapState = mapState,
                         header = {
                             OfferedPinFilter(
-                                uiState = uiState,
+                                pinFilter = uiState.pinFilter,
+                                friendsUnknown = uiState.friendsUnknown,
                                 onChoose = viewModel::choosePinFilter,
                                 onRetryFriends = viewModel::retryFriends
                             )
@@ -146,22 +147,26 @@ fun MapScreen(
 }
 
 /**
- * [PinFilterBar] for the filter [uiState] offers, or nothing while nobody is logged in.
+ * [PinFilterBar] with [pinFilter] selected, or nothing while the map offers no filter.
  *
- * @param uiState The filter offered, and whether the map could read the user's friends.
+ * @param pinFilter The filter selected, or null while nobody is logged in.
+ * @param friendsUnknown Whether the map couldn't read the user's friends.
  * @param onChoose Called with the filter the user presses.
  * @param onRetryFriends Called when the user asks to read their friends again.
  */
 @Composable
 private fun OfferedPinFilter(
-    uiState: MapUiState,
+    pinFilter: PinFilter?,
+    friendsUnknown: Boolean,
     onChoose: (PinFilter) -> Unit,
     onRetryFriends: () -> Unit
 ) {
-    val pinFilter = uiState.pinFilter ?: return
+    if (pinFilter == null) {
+        return
+    }
     PinFilterBar(
         chosen = pinFilter,
-        friendsUnknown = uiState.friendsUnknown,
+        friendsUnknown = friendsUnknown,
         onChoose = onChoose,
         onRetryFriends = onRetryFriends,
         modifier = Modifier.padding(
