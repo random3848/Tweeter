@@ -15,6 +15,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -26,6 +27,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import edu.csuci.tweeter.R
+import edu.csuci.tweeter.ui.animal.AnimalPostsRoute
+import edu.csuci.tweeter.ui.animal.addAnimalPostsScreen
 import edu.csuci.tweeter.ui.auth.CreateAccountRoute
 import edu.csuci.tweeter.ui.auth.LogInRoute
 import edu.csuci.tweeter.ui.auth.addCreateAccountScreen
@@ -48,6 +51,8 @@ import edu.csuci.tweeter.ui.profile.UserProfileRoute
 import edu.csuci.tweeter.ui.profile.addEditProfileScreen
 import edu.csuci.tweeter.ui.profile.addProfileScreen
 import edu.csuci.tweeter.ui.profile.addUserProfileScreen
+import edu.csuci.tweeter.ui.search.SearchRoute
+import edu.csuci.tweeter.ui.search.addSearchScreen
 
 /**
  * Bottom-bar items in display order.
@@ -60,6 +65,12 @@ internal val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
         unselectedIcon = R.drawable.ic_home_unfilled,
         description = R.string.navigation_home,
         route = FeedRoute
+    ),
+    BottomBarItem(
+        selectedIcon = R.drawable.ic_search_filled,
+        unselectedIcon = R.drawable.ic_search_unfilled,
+        description = R.string.navigation_search,
+        route = SearchRoute
     ),
     BottomBarItem(
         selectedIcon = R.drawable.ic_upload_filled,
@@ -91,8 +102,10 @@ internal val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
  * not edit this file beyond those two lines; keep everything else in the feature's package
  *
  * Profile is not a tab: Feed's profile button opens it, and Home stays selected while it is open.
- * Pressing Home always shows the feed itself, closing Profile or any screen opened from it, even
- * from another tab. Pressing the selected Post or Map tab returns to the screen it opens to.
+ * A screen opened from a tab keeps that tab selected, such as a profile opened from Home or from
+ * Search, or Log in opened from Post. Pressing Home always shows the feed itself, closing Profile
+ * or any screen opened from it, even from another tab. Pressing the selected Search, Post or Map
+ * tab returns to the screen it opens to.
  * Every screen draws its own top bar, [edu.csuci.tweeter.ui.navigation.TweeterTopBar] on the tabs'
  * screens and [edu.csuci.tweeter.ui.navigation.BackTopBar] on screens opened from them, so a bar
  * comes and goes with its screen. Profile and Post open Log in and Create account for guests, and
@@ -125,19 +138,10 @@ fun TweeterApp(modifier: Modifier = Modifier) {
             hasOpenedMap = true
         }
     }
-    val isOnAuth = destination?.hasRoute(LogInRoute::class) == true ||
-        destination?.hasRoute(CreateAccountRoute::class) == true
     val isOnEditProfile = destination?.hasRoute(EditProfileRoute::class) == true
-    // Log in and Create account keep the tab of the screen that opened them selected.
-    val tabDestination = if (isOnAuth) {
-        navController.previousBackStackEntry?.destination
-    } else {
-        destination
-    }
-    val selectedIndex = if (tabDestination?.hasRoute(UserProfileRoute::class) == true) {
-        BOTTOM_BAR_ITEMS.indexOfFirst { it.route == FeedRoute }
-    } else {
-        selectedTabIndex(BOTTOM_BAR_ITEMS, tabDestination)
+    // Every navigation changes the top of the back stack, so it's found again only then.
+    val selectedIndex = remember(backStackEntry) {
+        selectedTabIndex(BOTTOM_BAR_ITEMS, navController.screenBackStack().map { it.destination })
     }
     val openLogIn = {
         navController.navigate(LogInRoute) {
@@ -217,13 +221,14 @@ private fun TweeterNavHost(
         enterTransition = { EnterTransition.None },
         exitTransition = { ExitTransition.None }
     ) {
+        val openUserProfile = { userUid: String ->
+            navController.navigate(UserProfileRoute(userUid)) {
+                launchSingleTop = true
+            }
+        }
         addFeedScreen(
             onShowOnMap = { navController.navigateToTopLevel(MapRoute) },
-            onOpenProfile = { userUid ->
-                navController.navigate(UserProfileRoute(userUid)) {
-                    launchSingleTop = true
-                }
-            },
+            onOpenProfile = openUserProfile,
             topBarActions = {
                 ProfileButton(
                     onClick = {
@@ -233,6 +238,19 @@ private fun TweeterNavHost(
                     }
                 )
             }
+        )
+        addSearchScreen(
+            onOpenProfile = openUserProfile,
+            onOpenAnimal = { animal ->
+                navController.navigate(AnimalPostsRoute(animal)) {
+                    launchSingleTop = true
+                }
+            }
+        )
+        addAnimalPostsScreen(
+            onBack = { navController.navigateUp() },
+            onShowOnMap = { navController.navigateToTopLevel(MapRoute) },
+            onOpenProfile = openUserProfile
         )
         addPostScreen(onLogIn = openLogIn, onCreateAccount = openCreateAccount)
         addMapScreen()

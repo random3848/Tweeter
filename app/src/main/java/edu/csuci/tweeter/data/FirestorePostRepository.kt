@@ -8,10 +8,7 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -42,8 +39,8 @@ class FirestorePostRepository(
     private val posts = firestore.collection(PostDocument.COLLECTION)
     private val newestFirst =
         posts.orderBy(PostDocument.Field.TIMESTAMP.key, Query.Direction.DESCENDING)
-    private val postTable = snapshotsOf(newestFirst)
-        .retryWithBackoff(TAG, resetsBackoff = ::isFromServer)
+    private val postTable = newestFirst.signedInSnapshots(guestSignIn, dispatcher)
+        .retryWithBackoff(TAG, resetsBackoff = QuerySnapshot::isFromServer)
         .map(::tableOf)
         .flowOn(dispatcher)
         .distinctUntilChanged(PostTable::holdsSamePosts)
@@ -61,30 +58,6 @@ class FirestorePostRepository(
     override suspend fun deletePost(postId: String) {
         posts.document(postId).delete().await()
     }
-
-    // Each snapshot of [query], delivered on [dispatcher] one at a time. The newest snapshot
-    // replaces any that wasn't read yet, so it can't be dropped, and stale ones aren't read.
-    private fun snapshotsOf(query: Query): Flow<QuerySnapshot> = callbackFlow {
-        guestSignIn.signInIfSignedOut()
-
-        val executor = dispatcher.serialExecutor()
-        val registration = query.addSnapshotListener(executor) { snapshot, error ->
-            if (error != null) {
-                // The listener stops after an error; retrying sets up a new one.
-                close(error)
-                return@addSnapshotListener
-            }
-            if (snapshot != null) {
-                trySend(snapshot)
-            }
-        }
-
-        awaitClose { registration.remove() }
-    }.conflate()
-
-    // Whether [snapshot] came from the server. One from the phone's cache can come first even
-    // when the server then rejects the listener, so it doesn't show the listener works again.
-    private fun isFromServer(snapshot: QuerySnapshot): Boolean = !snapshot.metadata.isFromCache
 
     // The well-formed posts of [snapshot], in order; the others are logged and left out.
     private fun tableOf(snapshot: QuerySnapshot): PostTable {
