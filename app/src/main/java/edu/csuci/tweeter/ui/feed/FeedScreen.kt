@@ -1,250 +1,123 @@
 package edu.csuci.tweeter.ui.feed
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
-import edu.csuci.tweeter.data.Post
-import edu.csuci.tweeter.ui.profile.timeAgoText
+import edu.csuci.tweeter.ui.CenteredMessage
+import edu.csuci.tweeter.ui.navigation.TweeterTopBar
 
 /**
- * The home feed, the screen the app opens to.
+ * The home feed, the screen the app opens to, under the app's top bar.
  *
- * Displays posts from [FeedViewModel], sorted by timestamp, in a clean scrolling layout. A label
- * on each post's photo shows the post on Map. When another screen asks the feed to show a post,
- * as Map's popup does, the feed scrolls to it.
+ * Displays posts from [FeedViewModel] in a clean scrolling layout, as the user picks with the chips
+ * above them: everyone's by Best, Newest or Top, or, for users who are logged in, their friends'.
+ * Picking one shows its first post. A label on each post's photo shows the post on Map, and a
+ * heart under it likes the post, or opens Log in for guests, who can't, and a button beside it
+ * opens its comments, which guests can read. When another screen asks the feed to show a post, as
+ * Map's popup does, the feed scrolls to it. The logged-in user's own posts have a delete button,
+ * which asks before deleting.
  *
  * @param onShowOnMap Opens Map, once the post the user chose is requested there.
+ * @param onOpenProfile Opens the selected author's profile.
+ * @param onLogIn Opens Log in, for a guest who tries to like a post or wants to comment.
  * @param modifier Applied to the whole screen.
+ * @param topBarActions Buttons on the right of the top bar, such as the profile button.
  * @param feedViewModel Supplies posts and UI state for the feed.
  */
 @Composable
 fun FeedScreen(
     onShowOnMap: () -> Unit,
+    onOpenProfile: (String) -> Unit,
+    onLogIn: () -> Unit,
     modifier: Modifier = Modifier,
+    topBarActions: @Composable RowScope.() -> Unit = {},
     feedViewModel: FeedViewModel = viewModel(factory = FeedViewModel.factory)
 ) {
     val uiState by feedViewModel.uiState.collectAsStateWithLifecycle()
-    val postToShow by feedViewModel.postToShow.collectAsStateWithLifecycle()
-    val listState = rememberLazyListState()
+    val loggedInUid by feedViewModel.loggedInUid.collectAsStateWithLifecycle()
+    // A new list state for each choice, which starts at its first post. One list state kept across
+    // choices would keep the post at the top in view, wherever the new choice puts it.
+    val listState = rememberSaveable(uiState.choice, saver = LazyListState.Saver) {
+        LazyListState()
+    }
 
-    LaunchedEffect(postToShow, uiState.posts) {
-        val postId = postToShow ?: return@LaunchedEffect
-        val index = uiState.posts.indexOfFirst { it.id == postId }
-        // The feed can still show the posts it had before this one was shared, so the request
-        // stays until a list with the post arrives.
-        if (index >= 0) {
-            listState.scrollToItem(index)
+    val positionToShow = uiState.positionToShow
+    LaunchedEffect(positionToShow) {
+        if (positionToShow != null) {
+            listState.scrollToItem(positionToShow)
             feedViewModel.clearPostToShow()
         }
     }
 
-    when {
-        uiState.isLoading -> {
-            Box(
-                modifier = modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
-        }
+    // Takes the post's ID, so that it stays the same lambda as new tables arrive.
+    val showPostOnMap = { postId: String ->
+        feedViewModel.showOnMap(postId)
+        onShowOnMap()
+    }
+    val likePost = if (uiState.canLike) feedViewModel::toggleLike else { _: String -> onLogIn() }
+    Column(modifier = modifier.fillMaxSize()) {
+        TweeterTopBar(actions = topBarActions)
+        FeedChoiceChips(
+            choices = uiState.offeredChoices,
+            selected = uiState.choice,
+            onSelect = feedViewModel::choose
+        )
+        val bodyModifier = Modifier.weight(1f).fillMaxWidth()
 
-        uiState.posts.isEmpty() -> {
-            Box(
-                modifier = modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = stringResource(R.string.feed_empty_message),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+        // The posts, a spinner while they're read, or [emptyMessage] when there are none.
+        @Composable
+        fun FeedPosts(isLoading: Boolean, @StringRes emptyMessage: Int) {
+            PostList(
+                listedPosts = uiState.listedPosts,
+                isLoading = isLoading,
+                emptyMessage = stringResource(emptyMessage),
+                loggedInUid = loggedInUid,
+                onShowOnMap = showPostOnMap,
+                onDelete = feedViewModel::deletePost,
+                onOpenProfile = onOpenProfile,
+                onLogIn = onLogIn,
+                modifier = bodyModifier,
+                listState = listState,
+                likes = PostLikes(likedPostIds = uiState.likedPostIds, onLike = likePost)
+            )
         }
+        when (uiState.authors) {
+            FeedAuthors.Everyone -> {
+                FeedPosts(isLoading = uiState.isLoading, emptyMessage = R.string.feed_empty_message)
+            }
 
-        else -> {
-            LazyColumn(
-                state = listState,
-                modifier = modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 16.dp)
-            ) {
-                itemsIndexed(
-                    items = uiState.posts,
-                    key = { _, post -> post.id }
-                ) { index, post ->
-                    FeedPostItem(
-                        post = post,
-                        onShowOnMap = {
-                            feedViewModel.showOnMap(post)
-                            onShowOnMap()
-                        }
-                    )
-                    if (index < uiState.posts.lastIndex) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 12.dp),
-                            thickness = 1.dp,
-                            color = MaterialTheme.colorScheme.outlineVariant
-                        )
+            is FeedAuthors.Friends -> {
+                FeedPosts(isLoading = uiState.isLoading, emptyMessage = R.string.feed_friends_empty)
+            }
+
+            FeedAuthors.LoadingFriends -> {
+                FeedPosts(isLoading = true, emptyMessage = R.string.feed_friends_empty)
+            }
+
+            FeedAuthors.UnknownFriends -> {
+                CenteredMessage(
+                    text = stringResource(R.string.feed_friends_unknown),
+                    modifier = bodyModifier
+                ) {
+                    TextButton(onClick = feedViewModel::retryFriends) {
+                        Text(stringResource(R.string.feed_friends_retry))
                     }
                 }
             }
         }
-    }
-}
-
-/**
- * A post item in the home feed displaying poster info, photo or placeholder, caption,
- * animal type, confidence, and location details. A label on the photo shows the post on Map.
- *
- * @param post The post to render.
- * @param onShowOnMap Shows the post on Map.
- * @param modifier Applied to the item container.
- */
-@Composable
-private fun FeedPostItem(post: Post, onShowOnMap: () -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.Top,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = post.avatar.initials,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = post.username,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                val timeAgo = timeAgoText(post.timestamp)
-                val locationDetails = if (post.locationName.isNotBlank()) {
-                    stringResource(R.string.post_details, post.locationName, timeAgo)
-                } else {
-                    timeAgo
-                }
-                Text(
-                    text = locationDetails,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        Box {
-            PhotoCard(imageUri = post.imageUri)
-            ShowOnMapLabel(
-                onClick = onShowOnMap,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(8.dp)
-            )
-        }
-
-        val hasCaption = post.caption.isNotBlank()
-
-        if (hasCaption) {
-            Text(
-                text = post.caption,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 12.dp, top = 8.dp, end = 12.dp)
-            )
-        }
-        val hasAnimalType = post.animalType.isNotBlank()
-        val hasConfidence = post.confidence != null
-
-        if (hasAnimalType || hasConfidence) {
-            val animalStr = if (hasAnimalType) post.animalType else null
-            val confidenceStr = post.confidence?.let {
-                stringResource(R.string.feed_confidence_rating, it)
-            }
-            val infoText = listOfNotNull(animalStr, confidenceStr).joinToString(" · ")
-
-            Text(
-                text = infoText,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 12.dp, top = 4.dp, end = 12.dp, bottom = 8.dp)
-            )
-        }
-    }
-}
-
-/**
- * A label over a post's photo that shows the post on Map when pressed. The place's name, if the
- * post has one, is already in the post's header.
- *
- * @param onClick Shows the post on Map.
- * @param modifier Applied to the label.
- */
-@Composable
-private fun ShowOnMapLabel(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val showOnMap = stringResource(R.string.feed_show_on_map)
-    Row(
-        modifier = modifier
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surface)
-            .clickable(onClickLabel = showOnMap, role = Role.Button, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_location_pin),
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.size(16.dp)
-        )
-        Text(
-            text = showOnMap,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
     }
 }

@@ -1,0 +1,204 @@
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
+package edu.csuci.tweeter.data
+
+import java.io.File
+import java.io.IOException
+import java.util.concurrent.Executors
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.job
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runTest
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertSame
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+
+private const val CONTENT = "photo"
+
+class NewFileTest {
+    @get:Rule
+    val temporaryFolder = TemporaryFolder()
+
+    // The one thread of [singleThreadDispatcher], to tell whether a file was deleted on the
+    // dispatcher it was given.
+    private var ioThread: Thread? = null
+    private val singleThreadDispatcher = Executors.newSingleThreadExecutor { task ->
+        Thread(task).also { ioThread = it }
+    }.asCoroutineDispatcher()
+
+    @After
+    fun stopIoThread() {
+        singleThreadDispatcher.close()
+    }
+
+    @Test
+    fun createEmptyPhotoFile_missingDirectory_createsItWithEmptyFile() {
+        val directory = File(temporaryFolder.root, "photos")
+
+        val file = createEmptyPhotoFile(directory)
+
+        assertEquals(directory, file.parentFile)
+        assertEquals(0L, file.length())
+    }
+
+    @Test
+    fun createEmptyPhotoFile_twice_createsDifferentFiles() {
+        val directory = temporaryFolder.root
+
+        assertNotEquals(createEmptyPhotoFile(directory), createEmptyPhotoFile(directory))
+    }
+
+    @Test
+    fun createEmptyPhotoFile_directoryCantBeCreated_throwsIoException() {
+        val directory = temporaryFolder.newFile()
+
+        val error = runCatching { createEmptyPhotoFile(directory) }.exceptionOrNull()
+
+        assertEquals(IOException::class, error?.let { it::class })
+    }
+
+    @Test
+    fun writeNewFile_returnsWrittenFile() = runTest {
+        val file = writeNewFile(
+            dispatcher = ioDispatcher(),
+            create = ::createFile,
+            write = { it.writeText(CONTENT) }
+        )
+
+        assertEquals(CONTENT, file.readText())
+    }
+
+    @Test
+    fun writeNewFile_writeFails_deletesFileAndRethrows() = runTest {
+        val error = runCatching {
+            writeNewFile(
+                dispatcher = ioDispatcher(),
+                create = ::createFile,
+                write = { throw IOException("Disk full") }
+            )
+        }.exceptionOrNull()
+
+        assertEquals(IOException::class, error?.let { it::class })
+        assertEquals(emptyList<File>(), filesLeft())
+    }
+
+    @Test
+    fun writeNewFile_cancelledWhileWriting_deletesFile() = runTest {
+        launch {
+            val caller = currentCoroutineContext().job
+            writeNewFile(
+                dispatcher = ioDispatcher(),
+                create = ::createFile,
+                write = { file ->
+                    file.writeText(CONTENT)
+                    caller.cancel()
+                }
+            )
+        }
+
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(emptyList<File>(), filesLeft())
+    }
+
+    @Test
+    fun writeNewFile_writeFails_deletesFileOnDispatcher() = runBlocking {
+        val file = ThreadRecordingFile(createFile())
+
+        runCatching {
+            writeNewFile(
+                dispatcher = singleThreadDispatcher,
+                create = { file },
+                write = { throw IOException("Disk full") }
+            )
+        }
+
+        assertSame(ioThread, file.deletingThread)
+    }
+
+    @Test
+    fun deleteFile_deletesOnDispatcher() = runBlocking {
+        val file = ThreadRecordingFile(createFile())
+
+        deleteFile(singleThreadDispatcher, file)
+
+        assertFalse(file.exists())
+        assertSame(ioThread, file.deletingThread)
+    }
+
+    @Test
+    fun deleteFile_callerCancelled_deletesAnyway() = runTest {
+        val file = createFile()
+        launch {
+            currentCoroutineContext().job.cancel()
+            deleteFile(ioDispatcher(), file)
+        }
+
+        testScheduler.advanceUntilIdle()
+
+        assertFalse(file.exists())
+    }
+
+    @Test
+    fun discardFile_deletesOnDispatcher() = runBlocking {
+        val file = ThreadRecordingFile(createFile())
+
+        discardFile(this, singleThreadDispatcher, file)
+        coroutineContext.job.children.toList().joinAll()
+
+        assertFalse(file.exists())
+        assertSame(ioThread, file.deletingThread)
+    }
+
+    @Test
+    fun discardFile_inFinallyOfCallerCancelledAsItReturns_callerKeepsItsResult() = runTest {
+        val file = createFile()
+        var result: String? = null
+
+        launch { result = returnThenDiscard(file, caller = currentCoroutineContext().job) }
+        testScheduler.runCurrent()
+
+        assertEquals(CONTENT, result)
+        assertFalse(file.exists())
+    }
+
+    // Returns [CONTENT] once [caller] is cancelled, discarding [file] in a finally block, as an
+    // upload returns its URL and discards the copy it uploaded.
+    private suspend fun TestScope.returnThenDiscard(file: File, caller: Job): String {
+        try {
+            caller.cancel()
+            return CONTENT
+        } finally {
+            discardFile(backgroundScope, ioDispatcher(), file)
+        }
+    }
+
+    private fun TestScope.ioDispatcher() = StandardTestDispatcher(testScheduler)
+
+    private fun createFile(): File = temporaryFolder.newFile()
+
+    private fun filesLeft(): List<File> = temporaryFolder.root.listFiles().orEmpty().toList()
+
+    // A file that remembers which thread deleted it.
+    private class ThreadRecordingFile(file: File) : File(file.path) {
+        var deletingThread: Thread? = null
+            private set
+
+        override fun delete(): Boolean {
+            deletingThread = Thread.currentThread()
+            return super.delete()
+        }
+    }
+}
