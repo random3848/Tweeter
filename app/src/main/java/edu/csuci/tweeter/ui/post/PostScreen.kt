@@ -201,9 +201,7 @@ private fun PostForm(
                 ImageCapture.OutputFileOptions.Builder(File(file.path)).build(),
                 ContextCompat.getMainExecutor(context),
                 object : ImageCapture.OnImageSavedCallback {
-                    override fun onImageSaved(
-                        outputFileResults: ImageCapture.OutputFileResults
-                    ) {
+                    override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
                         postViewModel.cameraPictureCaptured(file)
                         isCapturing = false
                     }

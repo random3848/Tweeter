@@ -329,6 +329,7 @@ class PostViewModelTest {
                 savedStateHandle = savedStateHandle,
                 scope = CoroutineScope(dispatcher)
             ),
+            cameraFileStore = cameraFileStore,
             savedStateHandle = savedStateHandle
         )
     }

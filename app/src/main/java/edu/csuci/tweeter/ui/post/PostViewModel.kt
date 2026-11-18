@@ -15,6 +15,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.google.firebase.FirebaseException
 import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
+import edu.csuci.tweeter.data.CameraFile
+import edu.csuci.tweeter.data.CameraFileStore
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PhotoUploadException
 import edu.csuci.tweeter.data.Post
@@ -39,8 +41,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import edu.csuci.tweeter.data.CameraFile
-import edu.csuci.tweeter.data.CameraFileStore
 
 private const val UPLOADED_PHOTO_URL_KEY = "uploadedPhotoUrl"
 
@@ -125,6 +125,7 @@ class PostViewModel(
     fun choosePhoto(uri: String) {
         photo.chooseFromCameraRoll(uri)
     }
+
     /**
      * Creates the file the in-app camera saves a picture into, off the main thread.
      *
