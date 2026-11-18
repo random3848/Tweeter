@@ -38,6 +38,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -90,6 +91,15 @@ class FeedViewModelTest {
 
         assertFalse(uiState.isLoading)
         assertSamePosts(PostTable.of(SAMPLE_POSTS), uiState.posts)
+    }
+
+    @Test
+    fun uiState_afterFirstTable_listsEveryRowOnce() = runTest {
+        val viewModel = collectedFeedViewModel()
+
+        val rows = viewModel.uiState.value.listedPosts.rows
+
+        assertArrayEquals(SAMPLE_POSTS.indices.toList().toIntArray(), rows.sortedArray())
     }
 
     @Test
@@ -352,7 +362,7 @@ class FeedViewModelTest {
         likeCount = likeCount
     )
 
-    private fun FeedUiState.shownPostIds(): List<String> = rows.map(posts::id)
+    private fun FeedUiState.shownPostIds(): List<String> = listedPosts.rows.map(posts::id)
 
     // Likes that can't be saved, as when the Firestore rules refuse them.
     private class UnsavableLikeRepository : LikeRepository by FakeLikeRepository() {

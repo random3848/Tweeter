@@ -82,5 +82,6 @@ class RankedPostsTest {
 
     private fun tableOf(vararg posts: Post): PostTable = PostTable.of(posts.toList())
 
-    private fun RankedPosts.shownPostIds(): List<String> = rows.map(posts::id)
+    private fun RankedPosts.shownPostIds(): List<String> =
+        listedPosts.rows.map(listedPosts.table::id)
 }

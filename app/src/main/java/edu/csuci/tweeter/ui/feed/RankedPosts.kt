@@ -1,5 +1,6 @@
 package edu.csuci.tweeter.ui.feed
 
+import edu.csuci.tweeter.data.PostRows
 import edu.csuci.tweeter.data.PostTable
 
 /**
@@ -7,14 +8,12 @@ import edu.csuci.tweeter.data.PostTable
  * keep that ranking ([withPosts]), so a post doesn't move while the user looks at it, as when they
  * like it.
  *
- * @property posts The posts, newest first.
- * @property order The order the user picked, which [rows] are in.
- * @property rows Every row of [posts], in the order the feed shows them.
+ * @property listedPosts Every post, in the order the feed shows them.
+ * @property order The order the user picked, which [listedPosts] are in.
  */
 class RankedPosts private constructor(
-    val posts: PostTable,
+    val listedPosts: PostRows,
     val order: FeedOrder,
-    val rows: IntArray,
     private val rankByPostId: Map<String, Int>
 ) {
     /**
@@ -23,11 +22,12 @@ class RankedPosts private constructor(
      */
     fun withPosts(newPosts: PostTable): RankedPosts {
         val rows = newPosts.rowsByDescending { row -> scoreOf(newPosts.id(row)) }
-        return RankedPosts(newPosts, order, rows, rankByPostId)
+        return RankedPosts(PostRows(newPosts, rows), order, rankByPostId)
     }
 
-    /** Where in [rows] the post with [postId] is, or null if [posts] doesn't hold it. */
-    fun positionOf(postId: String): Int? = posts.rowOf(postId)?.let(rows::indexOf)
+    /** Where in [listedPosts] the post with [postId] is, or null if they don't hold it. */
+    fun positionOf(postId: String): Int? =
+        listedPosts.table.rowOf(postId)?.let(listedPosts.rows::indexOf)
 
     // Higher for posts ranked higher, and highest for posts shared after the ranking.
     private fun scoreOf(postId: String): Double =
@@ -43,7 +43,7 @@ class RankedPosts private constructor(
             val rows = order.rowsOf(posts, nowMillis)
             val rankByPostId = HashMap<String, Int>(rows.size)
             rows.forEachIndexed { rank, row -> rankByPostId[posts.id(row)] = rank }
-            return RankedPosts(posts, order, rows, rankByPostId)
+            return RankedPosts(PostRows(posts, rows), order, rankByPostId)
         }
     }
 }

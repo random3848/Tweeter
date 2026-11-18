@@ -2,10 +2,27 @@
     <string name="app_name">Tweeter</string>
 
     <string name="navigation_home">Home</string>
+    <string name="navigation_search">Search</string>
     <string name="navigation_create_post">Create post</string>
     <string name="navigation_map">Map</string>
     <string name="navigation_profile">Profile</string>
     <string name="navigation_back">Back</string>
+
+    <string name="search_field_label">Search people and animals</string>
+    <string name="search_prompt">Find people by their name, and animals that posts name.</string>
+    <string name="search_no_results">Nothing matches “%1$s”.</string>
+    <string name="search_people">People</string>
+    <string name="search_people_loading">Finding people…</string>
+    <string name="search_animals">Animals</string>
+    <string name="search_animals_loading">Finding animals…</string>
+    <string name="search_open_profile">View profile</string>
+    <string name="search_open_animal">See its posts</string>
+    <plurals name="search_animal_post_count">
+        <item quantity="one">%d post</item>
+        <item quantity="other">%d posts</item>
+    </plurals>
+
+    <string name="animal_posts_empty">No posts name this animal anymore.</string>
 
     <!-- Two details of a post on one line, such as its place and when it was shared. -->
     <string name="post_details">%1$s · %2$s</string>

@@ -13,6 +13,7 @@ import edu.csuci.tweeter.data.LikeException
 import edu.csuci.tweeter.data.LikeRepository
 import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
+import edu.csuci.tweeter.data.PostRows
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 import java.time.Clock
@@ -34,10 +35,9 @@ private const val TAG = "FeedViewModel"
 /**
  * The UI state of the home feed screen.
  *
- * @property posts The posts to display, newest first.
- * @property order The order the user picked, which [rows] are in.
- * @property rows Every row of [posts], in the order the feed shows them: ranked when the user
- *     picked [order], so posts don't move as their likes change.
+ * @property listedPosts Every post, in the order the feed shows them: ranked when the user picked
+ *     [order], so posts don't move as their likes change.
+ * @property order The order the user picked, which [listedPosts] are in.
  * @property isLoading Whether the first posts are still being loaded from the repository.
  * @property positionToShow Where in [rows] the post another screen asked the feed to show is, such
  *     as Map's popup's, which the feed scrolls to, then calls [FeedViewModel.clearPostToShow]. Null
@@ -47,14 +47,17 @@ private const val TAG = "FeedViewModel"
  * @property canLike Whether the user can like posts: they're logged in, not a guest.
  */
 data class FeedUiState(
-    val posts: PostTable = PostTable.EMPTY,
+    val listedPosts: PostRows = PostRows.EMPTY,
     val order: FeedOrder = FeedOrder.BEST,
-    val rows: IntArray = IntArray(0),
     val isLoading: Boolean = true,
     val positionToShow: Int? = null,
     val likedPostIds: Set<String> = emptySet(),
     val canLike: Boolean = false
-)
+) {
+    /** The posts to display, newest first. */
+    val posts: PostTable
+        get() = listedPosts.table
+}
 
 /**
  * Holds posts for [FeedScreen], the user's likes of them, and deletes the logged-in user's own
@@ -109,9 +112,8 @@ class FeedViewModel(
             accountRepository.loggedInUid
         ) { ranked, postToShow, likedPostIds, loggedInUid ->
             FeedUiState(
-                posts = ranked.posts,
+                listedPosts = ranked.listedPosts,
                 order = ranked.order,
-                rows = ranked.rows,
                 isLoading = false,
                 positionToShow = postToShow?.let(ranked::positionOf),
                 likedPostIds = likedPostIds,

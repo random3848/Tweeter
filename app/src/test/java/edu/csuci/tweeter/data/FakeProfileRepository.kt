@@ -23,6 +23,8 @@ class FakeProfileRepository(profiles: List<UserProfile> = emptyList()) : Profile
         saved.firstOrNull { it.uid == uid } ?: UserProfile.createDefault(uid)
     }
 
+    override fun getProfiles(): Flow<List<UserProfile>> = savedProfiles
+
     override suspend fun saveProfile(profile: UserProfile) {
         saveFinished?.await()
         if (failsToSave) {
