@@ -32,7 +32,8 @@ import kotlinx.coroutines.launch
  * @property listedPosts The posts naming the animal, newest first.
  * @property isLoading Whether the posts are still being read.
  * @property likedPostIds The IDs of the posts the user liked, whose hearts are filled.
- * @property bookmarkedPostIds The IDs of the posts the user saved, whose bookmarks are filled.
+ * @property bookmarkedPostIds The IDs of the posts the user saved, whose bookmarks are filled: none
+ *     until they're read, since the posts don't wait for them.
  * @property canLike Whether the user can like and save posts: they're logged in, not a guest.
  */
 data class AnimalPostsUiState(
@@ -81,7 +82,7 @@ class AnimalPostsViewModel(
     val uiState: StateFlow<AnimalPostsUiState> = combine(
         animalPosts,
         postLiker.likedPostIds(),
-        postBookmarker.bookmarkedPostIds(),
+        postBookmarker.bookmarkedPostIdsStartingEmpty(),
         accountRepository.loggedInUid
     ) { listedPosts, likedPostIds, bookmarkedPostIds, loggedInUid ->
         AnimalPostsUiState(

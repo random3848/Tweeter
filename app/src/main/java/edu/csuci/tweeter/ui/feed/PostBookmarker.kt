@@ -4,6 +4,8 @@ import android.util.Log
 import edu.csuci.tweeter.data.BookmarkException
 import edu.csuci.tweeter.data.BookmarkRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.onStart
 
 private const val TAG = "PostBookmarker"
 
@@ -19,8 +21,23 @@ private const val TAG = "PostBookmarker"
 class PostBookmarker(private val bookmarkRepository: BookmarkRepository) {
     private val pendingChanges = PendingPostChanges()
 
-    /** The IDs of the posts the user saved, updated as they save posts or log in or out. */
-    fun bookmarkedPostIds(): Flow<Set<String>> = bookmarkRepository.getBookmarkedPostIds()
+    /**
+     * The IDs of the posts the user saved, updated as they save posts or log in or out. A set
+     * equal to the last, as when the listener is set up again, isn't sent again, so screens don't
+     * find their rows again for it.
+     */
+    fun bookmarkedPostIds(): Flow<Set<String>> =
+        bookmarkRepository.getBookmarkedPostIds().distinctUntilChanged()
+
+    /**
+     * [bookmarkedPostIds], starting with none, for a screen whose posts don't wait for them: they
+     * may never be read, as when the rules refuse the listener, which then retries without
+     * sending any.
+     */
+    fun bookmarkedPostIdsStartingEmpty(): Flow<Set<String>> = bookmarkRepository
+        .getBookmarkedPostIds()
+        .onStart { emit(emptySet()) }
+        .distinctUntilChanged()
 
     /**
      * Saves the post with [postId], unless a change to its bookmark is still being saved. A

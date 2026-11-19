@@ -11,6 +11,7 @@ import edu.csuci.tweeter.data.FakeLikeRepository
 import edu.csuci.tweeter.data.FakePostRepository
 import edu.csuci.tweeter.data.FollowRepository
 import edu.csuci.tweeter.data.LikeRepository
+import edu.csuci.tweeter.data.ListenerBookmarkRepository
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.Post
 import edu.csuci.tweeter.data.PostDeleter
@@ -449,6 +450,26 @@ class FeedViewModelTest {
     fun uiState_holdsPostsUserSaved() = runTest {
         val viewModel =
             collectedFeedViewModel(bookmarks = FakeBookmarkRepository(setOf(likedPostId)))
+
+        assertEquals(setOf(likedPostId), viewModel.uiState.value.bookmarkedPostIds)
+    }
+
+    @Test
+    fun uiState_bookmarksNeverRead_listsPosts() = runTest {
+        val viewModel = collectedFeedViewModel(bookmarks = ListenerBookmarkRepository())
+
+        val uiState = viewModel.uiState.value
+
+        assertFalse(uiState.isLoading)
+        assertSamePosts(PostTable.of(SAMPLE_POSTS), uiState.posts)
+    }
+
+    @Test
+    fun uiState_bookmarksReadAfterPosts_holdsPostsUserSaved() = runTest {
+        val bookmarks = ListenerBookmarkRepository()
+        val viewModel = collectedFeedViewModel(bookmarks = bookmarks)
+
+        bookmarks.deliver(setOf(likedPostId))
 
         assertEquals(setOf(likedPostId), viewModel.uiState.value.bookmarkedPostIds)
     }

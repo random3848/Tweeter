@@ -54,7 +54,8 @@ private data class ShownChoice(val choice: FeedChoice, val authors: FeedAuthors)
  *     as while the feed shows the posts it had before that one was shared, or when its author
  *     isn't among the friends shown.
  * @property likedPostIds The IDs of the posts the user liked, whose hearts are filled.
- * @property bookmarkedPostIds The IDs of the posts the user saved, whose bookmarks are filled.
+ * @property bookmarkedPostIds The IDs of the posts the user saved, whose bookmarks are filled: none
+ *     until they're read, since the posts don't wait for them.
  * @property canLike Whether the user can like and save posts: they're logged in, not a guest.
  */
 data class FeedUiState(
@@ -159,7 +160,7 @@ class FeedViewModel(
                 canLike = loggedInUid != null
             )
         }
-            .combine(postBookmarker.bookmarkedPostIds()) { state, bookmarkedPostIds ->
+            .combine(postBookmarker.bookmarkedPostIdsStartingEmpty()) { state, bookmarkedPostIds ->
                 state.copy(bookmarkedPostIds = bookmarkedPostIds)
             }
             .flowOn(postsDispatcher)

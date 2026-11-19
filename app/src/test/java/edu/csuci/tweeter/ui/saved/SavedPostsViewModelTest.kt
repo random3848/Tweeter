@@ -2,11 +2,13 @@
 
 package edu.csuci.tweeter.ui.saved
 
+import edu.csuci.tweeter.data.BookmarkRepository
 import edu.csuci.tweeter.data.FakeAccountRepository
 import edu.csuci.tweeter.data.FakeBookmarkRepository
 import edu.csuci.tweeter.data.FakeLikeRepository
 import edu.csuci.tweeter.data.FakePhotoRepository
 import edu.csuci.tweeter.data.FakePostRepository
+import edu.csuci.tweeter.data.ListenerBookmarkRepository
 import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRows
 import edu.csuci.tweeter.data.SAMPLE_POSTS
@@ -27,6 +29,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -98,6 +101,18 @@ class SavedPostsViewModelTest {
         bookmarkRepository.unbookmark(OLDER_SAVED)
 
         assertEquals(emptyList<String>(), viewModel.uiState.value.listedPosts.ids())
+    }
+
+    @Test
+    fun uiState_sameBookmarksAgain_keepsState() = runTest {
+        val bookmarks = ListenerBookmarkRepository()
+        bookmarks.deliver(setOf(OLDER_SAVED))
+        val viewModel = collectedSavedPostsViewModel(bookmarks)
+        val uiState = viewModel.uiState.value
+
+        bookmarks.deliver(setOf(OLDER_SAVED))
+
+        assertSame(uiState, viewModel.uiState.value)
     }
 
     @Test
@@ -173,11 +188,13 @@ class SavedPostsViewModelTest {
 
     private fun PostRows.ids(): List<String> = rows.map(table::id)
 
-    private fun TestScope.collectedSavedPostsViewModel(): SavedPostsViewModel {
+    private fun TestScope.collectedSavedPostsViewModel(
+        bookmarks: BookmarkRepository = bookmarkRepository
+    ): SavedPostsViewModel {
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
         val viewModel = SavedPostsViewModel(
             postRepository = postRepository,
-            postBookmarker = PostBookmarker(bookmarkRepository),
+            postBookmarker = PostBookmarker(bookmarks),
             postLiker = PostLiker(likeRepository),
             postDeleter = PostDeleter(
                 postRepository = postRepository,
