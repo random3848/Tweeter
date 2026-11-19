@@ -27,4 +27,25 @@ class ShowPostRequestTest {
 
         assertNull(request.postId.value)
     }
+
+    @Test
+    fun withdraw_requestedPost_removesRequest() {
+        val request = ShowPostRequest()
+        request.send(FIRST_POST_ID)
+
+        request.withdraw(FIRST_POST_ID)
+
+        assertNull(request.postId.value)
+    }
+
+    @Test
+    fun withdraw_postNoLongerRequested_keepsNewerRequest() {
+        val request = ShowPostRequest()
+        request.send(FIRST_POST_ID)
+        request.send(SECOND_POST_ID)
+
+        request.withdraw(FIRST_POST_ID)
+
+        assertEquals(SECOND_POST_ID, request.postId.value)
+    }
 }

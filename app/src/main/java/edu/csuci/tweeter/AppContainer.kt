@@ -29,6 +29,7 @@ import edu.csuci.tweeter.data.NumberStore
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PostCountRarity
 import edu.csuci.tweeter.data.PostDeleter
+import edu.csuci.tweeter.data.PostLookup
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.ProfileSaver
@@ -49,7 +50,6 @@ import edu.csuci.tweeter.notification.SystemPostNotifier
 import edu.csuci.tweeter.notification.schedulePostCheck
 import edu.csuci.tweeter.ui.map.startMapEngine
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
-import java.time.Clock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -237,7 +237,7 @@ class AppContainer(private val context: Context) {
     // Where the device last was, which notifications of posts near the user measure from.
     private val lastLocationStore: LastLocationStore by lazy { LastLocationStore(savedNumbers) }
 
-    /** Live location fixes, each saved as where the device last was. */
+    /** Location fixes, each saved as where the device last was. */
     val deviceLocationProvider: DeviceLocationProvider by lazy {
         DeviceLocationProvider(context, lastLocationStore)
     }
@@ -247,16 +247,20 @@ class AppContainer(private val context: Context) {
 
     /** Whether the app has asked the user for permission to show notifications. */
     val notificationPermissionRecord: NotificationPermissionRecord by lazy {
-        NotificationPermissionRecord(savedNumbers, Clock.systemUTC())
+        NotificationPermissionRecord(savedNumbers)
+    }
+
+    /**
+     * Looks posts up on the server: for the checks for posts to notify the user of, and for Feed,
+     * to tell whether a post it was asked to show and can't find was deleted.
+     */
+    val postLookup: PostLookup by lazy {
+        FirestorePostLookup(FirebaseFirestore.getInstance(), dispatcher = Dispatchers.Default)
     }
 
     // Checks for rare animals posted near the logged-in user, judging rarity by the app's own
     // posts until the iNaturalist repository is built; that work replaces PostCountRarity here.
     private val rareAnimalCheck: RareAnimalCheck by lazy {
-        val postLookup = FirestorePostLookup(
-            FirebaseFirestore.getInstance(),
-            dispatcher = Dispatchers.Default
-        )
         RareAnimalCheck(
             accountRepository = accountRepository,
             notifier = postNotifier,

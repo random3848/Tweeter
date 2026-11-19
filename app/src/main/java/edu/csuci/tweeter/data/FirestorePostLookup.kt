@@ -55,6 +55,12 @@ class FirestorePostLookup(
         return lookUp { query.get(AggregateSource.SERVER).await() }.count.toInt()
     }
 
+    // Feed asks this once its post table arrived, so someone, a guest at least, is signed in.
+    override suspend fun holdsPost(postId: String): Boolean {
+        val post = posts.document(postId)
+        return lookUp { post.get(Source.SERVER).await() }.exists()
+    }
+
     private suspend fun readPosts(query: Query): PostTable {
         val snapshot = lookUp { query.get(Source.SERVER).await() }
         return withContext(dispatcher) { snapshot.toPostTable() }

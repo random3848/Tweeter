@@ -28,7 +28,8 @@ private const val EPOCH_MILLIS = 0L
  * on the server, by the server's clock rather than the device's, and notifies of nothing older.
  *
  * Each check looks again at the posts received within [SETTLE_WINDOW_MILLIS] before the last
- * check, so it also finds a post saved after a later one, and skips those in [notifiedPostStores].
+ * check, so it also finds a post saved after a later one. [selector] skips the posts in
+ * [notifiedPostStores] before it judges any animal's rarity, which takes a count on the server.
  *
  * @param accountRepository Who is logged in, whom the check notifies.
  * @param notifier Shows the notifications, if the user lets it.
@@ -71,7 +72,7 @@ class RareAnimalCheck(
             return null
         }
         val location = lastLocationStore.lastLocation() ?: return null
-        return Recipient(uid, location)
+        return Recipient(uid, location, notifiedPostStores(uid).notifiedPostIds())
     }
 
     // The posts within the settle window of the newest one are already on the server, so the next
@@ -95,10 +96,7 @@ class RareAnimalCheck(
             return
         }
         val notifiedPosts = notifiedPostStores(recipient.uid)
-        val notifiedPostIds = notifiedPosts.notifiedPostIds()
-        val rows = selector.rowsToNotify(posts, recipient).filter { row ->
-            posts.id(row) !in notifiedPostIds
-        }.toIntArray()
+        val rows = selector.rowsToNotify(posts, recipient)
         notifiedPosts.remember(posts, rows)
         val checkedUpToMillis = maxOf(lastCheckMillis, posts.timestampMillis(NEWEST_ROW))
         lastCheckStore.advanceTo(checkedUpToMillis)

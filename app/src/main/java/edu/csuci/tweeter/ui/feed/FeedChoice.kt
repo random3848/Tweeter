@@ -30,6 +30,13 @@ enum class FeedChoice(
     /** The user's friends' posts, newest first. */
     FRIENDS(R.string.feed_friends, FeedOrder.NEWEST, showsOnlyFriends = true);
 
+    /**
+     * The choice that shows everyone's posts in this one's order: this one, unless it shows only
+     * friends.
+     */
+    fun forEveryone(): FeedChoice =
+        entries.first { choice -> !choice.showsOnlyFriends && choice.order == order }
+
     companion object {
         /** The choices offered on the chips, in their order: all of them unless it's a guest. */
         fun offeredTo(isLoggedIn: Boolean): List<FeedChoice> =
