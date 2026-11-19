@@ -145,18 +145,22 @@ private fun PostItems(
             val postId = posts.id(row)
             // Saved by post, so a post's comments stay open as the list scrolls and rotates.
             var showsComments by rememberSaveable(postId) { mutableStateOf(false) }
+            val authorUid = posts.authorUid(row)
             PostHeader(
-                postId = postId,
                 avatarInitials = posts.avatarInitials(row),
                 username = posts.username(row),
                 details = postDetailsText(posts.locationName(row), posts.timestampMillis(row)),
-                authorUid = posts.authorUid(row),
-                // A guest's ID is null, and a post shared while logged out has no author, so
-                // neither matches.
-                isMine = loggedInUid != null && posts.authorUid(row) == loggedInUid,
-                onOpenProfile = onOpenProfile,
-                onDelete = onDelete
-            )
+                authorUid = authorUid,
+                onOpenProfile = onOpenProfile
+            ) {
+                PostHeaderAction(
+                    postId = postId,
+                    authorUid = authorUid,
+                    loggedInUid = loggedInUid,
+                    onDelete = onDelete,
+                    onLogIn = onLogIn
+                )
+            }
             PhotoWithMapLabel(
                 postId = postId,
                 imageUri = posts.imageUri(row),
@@ -180,7 +184,6 @@ private fun PostItems(
                         isOpen = showsComments,
                         onClick = { showsComments = !showsComments }
                     )
-                    val authorUid = posts.authorUid(row)
                     val posterAnimal = posts.animalType(row)
                     // A post whose poster named no animal has none to vote on.
                     if (posterAnimal.isNotBlank()) {
@@ -195,20 +198,11 @@ private fun PostItems(
                             userVote = votes.userVotes.countedVoteOn(postId, round),
                             actions = votes.actions,
                             onLogIn = onLogIn,
-                            // Gives way to the flag, so a long name is cut short instead of it.
+                            // Takes only the width it needs, and cuts a long name short rather
+                            // than pushing the bookmark off the row.
                             modifier = Modifier
                                 .weight(1f, fill = false)
                                 .padding(start = 4.dp, top = 4.dp)
-                        )
-                    }
-                    // Other users' posts only; one shared while logged out has nobody to report.
-                    if (authorUid.isNotBlank() && authorUid != loggedInUid) {
-                        ReportPostButton(
-                            postId = postId,
-                            authorUid = authorUid,
-                            isLoggedIn = loggedInUid != null,
-                            onLogIn = onLogIn,
-                            modifier = Modifier.padding(top = 4.dp)
                         )
                     }
                 }
@@ -234,30 +228,25 @@ private fun PostItems(
 }
 
 /**
- * The top of a post: the poster's avatar and name, where the post was shared and how long ago.
- * Pressing it opens the author's profile. On the logged-in user's own posts it also has a delete
- * button, which asks before deleting. It receives the displayed texts and author UID separately
- * from the post table.
+ * The top of a post: the poster's avatar and name, where the post was shared and how long ago,
+ * and [action] at the right end. Pressing it opens the author's profile. It receives the displayed
+ * texts and author UID separately from the post table.
  *
- * @param postId The post's ID, which [onDelete] is called with.
  * @param avatarInitials The initials in the poster's avatar.
  * @param username The poster's name.
  * @param details Where the post was shared and how long ago, as [postDetailsText] puts it.
  * @param authorUid The Firebase UID of the post's author.
- * @param isMine Whether the logged-in user wrote the post, which shows the delete button.
  * @param onOpenProfile Opens the profile of the author with the given UID.
- * @param onDelete Deletes the post with the given ID, once the user confirms.
+ * @param action The button at the right end, as [PostHeaderAction] chooses it.
  */
 @Composable
 private fun PostHeader(
-    postId: String,
     avatarInitials: String,
     username: String,
     details: String,
     authorUid: String,
-    isMine: Boolean,
     onOpenProfile: (String) -> Unit,
-    onDelete: (String) -> Unit
+    action: @Composable () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -286,7 +275,7 @@ private fun PostHeader(
             )
         }
 
-        // Takes the leftover width, which puts the delete button at the right edge.
+        // Takes the leftover width, which puts the action at the right edge.
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -303,9 +292,40 @@ private fun PostHeader(
             )
         }
 
-        if (isMine) {
-            DeletePostButton(postId = postId, onDelete = onDelete)
-        }
+        action()
+    }
+}
+
+/**
+ * The button at the right end of a post's header: on the logged-in user's own posts a delete
+ * button, which asks before deleting, and on other users' posts a flag that reports them. It's in
+ * the header rather than the like and comments row so the animal's name has room there.
+ *
+ * @param postId The post's ID.
+ * @param authorUid The Firebase UID of the post's author; empty for a post shared while logged
+ *     out, which has nobody to report.
+ * @param loggedInUid The logged-in user's ID, or null for guests, whose flag opens Log in.
+ * @param onDelete Deletes the post with the given ID, once the user confirms.
+ * @param onLogIn Opens Log in, for a guest who wants to report the post.
+ */
+@Composable
+private fun PostHeaderAction(
+    postId: String,
+    authorUid: String,
+    loggedInUid: String?,
+    onDelete: (String) -> Unit,
+    onLogIn: () -> Unit
+) {
+    val isMine = loggedInUid != null && authorUid == loggedInUid
+    if (isMine) {
+        DeletePostButton(postId = postId, onDelete = onDelete)
+    } else if (authorUid.isNotBlank()) {
+        ReportPostButton(
+            postId = postId,
+            authorUid = authorUid,
+            isLoggedIn = loggedInUid != null,
+            onLogIn = onLogIn
+        )
     }
 }
 
