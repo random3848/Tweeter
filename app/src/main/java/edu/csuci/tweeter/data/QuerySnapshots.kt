@@ -7,8 +7,6 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.conflate
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.map
 
 /**
  * Each snapshot of this query, from a listener set up once [guestSignIn] has signed a guest in if
@@ -36,20 +34,6 @@ internal fun Query.signedInSnapshots(
 
     awaitClose { registration.remove() }
 }.conflate()
-
-/**
- * The IDs of this query's documents, as each of its [signedInSnapshots] holds them, read on
- * [dispatcher]. When the listener fails, it is set up again with [retryWithBackoff], which logs
- * the failure under [tag].
- */
-internal fun Query.documentIds(
-    guestSignIn: GuestSignIn,
-    dispatcher: CoroutineDispatcher,
-    tag: String
-): Flow<Set<String>> = signedInSnapshots(guestSignIn, dispatcher)
-    .retryWithBackoff(tag, resetsBackoff = QuerySnapshot::isFromServer)
-    .map { snapshot -> snapshot.documents.mapTo(HashSet()) { it.id } }
-    .flowOn(dispatcher)
 
 /**
  * Whether this snapshot came from the server. One from the phone's cache can come first even

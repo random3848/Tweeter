@@ -54,9 +54,7 @@ private data class ShownChoice(val choice: FeedChoice, val authors: FeedAuthors)
  *     as while the feed shows the posts it had before that one was shared, or when its author
  *     isn't among the friends shown.
  * @property likedPostIds The IDs of the posts the user liked, whose hearts are filled.
- * @property bookmarkedPostIds The IDs of the posts the user saved, whose bookmarks are filled: none
- *     until they're read, since the posts don't wait for them.
- * @property canLike Whether the user can like and save posts: they're logged in, not a guest.
+ * @property canLike Whether the user can like posts: they're logged in, not a guest.
  */
 data class FeedUiState(
     val listedPosts: PostRows = PostRows.EMPTY,
@@ -66,7 +64,6 @@ data class FeedUiState(
     val isLoading: Boolean = true,
     val positionToShow: Int? = null,
     val likedPostIds: Set<String> = emptySet(),
-    val bookmarkedPostIds: Set<String> = emptySet(),
     val canLike: Boolean = false
 ) {
     /** Every post, newest first, of which the feed shows [listedPosts]. */
@@ -75,15 +72,14 @@ data class FeedUiState(
 }
 
 /**
- * Holds posts for [FeedScreen], as the user chooses to see them, the user's likes and bookmarks of
- * them, and deletes the logged-in user's own posts.
+ * Holds posts for [FeedScreen], as the user chooses to see them, the user's likes of them, and
+ * deletes the logged-in user's own posts.
  *
  * @param postRepository Where posts are read from.
  * @param postLiker Which posts the user liked, and saves the likes [toggleLike] makes.
- * @param postBookmarker Which posts the user saved, and saves the bookmarks [toggleBookmark] makes.
  * @param postDeleter Deletes the logged-in user's posts and their photos.
- * @param accountRepository Who is logged in: guests can't like or save posts, and only the user's
- *     own posts show a delete button.
+ * @param accountRepository Who is logged in: guests can't like posts, and only the user's own posts
+ *     show a delete button.
  * @param followRepository Who the user's friends are, for [FeedChoice.FRIENDS].
  * @param showInFeedRequest The post another screen asks the feed to show, which it scrolls to.
  * @param showOnMapRequest Where [showOnMap] asks Map to show a post.
@@ -95,7 +91,6 @@ data class FeedUiState(
 class FeedViewModel(
     postRepository: PostRepository,
     private val postLiker: PostLiker,
-    private val postBookmarker: PostBookmarker,
     private val postDeleter: PostDeleter,
     accountRepository: AccountRepository,
     followRepository: FollowRepository,
@@ -137,8 +132,8 @@ class FeedViewModel(
 
     /**
      * The current state of the feed, updated whenever posts change, the user picks what to see,
-     * their friends change, another screen asks the feed to show a post, or the user likes or saves
-     * a post or logs in or out.
+     * their friends change, another screen asks the feed to show a post, or the user likes a post
+     * or logs in or out.
      */
     val uiState: StateFlow<FeedUiState> =
         combine(
@@ -160,9 +155,6 @@ class FeedViewModel(
                 canLike = loggedInUid != null
             )
         }
-            .combine(postBookmarker.bookmarkedPostIdsStartingEmpty()) { state, bookmarkedPostIds ->
-                state.copy(bookmarkedPostIds = bookmarkedPostIds)
-            }
             .flowOn(postsDispatcher)
             .stateIn(
                 scope = viewModelScope,
@@ -226,18 +218,6 @@ class FeedViewModel(
         }
     }
 
-    /**
-     * Saves the post with [postId], or unsaves it if the user saved it, unless a change to its
-     * bookmark is still being saved. A change that can't be saved is logged; the bookmark then
-     * shows the post as it was.
-     */
-    fun toggleBookmark(postId: String) {
-        val isBookmarked = postId in uiState.value.bookmarkedPostIds
-        viewModelScope.launch {
-            if (isBookmarked) postBookmarker.unbookmark(postId) else postBookmarker.bookmark(postId)
-        }
-    }
-
     /** Asks Map to show the post with [postId], which opens its popup when Map opens. */
     fun showOnMap(postId: String) {
         showOnMapRequest.send(postId)
@@ -252,17 +232,13 @@ class FeedViewModel(
     }
 
     companion object {
-        /**
-         * Creates a [FeedViewModel] that reads the app's shared posts, likes, bookmarks and
-         * requests.
-         */
+        /** Creates a [FeedViewModel] that reads the app's shared posts, likes and requests. */
         val factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val application = this[APPLICATION_KEY] as TweeterApplication
                 FeedViewModel(
                     postRepository = application.container.postRepository,
                     postLiker = PostLiker(application.container.likeRepository),
-                    postBookmarker = PostBookmarker(application.container.bookmarkRepository),
                     postDeleter = application.container.postDeleter,
                     accountRepository = application.container.accountRepository,
                     followRepository = application.container.followRepository,

@@ -51,12 +51,8 @@ import edu.csuci.tweeter.ui.profile.UserProfileRoute
 import edu.csuci.tweeter.ui.profile.addEditProfileScreen
 import edu.csuci.tweeter.ui.profile.addProfileScreen
 import edu.csuci.tweeter.ui.profile.addUserProfileScreen
-import edu.csuci.tweeter.ui.saved.SavedPostsRoute
-import edu.csuci.tweeter.ui.saved.addSavedPostsScreen
 import edu.csuci.tweeter.ui.search.SearchRoute
 import edu.csuci.tweeter.ui.search.addSearchScreen
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emptyFlow
 
 /**
  * Bottom-bar items in display order.
@@ -124,14 +120,10 @@ internal val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
  * counts as shown while the NavHost composes none of those screens, which follows what the
  * NavHost draws rather than the back stack, which changes a few frames earlier.
  *
- * Each time [feedOpenings] emits, as when a notification about a post is tapped, the app opens
- * the feed itself, as pressing Home does.
- *
  * @param modifier Applied to the whole app
- * @param feedOpenings Asks the app to open the feed, which then shows the post it was asked to.
  */
 @Composable
-fun TweeterApp(modifier: Modifier = Modifier, feedOpenings: Flow<Unit> = emptyFlow()) {
+fun TweeterApp(modifier: Modifier = Modifier) {
     val navController = rememberNavController()
     val mapCover = rememberSaveable(saver = MapCover.Saver) {
         MapCover(hidesMapUntilCounted = true)
@@ -145,9 +137,6 @@ fun TweeterApp(modifier: Modifier = Modifier, feedOpenings: Flow<Unit> = emptyFl
         if (isOnMap) {
             hasOpenedMap = true
         }
-    }
-    LaunchedEffect(feedOpenings) {
-        feedOpenings.collect { navController.navigateToFeed() }
     }
     val isOnEditProfile = destination?.hasRoute(EditProfileRoute::class) == true
     // Every navigation changes the top of the back stack, so it's found again only then.
@@ -237,11 +226,6 @@ private fun TweeterNavHost(
                 launchSingleTop = true
             }
         }
-        val openSavedPosts = {
-            navController.navigate(SavedPostsRoute) {
-                launchSingleTop = true
-            }
-        }
         addFeedScreen(
             onShowOnMap = { navController.navigateToTopLevel(MapRoute) },
             onLogIn = openLogIn,
@@ -284,14 +268,7 @@ private fun TweeterNavHost(
                 navController.navigate(EditProfileRoute) {
                     launchSingleTop = true
                 }
-            },
-            onOpenSavedPosts = openSavedPosts
-        )
-        addSavedPostsScreen(
-            onBack = { navController.navigateUp() },
-            onShowOnMap = { navController.navigateToTopLevel(MapRoute) },
-            onOpenProfile = openUserProfile,
-            onLogIn = openLogIn
+            }
         )
         addUserProfileScreen(
             onBack = { navController.navigateUp() },
@@ -301,8 +278,7 @@ private fun TweeterNavHost(
                 navController.navigate(EditProfileRoute) {
                     launchSingleTop = true
                 }
-            },
-            onOpenSavedPosts = openSavedPosts
+            }
         )
         addEditProfileScreen(onClose = { navController.navigateUp() })
         addLogInScreen(

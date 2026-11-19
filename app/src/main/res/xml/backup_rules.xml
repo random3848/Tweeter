@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Auto Backup's rules where data_extraction_rules.xml doesn't apply (`adb backup`, and Android
-     12 and later backing up to a device running an earlier version). The same file stays
-     behind, for the same reasons. -->
-<full-backup-content>
-    <exclude domain="sharedpref" path="saved_numbers.xml" />
-</full-backup-content>
