@@ -10,20 +10,22 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
+import edu.csuci.tweeter.ui.feed.PostBookmarks
 import edu.csuci.tweeter.ui.feed.PostLikes
 import edu.csuci.tweeter.ui.feed.PostList
 import edu.csuci.tweeter.ui.navigation.BackTopBar
 
 /**
  * The posts that name one animal, newest first, as Feed shows posts, under a top bar with the
- * animal's name. Search opens it. As in Feed, a heart under each post likes it, or opens Log in for
- * guests, who can't, and the logged-in user's own posts have a delete button.
+ * animal's name. Search opens it. As in Feed, a heart under each post likes it and a bookmark saves
+ * it, or each opens Log in for guests, who can't, and the logged-in user's own posts have a delete
+ * button.
  *
  * @param animal The animal's name, as posts name it.
  * @param onBack Returns to the screen it was opened from.
  * @param onShowOnMap Opens Map, once the post the user chose is requested there.
  * @param onOpenProfile Opens the profile of the user with the given ID.
- * @param onLogIn Opens Log in, for a guest who tries to like a post or wants to comment.
+ * @param onLogIn Opens Log in, for a guest who tries to like or save a post or wants to comment.
  * @param modifier Applied to the whole screen.
  * @param viewModel Supplies the animal's posts.
  */
@@ -47,6 +49,8 @@ fun AnimalPostsScreen(
         onShowOnMap()
     }
     val likePost = if (uiState.canLike) viewModel::toggleLike else { _: String -> onLogIn() }
+    val bookmarkPost =
+        if (uiState.canLike) viewModel::toggleBookmark else { _: String -> onLogIn() }
     Column(modifier = modifier.fillMaxSize()) {
         BackTopBar(title = animal, onBack = onBack)
         PostList(
@@ -60,6 +64,10 @@ fun AnimalPostsScreen(
             onOpenProfile = onOpenProfile,
             onLogIn = onLogIn,
             likes = PostLikes(likedPostIds = uiState.likedPostIds, onLike = likePost),
+            bookmarks = PostBookmarks(
+                bookmarkedPostIds = uiState.bookmarkedPostIds,
+                onBookmark = bookmarkPost
+            ),
             modifier = Modifier.weight(1f).fillMaxWidth()
         )
     }
