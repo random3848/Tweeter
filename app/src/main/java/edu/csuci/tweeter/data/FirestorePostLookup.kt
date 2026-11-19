@@ -12,9 +12,9 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 
-// How many posts each page of [FirestorePostLookup.postsReceivedAfter] holds, so that a lookup of
-// many posts, such as the days a post can become popular in, comes in responses of bounded size.
-// The lookup reads every page.
+// How many posts each page of a lookup of many posts holds, such as the posts received while the
+// device was offline, or every popular post, so that it comes in responses of bounded size. The
+// lookup reads every page.
 private const val POSTS_PER_PAGE = 100
 
 /**
@@ -50,10 +50,7 @@ class FirestorePostLookup(
         val query = posts.whereGreaterThanOrEqualTo(timestamp, Timestamp(Date(timeMillis + 1)))
             .orderBy(timestamp, Query.Direction.DESCENDING)
             .limit(POSTS_PER_PAGE.toLong())
-        val documents = readEveryPage<DocumentSnapshot>(POSTS_PER_PAGE) { lastDocument ->
-            val page = if (lastDocument == null) query else query.startAfter(lastDocument)
-            lookUp { page.get(Source.SERVER).await() }.documents
-        }
+        val documents = documentsOnEveryPage(query)
         return withContext(dispatcher) { documents.toPostTable() }
     }
 
@@ -82,4 +79,24 @@ class FirestorePostLookup(
             throw PostLookupException(error)
         }
     }
+
+    // Each page starts after the last document of the page before, by its like count and then
+    // its ID, an order the like count's single-field index serves without a composite index. A
+    // post whose likes change between pages can move to a page already read, and be left out, or
+    // to one not read yet, and be read again, which is dropped.
+    override suspend fun postsWithLikesAtLeast(minLikeCount: Int): PostTable {
+        val likeCount = PostDocument.Field.LIKE_COUNT.key
+        val query = posts.whereGreaterThanOrEqualTo(likeCount, minLikeCount)
+            .orderBy(likeCount, Query.Direction.DESCENDING)
+            .limit(POSTS_PER_PAGE.toLong())
+        val documents = documentsOnEveryPage(query)
+        return withContext(dispatcher) { documents.distinctBy { it.id }.toPostTable() }
+    }
+
+    // Every document [query] matches, read POSTS_PER_PAGE at a time; [query] is limited to that.
+    private suspend fun documentsOnEveryPage(query: Query): List<DocumentSnapshot> =
+        readEveryPage<DocumentSnapshot>(POSTS_PER_PAGE) { lastDocument ->
+            val page = if (lastDocument == null) query else query.startAfter(lastDocument)
+            lookUp { page.get(Source.SERVER).await() }.documents
+        }
 }

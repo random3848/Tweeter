@@ -46,6 +46,7 @@ class PopularPostCheckTest {
     private val check = PopularPostCheck(
         accountRepository = accountRepository,
         notifier = notifier,
+        lastCheckStores = { uid -> LastCheckStore(numbers, "$CHECK_NAME.$uid") },
         notifiedPostStores = { uid -> NotifiedPostStore(numbers, CHECK_NAME, uid) },
         postLookup = postLookup,
         selector = PopularPostSelector(minLikeCount = MIN_LIKES, windowMillis = WINDOW_MILLIS)
@@ -53,6 +54,7 @@ class PopularPostCheckTest {
 
     @Test
     fun run_popularPostByOtherUser_namesAnimalPlaceAndLikes() = runTest {
+        startChecking()
         share(post(id = "popular", likeCount = MIN_LIKES + 2))
 
         check.run()
@@ -68,6 +70,7 @@ class PopularPostCheckTest {
 
     @Test
     fun run_postWithoutAnimal_saysPostIsPopular() = runTest {
+        startChecking()
         share(post(id = "popular", animal = " "))
 
         check.run()
@@ -78,6 +81,7 @@ class PopularPostCheckTest {
 
     @Test
     fun run_postWithoutPlace_givesLikesOnly() = runTest {
+        startChecking()
         share(post(id = "popular", place = ""))
 
         check.run()
@@ -97,7 +101,118 @@ class PopularPostCheckTest {
     }
 
     @Test
+    fun run_readsOnlyPostsAtOrAboveThreshold() = runTest {
+        share(post(id = "almost", likeCount = MIN_LIKES - 1))
+        share(post(id = "popular", likeCount = MIN_LIKES))
+
+        check.run()
+
+        assertEquals(listOf("popular"), postLookup.readPostIds)
+    }
+
+    @Test
+    fun run_firstRunForUser_notifiesOfNothingPopularAlready() = runTest {
+        share(post(id = "popular"))
+
+        check.run()
+        check.run()
+
+        assertNothingNotified()
+    }
+
+    @Test
+    fun run_firstRunForUser_thenNotifiesOfPostsPopularSince() = runTest {
+        share(post(id = "before"))
+        check.run()
+        share(post(id = "after"))
+
+        check.run()
+
+        assertEquals(listOf("after"), notifiedPostIds())
+    }
+
+    @Test
+    fun run_postPopularBeforeFirstRunWithLookupFailure_neverNotifiedOf() = runTest {
+        share(post(id = "popular"))
+        postLookup.failure = PostLookupException(IllegalStateException("Offline"))
+        runCatching { check.run() }
+        postLookup.failure = null
+
+        check.run()
+        check.run()
+
+        assertNothingNotified()
+    }
+
+    @Test
+    fun run_newUserLogsIn_notifiesThemOfNothingPopularAlready() = runTest {
+        startChecking()
+        share(post(id = "popular"))
+        accountRepository.logInAs(THIRD_UID)
+
+        check.run()
+
+        assertNothingNotified()
+    }
+
+    @Test
+    fun run_channelTurnedBackOn_notifiesOfNothingPopularMeanwhile() = runTest {
+        startChecking()
+        notifier.turnedOffChannels += PostChannel.POPULAR_POSTS
+        check.run()
+        share(post(id = "popular"))
+        notifier.turnedOffChannels.clear()
+
+        check.run()
+        check.run()
+
+        assertNothingNotified()
+    }
+
+    @Test
+    fun run_notificationsAllowedAgain_notifiesOfNothingPopularMeanwhile() = runTest {
+        startChecking()
+        notifier.isAllowed = false
+        check.run()
+        share(post(id = "popular"))
+        notifier.isAllowed = true
+
+        check.run()
+        check.run()
+
+        assertNothingNotified()
+    }
+
+    @Test
+    fun run_userLogsBackInAfterWindow_notifiesOfNothingPopularMeanwhile() = runTest {
+        startChecking()
+        accountRepository.logOut()
+        check.run()
+        share(post(id = "popular", sharedMillis = SHARED_MILLIS + WINDOW_MILLIS))
+        accountRepository.logInAs(USER_UID)
+
+        check.run()
+        check.run()
+
+        assertNothingNotified()
+    }
+
+    @Test
+    fun run_userLogsBackInWithinWindow_notifiesOfPostPopularMeanwhile() = runTest {
+        startChecking()
+        accountRepository.logOut()
+        check.run()
+        share(post(id = "popular"))
+        accountRepository.logInAs(USER_UID)
+
+        check.run()
+
+        assertEquals(listOf("popular"), notifiedPostIds())
+    }
+
+    @Test
     fun run_belowThreshold_notifiesOfNothing() = runTest {
+        startChecking()
         share(post(id = "almost", likeCount = MIN_LIKES - 1))
 
         check.run()
@@ -107,6 +222,7 @@ class PopularPostCheckTest {
 
     @Test
     fun run_postReachesThresholdLater_notifiesOfItThen() = runTest {
+        startChecking()
         share(post(id = "rising", likeCount = MIN_LIKES - 1))
         check.run()
         postLookup.posts = listOf(post(id = "rising", likeCount = MIN_LIKES))
@@ -118,6 +234,7 @@ class PopularPostCheckTest {
 
     @Test
     fun run_ownPost_notifiesOfNothing() = runTest {
+        startChecking()
         share(post(id = "mine", authorUid = USER_UID))
 
         check.run()
@@ -127,6 +244,7 @@ class PopularPostCheckTest {
 
     @Test
     fun run_postJustInsideWindowOfNewestPost_notifiesOfIt() = runTest {
+        checkAt(SHARED_MILLIS)
         share(post(id = "popular"))
         serverTimeIs(SHARED_MILLIS + WINDOW_MILLIS - 1)
 
@@ -137,6 +255,7 @@ class PopularPostCheckTest {
 
     @Test
     fun run_postWindowOlderThanNewestPost_notifiesOfNothing() = runTest {
+        checkAt(SHARED_MILLIS + WINDOW_MILLIS - HOUR_MILLIS)
         share(post(id = "old"))
         serverTimeIs(SHARED_MILLIS + WINDOW_MILLIS)
 
@@ -147,6 +266,7 @@ class PopularPostCheckTest {
 
     @Test
     fun run_deviceClockAheadOfServer_measuresWindowFromServer() = runTest {
+        startChecking()
         share(post(id = "popular"))
         serverTimeIs(SHARED_MILLIS + HOUR_MILLIS)
 
@@ -157,6 +277,7 @@ class PopularPostCheckTest {
 
     @Test
     fun run_deviceClockBehindServer_measuresWindowFromServer() = runTest {
+        checkAt(FUTURE_SHARED_MILLIS + WINDOW_MILLIS - HOUR_MILLIS)
         share(post(id = "old", sharedMillis = FUTURE_SHARED_MILLIS))
         serverTimeIs(FUTURE_SHARED_MILLIS + WINDOW_MILLIS)
 
@@ -166,21 +287,22 @@ class PopularPostCheckTest {
     }
 
     @Test
-    fun run_moreRecentPostsThanOnePage_notifiesOfOldestToo() = runTest {
+    fun run_morePopularPostsThanOnePage_notifiesOfLeastLikedToo() = runTest {
+        startChecking()
         postLookup.pageSize = POSTS_PER_PAGE
-        share(post(id = "oldest"))
+        share(post(id = "least-liked"))
         repeat(POSTS_PER_PAGE) { index ->
-            val sharedMillis = SHARED_MILLIS + index + 1
-            share(post(id = "newer-$index", likeCount = 0, sharedMillis = sharedMillis))
+            share(post(id = "more-liked-$index", likeCount = MIN_LIKES + index + 1))
         }
 
         check.run()
 
-        assertEquals(listOf("oldest"), notifiedPostIds())
+        assertTrue("least-liked" in notifiedPostIds())
     }
 
     @Test
     fun run_again_doesNotNotifyOfSamePostTwice() = runTest {
+        startChecking()
         share(post(id = "popular"))
         check.run()
         serverTimeIs(SHARED_MILLIS + HOUR_MILLIS)
@@ -192,6 +314,10 @@ class PopularPostCheckTest {
 
     @Test
     fun run_otherUserOnSameDevice_isNotifiedOfSamePost() = runTest {
+        startChecking()
+        accountRepository.logInAs(THIRD_UID)
+        check.run()
+        accountRepository.logInAs(USER_UID)
         share(post(id = "popular"))
         check.run()
         accountRepository.logInAs(THIRD_UID)
@@ -203,6 +329,7 @@ class PopularPostCheckTest {
 
     @Test
     fun run_likesDropBelowThresholdAndReturn_doesNotNotifyTwice() = runTest {
+        startChecking()
         share(post(id = "popular"))
         check.run()
         postLookup.posts = listOf(post(id = "popular", likeCount = MIN_LIKES - 1))
@@ -216,6 +343,7 @@ class PopularPostCheckTest {
 
     @Test
     fun run_again_notifiesOfPostPopularSinceLastCheck() = runTest {
+        startChecking()
         share(post(id = "first"))
         check.run()
         share(post(id = "second"))
@@ -227,6 +355,7 @@ class PopularPostCheckTest {
 
     @Test
     fun run_postLeavesWindowOfNewestPost_forgetsIt() = runTest {
+        startChecking()
         share(post(id = "popular"))
         check.run()
         serverTimeIs(SHARED_MILLIS + WINDOW_MILLIS)
@@ -246,18 +375,6 @@ class PopularPostCheckTest {
         check.run()
 
         assertNothingNotified()
-    }
-
-    @Test
-    fun run_userLogsInWhilePostIsRecent_notifiesOfItThen() = runTest {
-        accountRepository.logOut()
-        share(post(id = "popular"))
-        check.run()
-        accountRepository.logInAs(USER_UID)
-
-        check.run()
-
-        assertEquals(listOf("popular"), notifiedPostIds())
     }
 
     @Test
@@ -284,6 +401,7 @@ class PopularPostCheckTest {
 
     @Test
     fun run_otherChannelTurnedOff_stillNotifies() = runTest {
+        startChecking()
         notifier.turnedOffChannels += PostChannel.ANIMALS_NEAR_YOU
         share(post(id = "popular"))
 
@@ -294,6 +412,7 @@ class PopularPostCheckTest {
 
     @Test
     fun run_lookupFails_throwsAndNotifiesOnNextRun() = runTest {
+        startChecking()
         share(post(id = "popular"))
         postLookup.failure = PostLookupException(IllegalStateException("Offline"))
 
@@ -303,6 +422,17 @@ class PopularPostCheckTest {
 
         assertTrue(failure is PostLookupException)
         assertEquals(listOf("popular"), notifiedPostIds())
+    }
+
+    // Checks once, an hour before the posts the test shares, so that the check has started for
+    // the user and the next check notifies of what became popular since.
+    private suspend fun startChecking() {
+        checkAt(SHARED_MILLIS - HOUR_MILLIS)
+    }
+
+    private suspend fun checkAt(serverMillis: Long) {
+        serverTimeIs(serverMillis)
+        check.run()
     }
 
     private fun share(post: Post) {

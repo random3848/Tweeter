@@ -45,10 +45,14 @@ Layout:
   minutes) looks at the posts the server received since the time in its `LastCheckStore`, less a
   short settle window, skips those it notified of before it counts any animal's posts, and chooses
   with `NearbyRareAnimalSelector` (with `AnimalRarity` in `data/`). `PopularPostCheck` (hourly)
-  looks at every post received within days of the server's newest, since posts become popular
-  after they are shared, chooses with `PopularPostSelector`, and forgets the posts it notified of
-  once they are too old to choose again. Tapping a notification opens the post in Feed through
-  `AppContainer.showInFeedRequest`.
+  reads every post with as many likes as `PopularPostSelector` calls popular, however old (the
+  like count's single-field index serves that; the repo deploys no composite indexes), since
+  posts become popular after they are shared. The selector then chooses on the device among those
+  received within days of the server's newest, and the check forgets the posts it notified of
+  once they are too old to choose again. A first check, for a user or after they turn the channel
+  or notifications back on, notifies of nothing: like `RareAnimalCheck`'s, it counts what is there
+  already as notified of, and keeps when it ran for each user in a `LastCheckStore`. Tapping a
+  notification opens the post in Feed through `AppContainer.showInFeedRequest`.
   A new kind adds a channel, a check with its own name, and a worker that `PostCheckWorkerFactory`
   creates and `AppContainer.schedulePostChecks()` schedules. Feed asks a logged-in user once for
   permission to notify them (`ui/notification/`), for every kind, and saves roughly where the

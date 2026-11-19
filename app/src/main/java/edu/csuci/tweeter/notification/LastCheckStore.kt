@@ -8,7 +8,7 @@ private const val KEY_PREFIX = "lastCheckMillis."
 /**
  * The time up to which the check named [checkName] last looked for posts to notify the user of, in
  * milliseconds since the epoch, kept in [numbers]. Each kind of check has its own name, and so its
- * own time.
+ * own time; a check that keeps a time for each user has a name for each.
  *
  * Reading the time and moving it on aren't one atomic step, so only one check of a name may run at
  * a time, as WorkManager runs a unique periodic work.

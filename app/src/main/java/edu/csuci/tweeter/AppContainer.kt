@@ -284,11 +284,15 @@ class AppContainer(private val context: Context) {
     private fun notifiedPostStoresOf(checkName: String): (uid: String) -> NotifiedPostStore =
         { uid -> NotifiedPostStore(savedNumbers, checkName, uid) }
 
-    // Checks for recent posts by others that became popular.
+    // Checks for recent posts by others that became popular. It keeps the time it last ran for
+    // each user of the device under its name followed by theirs.
     private val popularPostCheck: PopularPostCheck by lazy {
         PopularPostCheck(
             accountRepository = accountRepository,
             notifier = postNotifier,
+            lastCheckStores = { uid ->
+                LastCheckStore(savedNumbers, checkName = "${PopularPostCheckWorker.NAME}.$uid")
+            },
             notifiedPostStores = notifiedPostStoresOf(PopularPostCheckWorker.NAME),
             postLookup = postLookup,
             selector = PopularPostSelector()
