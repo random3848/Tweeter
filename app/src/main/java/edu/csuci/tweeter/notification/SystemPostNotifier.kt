@@ -24,17 +24,25 @@ class SystemPostNotifier(context: Context) : PostNotifier {
     private val appContext = context.applicationContext
     private val manager = NotificationManagerCompat.from(appContext)
 
-    override fun canNotify(): Boolean = ContextCompat.checkSelfPermission(
+    override fun hasPermission(): Boolean = ContextCompat.checkSelfPermission(
         appContext,
         Manifest.permission.POST_NOTIFICATIONS
     ) == PackageManager.PERMISSION_GRANTED
 
+    override fun canNotify(channel: PostChannel): Boolean =
+        hasPermission() && manager.areNotificationsEnabled() && !isTurnedOff(channel)
+
     override fun notify(notification: PostNotification) {
-        if (canNotify()) {
+        if (canNotify(notification.channel)) {
             createChannel(notification.channel)
             show(notification.postId, notification.channel.ordinal, build(notification))
         }
     }
+
+    // A channel not created yet isn't turned off: it is created as it was declared.
+    private fun isTurnedOff(channel: PostChannel): Boolean =
+        manager.getNotificationChannelCompat(channel.id)?.importance ==
+            NotificationManagerCompat.IMPORTANCE_NONE
 
     // Creating a channel that exists changes nothing but its name and description, so this needs
     // no record of which channels were created.
@@ -46,7 +54,7 @@ class SystemPostNotifier(context: Context) : PostNotifier {
         manager.createNotificationChannel(systemChannel)
     }
 
-    @Suppress("MissingPermission") // Checked by canNotify() in notify().
+    @Suppress("MissingPermission") // Checked by canNotify(channel) in notify().
     private fun show(tag: String, id: Int, notification: Notification) {
         manager.notify(tag, id, notification)
     }

@@ -25,7 +25,7 @@ class RareAnimalCheckWorker(
 
     /** The name the check is scheduled under. */
     companion object {
-        /** The unique work name of the check, also the name of its [LastCheckStore]. */
+        /** The check's work name, also its name in [LastCheckStore] and [NotifiedPostStore]. */
         const val NAME = "rareAnimalCheck"
 
         private const val TAG = "RareAnimalCheck"

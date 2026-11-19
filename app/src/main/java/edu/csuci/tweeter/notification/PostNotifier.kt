@@ -7,9 +7,15 @@ package edu.csuci.tweeter.notification
  * own [PostChannel].
  */
 interface PostNotifier {
-    /** Whether the user lets the app show notifications, which it asks them once for. */
-    fun canNotify(): Boolean
+    /** Whether the app has permission to show notifications, which it asks the user once for. */
+    fun hasPermission(): Boolean
 
-    /** Shows [notification], unless the user doesn't let the app show notifications. */
+    /**
+     * Whether the user lets the app show notifications of [channel]: they gave it permission, and
+     * turned off neither the app's notifications nor that channel in the system's settings.
+     */
+    fun canNotify(channel: PostChannel): Boolean
+
+    /** Shows [notification], unless the user doesn't let the app show its channel. */
     fun notify(notification: PostNotification)
 }

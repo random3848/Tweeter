@@ -10,9 +10,7 @@ import edu.csuci.tweeter.data.PostLookupException
 import edu.csuci.tweeter.data.SAMPLE_POSTS
 import edu.csuci.tweeter.location.GeoPoint
 import edu.csuci.tweeter.location.LastLocationStore
-import java.time.Clock
 import java.time.Instant
-import java.time.ZoneOffset
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -20,6 +18,7 @@ import org.junit.Test
 
 private const val USER_UID = "maya"
 private const val OTHER_UID = "jordan"
+private const val THIRD_UID = "sam"
 private const val RARE_ANIMAL = "Bobcat"
 private const val COMMON_ANIMAL = "Western fence lizard"
 private const val PLACE = "Library, oak tree"
@@ -27,11 +26,10 @@ private const val CHECK_NAME = "rareAnimals"
 private const val MAX_POSTS_OF_RARE_ANIMAL = 2
 private const val RADIUS_METERS = 10_000.0
 
-private const val FIRST_CHECK_MILLIS = 1_700_000_000_000L
+private const val SECOND_MILLIS = 1_000L
 private const val MINUTE_MILLIS = 60_000L
-private const val SHARED_MILLIS = FIRST_CHECK_MILLIS + MINUTE_MILLIS
-private const val SECOND_CHECK_MILLIS = FIRST_CHECK_MILLIS + 15 * MINUTE_MILLIS
-private const val THIRD_CHECK_MILLIS = FIRST_CHECK_MILLIS + 30 * MINUTE_MILLIS
+private const val HOUR_MILLIS = 60 * MINUTE_MILLIS
+private const val SHARED_MILLIS = 1_700_000_000_000L
 
 // A hundredth of a degree of latitude is about 1.1 km.
 private const val NEARBY_DEGREES = 0.01
@@ -48,15 +46,42 @@ class RareAnimalCheckTest {
         sighting(id = "old-$index", animal = COMMON_ANIMAL, sharedMillis = 0)
     }
     private val postLookup = FakePostLookup(commonAnimalPosts)
+    private val check = RareAnimalCheck(
+        accountRepository = accountRepository,
+        notifier = notifier,
+        lastLocationStore = lastLocationStore,
+        lastCheckStore = LastCheckStore(numbers, CHECK_NAME),
+        notifiedPostStores = { uid -> NotifiedPostStore(numbers, CHECK_NAME, uid) },
+        postLookup = postLookup,
+        selector = NearbyRareAnimalSelector(
+            PostCountRarity(postLookup, maxPosts = MAX_POSTS_OF_RARE_ANIMAL),
+            radiusMeters = RADIUS_METERS
+        )
+    )
 
     @Test
-    fun run_firstTime_notifiesOfNothingSharedBefore() = runTest {
+    fun run_firstTime_neverNotifiesOfPostsSharedBefore() = runTest {
         lastLocationStore.save(HOME)
-        share(sighting(id = "rare", sharedMillis = FIRST_CHECK_MILLIS - MINUTE_MILLIS))
+        share(sighting(id = "an-hour-ago", sharedMillis = SHARED_MILLIS - HOUR_MILLIS))
+        share(sighting(id = "just-before", sharedMillis = SHARED_MILLIS - SECOND_MILLIS))
+        share(sighting(id = "newest"))
 
-        checkAt(FIRST_CHECK_MILLIS).run()
+        check.run()
+        check.run()
 
         assertNothingNotified()
+    }
+
+    @Test
+    fun run_firstTime_startsFromNewestPostOnServer() = runTest {
+        lastLocationStore.save(HOME)
+        share(sighting(id = "before", sharedMillis = SHARED_MILLIS - HOUR_MILLIS))
+        check.run()
+        share(sighting(id = "after", sharedMillis = SHARED_MILLIS - HOUR_MILLIS + SECOND_MILLIS))
+
+        check.run()
+
+        assertEquals(listOf(rareAnimalNotification("after")), notifier.notifications)
     }
 
     @Test
@@ -64,7 +89,7 @@ class RareAnimalCheckTest {
         startChecking()
         share(sighting(id = "rare"))
 
-        checkAt(SECOND_CHECK_MILLIS).run()
+        check.run()
 
         assertEquals(listOf(rareAnimalNotification("rare")), notifier.notifications)
     }
@@ -74,7 +99,7 @@ class RareAnimalCheckTest {
         startChecking()
         share(sighting(id = "rare", place = ""))
 
-        checkAt(SECOND_CHECK_MILLIS).run()
+        check.run()
 
         val text = notifier.notifications.single().text
         assertEquals(NotificationText(R.string.notification_rare_animal_text_no_place), text)
@@ -85,7 +110,7 @@ class RareAnimalCheckTest {
         startChecking()
         share(sighting(id = "common", animal = COMMON_ANIMAL))
 
-        checkAt(SECOND_CHECK_MILLIS).run()
+        check.run()
 
         assertNothingNotified()
     }
@@ -95,7 +120,7 @@ class RareAnimalCheckTest {
         startChecking()
         share(sighting(id = "far", latitude = HOME.latitude + FAR_DEGREES))
 
-        checkAt(SECOND_CHECK_MILLIS).run()
+        check.run()
 
         assertNothingNotified()
     }
@@ -105,7 +130,7 @@ class RareAnimalCheckTest {
         startChecking()
         share(sighting(id = "mine", authorUid = USER_UID))
 
-        checkAt(SECOND_CHECK_MILLIS).run()
+        check.run()
 
         assertNothingNotified()
     }
@@ -114,9 +139,9 @@ class RareAnimalCheckTest {
     fun run_again_doesNotNotifyOfSamePostTwice() = runTest {
         startChecking()
         share(sighting(id = "rare"))
-        checkAt(SECOND_CHECK_MILLIS).run()
+        check.run()
 
-        checkAt(THIRD_CHECK_MILLIS).run()
+        check.run()
 
         assertEquals(listOf(rareAnimalNotification("rare")), notifier.notifications)
     }
@@ -125,12 +150,26 @@ class RareAnimalCheckTest {
     fun run_again_notifiesOfPostSharedSinceLastCheck() = runTest {
         startChecking()
         share(sighting(id = "first"))
-        checkAt(SECOND_CHECK_MILLIS).run()
-        share(sighting(id = "second", sharedMillis = SECOND_CHECK_MILLIS + MINUTE_MILLIS))
+        check.run()
+        share(sighting(id = "second", sharedMillis = SHARED_MILLIS + MINUTE_MILLIS))
 
-        checkAt(THIRD_CHECK_MILLIS).run()
+        check.run()
 
         val expected = listOf(rareAnimalNotification("first"), rareAnimalNotification("second"))
+        assertEquals(expected, notifier.notifications)
+    }
+
+    @Test
+    fun run_postReceivedEarlierButSavedAfterLastCheck_notifiesOfItOnce() = runTest {
+        startChecking()
+        share(sighting(id = "later", sharedMillis = SHARED_MILLIS + SECOND_MILLIS))
+        check.run()
+        share(sighting(id = "earlier"))
+
+        check.run()
+        check.run()
+
+        val expected = listOf(rareAnimalNotification("later"), rareAnimalNotification("earlier"))
         assertEquals(expected, notifier.notifications)
     }
 
@@ -139,10 +178,11 @@ class RareAnimalCheckTest {
         startChecking()
         accountRepository.logOut()
         share(sighting(id = "rare"))
-        checkAt(SECOND_CHECK_MILLIS).run()
+        check.run()
         accountRepository.logInAs(USER_UID)
 
-        checkAt(THIRD_CHECK_MILLIS).run()
+        check.run()
+        check.run()
 
         assertNothingNotified()
     }
@@ -152,20 +192,75 @@ class RareAnimalCheckTest {
         startChecking()
         notifier.isAllowed = false
         share(sighting(id = "rare"))
-        checkAt(SECOND_CHECK_MILLIS).run()
+        check.run()
         notifier.isAllowed = true
 
-        checkAt(THIRD_CHECK_MILLIS).run()
+        check.run()
+        check.run()
 
         assertNothingNotified()
     }
 
     @Test
+    fun run_channelTurnedOff_neverNotifiesOfPostsSharedMeanwhile() = runTest {
+        startChecking()
+        notifier.turnedOffChannels += PostChannel.ANIMALS_NEAR_YOU
+        share(sighting(id = "rare"))
+        check.run()
+        notifier.turnedOffChannels.clear()
+
+        check.run()
+        check.run()
+
+        assertNothingNotified()
+    }
+
+    @Test
+    fun run_channelTurnedOff_looksUpNothing() = runTest {
+        startChecking()
+        notifier.turnedOffChannels += PostChannel.ANIMALS_NEAR_YOU
+        share(sighting(id = "rare"))
+        postLookup.failure = PostLookupException(IllegalStateException("Offline"))
+
+        check.run()
+
+        assertNothingNotified()
+    }
+
+    @Test
+    fun run_againAfterBreak_startsFromNewestPostOnServer() = runTest {
+        startChecking()
+        notifier.isAllowed = false
+        check.run()
+        share(sighting(id = "during-break"))
+        notifier.isAllowed = true
+        check.run()
+        share(sighting(id = "after-break", sharedMillis = SHARED_MILLIS + MINUTE_MILLIS))
+
+        check.run()
+
+        assertEquals(listOf(rareAnimalNotification("after-break")), notifier.notifications)
+    }
+
+    @Test
+    fun run_otherUserOnSameDevice_isNotifiedOfPostFirstUserWasNotifiedOf() = runTest {
+        startChecking()
+        share(sighting(id = "rare"))
+        check.run()
+        accountRepository.logInAs(THIRD_UID)
+
+        check.run()
+
+        val expected = listOf(rareAnimalNotification("rare"), rareAnimalNotification("rare"))
+        assertEquals(expected, notifier.notifications)
+    }
+
+    @Test
     fun run_locationUnknown_notifiesOfNothing() = runTest {
-        checkAt(FIRST_CHECK_MILLIS).run()
+        check.run()
         share(sighting(id = "rare"))
 
-        checkAt(SECOND_CHECK_MILLIS).run()
+        check.run()
 
         assertNothingNotified()
     }
@@ -176,37 +271,49 @@ class RareAnimalCheckTest {
         share(sighting(id = "rare"))
         postLookup.failure = PostLookupException(IllegalStateException("Offline"))
 
-        val failure = runCatching { checkAt(SECOND_CHECK_MILLIS).run() }.exceptionOrNull()
+        val failure = runCatching { check.run() }.exceptionOrNull()
         postLookup.failure = null
-        checkAt(THIRD_CHECK_MILLIS).run()
+        check.run()
 
         assertTrue(failure is PostLookupException)
         assertEquals(listOf(rareAnimalNotification("rare")), notifier.notifications)
+    }
+
+    @Test
+    fun run_countFails_throwsAndNotifiesOnNextRun() = runTest {
+        startChecking()
+        share(sighting(id = "rare"))
+        postLookup.countFailure = PostLookupException(IllegalStateException("Offline"))
+
+        val failure = runCatching { check.run() }.exceptionOrNull()
+        postLookup.countFailure = null
+        check.run()
+
+        assertTrue(failure is PostLookupException)
+        assertEquals(listOf(rareAnimalNotification("rare")), notifier.notifications)
+    }
+
+    @Test
+    fun run_severalPostsOfOneAnimal_countsItOnce() = runTest {
+        startChecking()
+        share(sighting(id = "first"))
+        share(sighting(id = "second", sharedMillis = SHARED_MILLIS + SECOND_MILLIS))
+
+        check.run()
+
+        assertEquals(1, postLookup.countedAnimals.count { animal -> animal == RARE_ANIMAL })
     }
 
     // Knows where the user is, and checks once, so that the next check notifies of what was
     // shared since.
     private suspend fun startChecking() {
         lastLocationStore.save(HOME)
-        checkAt(FIRST_CHECK_MILLIS).run()
+        check.run()
     }
 
     private fun share(post: Post) {
         postLookup.posts += post
     }
-
-    private fun checkAt(nowMillis: Long): RareAnimalCheck = RareAnimalCheck(
-        accountRepository = accountRepository,
-        notifier = notifier,
-        lastLocationStore = lastLocationStore,
-        lastCheckStore = LastCheckStore(numbers, CHECK_NAME),
-        postLookup = postLookup,
-        selector = NearbyRareAnimalSelector(
-            PostCountRarity(postLookup, maxPosts = MAX_POSTS_OF_RARE_ANIMAL),
-            radiusMeters = RADIUS_METERS
-        ),
-        clock = Clock.fixed(Instant.ofEpochMilli(nowMillis), ZoneOffset.UTC)
-    )
 
     private fun assertNothingNotified() {
         assertEquals(emptyList<PostNotification>(), notifier.notifications)

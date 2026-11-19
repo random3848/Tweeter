@@ -62,4 +62,23 @@ class LastCheckStoreTest {
 
         assertNull(LastCheckStore(numbers, OTHER_CHECK_NAME).lastCheckMillis())
     }
+
+    @Test
+    fun clear_afterCheck_forgetsTime() = runTest {
+        val store = LastCheckStore(numbers, CHECK_NAME)
+        store.advanceTo(LATER_MILLIS)
+
+        store.clear()
+
+        assertNull(store.lastCheckMillis())
+    }
+
+    @Test
+    fun clear_oneCheck_leavesOtherChecksAlone() = runTest {
+        LastCheckStore(numbers, OTHER_CHECK_NAME).advanceTo(LATER_MILLIS)
+
+        LastCheckStore(numbers, CHECK_NAME).clear()
+
+        assertEquals(LATER_MILLIS, LastCheckStore(numbers, OTHER_CHECK_NAME).lastCheckMillis())
+    }
 }

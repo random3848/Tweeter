@@ -1,6 +1,7 @@
 package edu.csuci.tweeter.data
 
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -32,10 +33,20 @@ class PostCountRarityTest {
         assertTrue(rarity.isRare(ANIMAL))
     }
 
+    @Test
+    fun isRare_countsOnlyOnePastMax() = runTest {
+        val lookup = FakePostLookup(postsOf(ANIMAL, ANIMAL, ANIMAL, ANIMAL))
+
+        val isRare = PostCountRarity(lookup, maxPosts = MAX_POSTS).isRare(ANIMAL)
+
+        assertFalse(isRare)
+        assertEquals(listOf(MAX_POSTS + 1), lookup.maxCounts)
+    }
+
     @Test(expected = PostLookupException::class)
     fun isRare_lookupFails_throws() = runTest {
         val lookup = FakePostLookup(postsOf(ANIMAL))
-        lookup.failure = PostLookupException(IllegalStateException("Offline"))
+        lookup.countFailure = PostLookupException(IllegalStateException("Offline"))
 
         PostCountRarity(lookup, maxPosts = MAX_POSTS).isRare(ANIMAL)
     }

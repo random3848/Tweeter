@@ -36,6 +36,7 @@ import edu.csuci.tweeter.location.LocationTagRemover
 import edu.csuci.tweeter.notification.LastCheckStore
 import edu.csuci.tweeter.notification.NearbyRareAnimalSelector
 import edu.csuci.tweeter.notification.NotificationPermissionRecord
+import edu.csuci.tweeter.notification.NotifiedPostStore
 import edu.csuci.tweeter.notification.PostCheckWorkerFactory
 import edu.csuci.tweeter.notification.PostNotifier
 import edu.csuci.tweeter.notification.RareAnimalCheck
@@ -239,9 +240,11 @@ class AppContainer(private val context: Context) {
             notifier = postNotifier,
             lastLocationStore = lastLocationStore,
             lastCheckStore = LastCheckStore(savedNumbers, checkName = RareAnimalCheckWorker.NAME),
+            notifiedPostStores = { uid ->
+                NotifiedPostStore(savedNumbers, checkName = RareAnimalCheckWorker.NAME, uid = uid)
+            },
             postLookup = postLookup,
-            selector = NearbyRareAnimalSelector(PostCountRarity(postLookup)),
-            clock = Clock.systemUTC()
+            selector = NearbyRareAnimalSelector(PostCountRarity(postLookup))
         )
     }
 
@@ -274,9 +277,9 @@ class AppContainer(private val context: Context) {
     /**
      * Gets ready, on background threads, what the first screens use: the repositories they read,
      * and the map engine, so that opening Map doesn't load it on the main thread. Their first use
-     * loads classes, settings and native libraries. Started from `Application.onCreate`, that
+     * loads classes, settings and native libraries. Started from `MainActivity.onCreate`, that
      * work runs on other cores while the activity starts, instead of on the main thread while the
-     * first frames wait.
+     * first frames wait; a process WorkManager starts for a check, which shows nothing, skips it.
      */
     fun prepareFirstScreens() {
         applicationScope.launch {

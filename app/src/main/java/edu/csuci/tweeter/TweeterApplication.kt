@@ -31,7 +31,6 @@ class TweeterApplication :
     override fun onCreate() {
         super.onCreate()
         configureMapTiles()
-        container.prepareFirstScreens()
         container.schedulePostChecks()
     }
 

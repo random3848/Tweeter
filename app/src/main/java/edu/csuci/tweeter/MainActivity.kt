@@ -26,6 +26,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Here rather than in TweeterApplication, so that a process started only to run a check
+        // for posts doesn't load what screens use. Later calls find it all ready.
+        (application as TweeterApplication).container.prepareFirstScreens()
         if (savedInstanceState == null) {
             // The app starts afresh, so no screen it restores can still use a camera photo.
             (application as TweeterApplication).container.cameraFileStore.discardAll()

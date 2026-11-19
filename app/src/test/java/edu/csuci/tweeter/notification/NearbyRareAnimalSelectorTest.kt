@@ -107,6 +107,21 @@ class NearbyRareAnimalSelectorTest {
         assertEquals(listOf(RARE_ANIMAL), rarity.askedAnimals)
     }
 
+    @Test
+    fun rowsToNotify_severalPostsOfOneAnimal_asksRarityOnceAndSelectsEach() = runTest {
+        val posts = tableOf(
+            sighting(id = "rare-1"),
+            sighting(id = "common-1", animal = COMMON_ANIMAL),
+            sighting(id = "rare-2"),
+            sighting(id = "common-2", animal = COMMON_ANIMAL)
+        )
+
+        val rows = selector.rowsToNotify(posts, recipient)
+
+        assertArrayEquals(intArrayOf(0, 2), rows)
+        assertEquals(listOf(RARE_ANIMAL, COMMON_ANIMAL), rarity.askedAnimals)
+    }
+
     private fun tableOf(vararg posts: Post): PostTable = PostTable.of(posts.toList())
 
     private fun sighting(
