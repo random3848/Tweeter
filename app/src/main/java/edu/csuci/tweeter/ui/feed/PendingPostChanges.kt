@@ -5,11 +5,12 @@ import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.update
 
 /**
- * The posts whose change, such as a like, is being saved, for a button under each post that
- * ignores taps until its last change is saved.
+ * The posts whose change, such as a like or a vote, is being saved, for the controls on each post
+ * that ignore taps until its last change is saved.
  *
- * A screen reads whether a post is liked or saved from a Firestore listener, which shows a change
- * only once it reports it, so a second tap before then would repeat the first.
+ * A screen reads whether the user liked, saved or voted on a post from a Firestore listener, which
+ * shows a change only once it reports it, so a second tap before then would be worked out from the
+ * post as it was before the first.
  */
 internal class PendingPostChanges {
     // The IDs of the posts whose change the server hasn't saved yet.

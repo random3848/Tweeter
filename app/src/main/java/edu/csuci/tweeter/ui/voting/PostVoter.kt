@@ -6,10 +6,8 @@ import edu.csuci.tweeter.data.PostBallot
 import edu.csuci.tweeter.data.VoteChange
 import edu.csuci.tweeter.data.VoteException
 import edu.csuci.tweeter.data.VoteRepository
+import edu.csuci.tweeter.ui.feed.PendingPostChanges
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.getAndUpdate
-import kotlinx.coroutines.flow.update
 
 private const val TAG = "PostVoter"
 
@@ -17,15 +15,13 @@ private const val TAG = "PostVoter"
  * Saves the user's votes on what animal posts show, and the poster's reclassifying of their own,
  * for a screen that shows the votes, such as Feed or the voting page, each screen holding its own.
  *
- * A post's vote controls ignore taps while the last change to its votes is being saved: a screen
- * reads the user's vote from [userVotes], which shows the change only once Firestore's listener
- * reports it, so a second tap before then would be worked out from the vote before the first.
+ * A post's vote controls ignore taps while the last change to its votes is being saved, as
+ * [PendingPostChanges] explains.
  *
  * @param voteRepository The user's votes and the posts' vote counts, and where changes are saved.
  */
 class PostVoter(private val voteRepository: VoteRepository) {
-    // The IDs of the posts whose votes have a change the server hasn't saved yet.
-    private val postsWithVotesChanging = MutableStateFlow(emptySet<String>())
+    private val pendingChanges = PendingPostChanges()
 
     /** The user's votes, by post ID, updated as they vote or log in or out. */
     fun userVotes(): Flow<Map<String, AnimalVote>> = voteRepository.getVotes()
@@ -66,22 +62,15 @@ class PostVoter(private val voteRepository: VoteRepository) {
 
     // Saves [change] to the votes on the post with [postId], unless another is still being saved.
     private suspend fun changeVotes(postId: String, change: suspend () -> Unit) {
-        val isAlreadyChanging = postId in postsWithVotesChanging.getAndUpdate { it + postId }
-        if (isAlreadyChanging) {
-            return
-        }
-        saveVotesChange(postId, change)
+        pendingChanges.saveUnlessPending(postId) { saveVotesChange(postId, change) }
     }
 
-    // Saves [change] to the votes on the post with [postId], then lets its controls take taps
-    // again.
+    // Saves [change] to the votes on the post with [postId], logging a change that can't be saved.
     private suspend fun saveVotesChange(postId: String, change: suspend () -> Unit) {
         try {
             change()
         } catch (error: VoteException) {
             Log.e(TAG, "Could not change the votes on post $postId", error)
-        } finally {
-            postsWithVotesChanging.update { it - postId }
         }
     }
 }
