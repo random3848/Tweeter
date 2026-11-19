@@ -14,11 +14,12 @@ import kotlinx.coroutines.tasks.await
 private const val DEFAULT_TIMEOUT_MILLIS = 20_000L
 
 /**
- * Gets live location fixes from the fused location provider.
+ * Gets live location fixes from the fused location provider, and remembers each in
+ * [lastLocationStore], where notifications of posts near the user look for where they are.
  *
  * @param context Any context; only its application context is kept.
  */
-class DeviceLocationProvider(context: Context) {
+class DeviceLocationProvider(context: Context, private val lastLocationStore: LastLocationStore) {
     private val appContext = context.applicationContext
     private val client = LocationServices.getFusedLocationProviderClient(appContext)
 
@@ -31,10 +32,16 @@ class DeviceLocationProvider(context: Context) {
             PackageManager.PERMISSION_GRANTED
 
     /**
-     * Requests a fresh high-accuracy fix. Returns null if permission is missing, location is off,
-     * or no fix arrives within [timeoutMillis].
+     * Requests a fresh high-accuracy fix, and saves it as where the device last was. Returns null
+     * if permission is missing, location is off, or no fix arrives within [timeoutMillis].
      */
     suspend fun currentFix(timeoutMillis: Long = DEFAULT_TIMEOUT_MILLIS): LocationFix? {
+        val fix = freshFix(timeoutMillis) ?: return null
+        lastLocationStore.save(fix.point)
+        return fix
+    }
+
+    private suspend fun freshFix(timeoutMillis: Long): LocationFix? {
         if (!hasPermission()) {
             return null
         }
