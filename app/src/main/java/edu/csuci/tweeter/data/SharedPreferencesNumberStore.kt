@@ -30,11 +30,32 @@ class SharedPreferencesNumberStore(
         if (preferences.contains(key)) preferences.getLong(key, 0L) else null
     }
 
+    override suspend fun getLongsWithPrefix(prefix: String): Map<String, Long> =
+        withContext(ioDispatcher) {
+            buildMap {
+                for ((key, value) in preferences.all) {
+                    if (key.startsWith(prefix) && value is Long) {
+                        put(key, value)
+                    }
+                }
+            }
+        }
+
     override suspend fun putLongs(numbers: Map<String, Long>) {
         withContext(ioDispatcher) {
             preferences.edit(commit = true) {
                 for ((key, number) in numbers) {
                     putLong(key, number)
+                }
+            }
+        }
+    }
+
+    override suspend fun removeLongs(keys: Collection<String>) {
+        withContext(ioDispatcher) {
+            preferences.edit(commit = true) {
+                for (key in keys) {
+                    remove(key)
                 }
             }
         }

@@ -1,0 +1,92 @@
+package edu.csuci.tweeter.notification
+
+import edu.csuci.tweeter.R
+import edu.csuci.tweeter.data.AccountRepository
+import edu.csuci.tweeter.data.PostLookup
+import edu.csuci.tweeter.data.PostTable
+import java.time.Clock
+
+/**
+ * One check for posts by others that have become popular, which notifies the logged-in user of
+ * each, once. [PopularPostCheckWorker] runs it every so often.
+ *
+ * Unlike the posts [RareAnimalCheck] looks for, popular posts aren't new: a post becomes popular
+ * some time after it is shared. So each check looks at every post that is still recent, as
+ * [selector] judges by [clock], and [notifiedPostStore] remembers the posts it notified of until
+ * they are too old to look at again. A check while nobody is logged in or the app may not show
+ * notifications looks nothing up, and a post that becomes popular meanwhile is notified of once
+ * the user can be, if it is still recent then.
+ *
+ * @param accountRepository Who is logged in, whom the check notifies.
+ * @param notifier Shows the notifications, if the user lets it.
+ * @param notifiedPostStore The posts the user was notified of as popular.
+ * @param postLookup Where recent posts are looked up.
+ * @param selector Chooses which recent posts the user hears of, and says how recent they must be.
+ * @param clock The time now, which posts' ages are measured to.
+ */
+class PopularPostCheck(
+    private val accountRepository: AccountRepository,
+    private val notifier: PostNotifier,
+    private val notifiedPostStore: NotifiedPostStore,
+    private val postLookup: PostLookup,
+    private val selector: PopularPostSelector,
+    private val clock: Clock
+) : PostCheck {
+    /**
+     * Notifies the user of each recent post by someone else that is popular now, unless they were
+     * notified of it before.
+     *
+     * @throws edu.csuci.tweeter.data.PostLookupException If the posts can't be looked up; the next
+     *     check then looks at them again.
+     */
+    override suspend fun run() {
+        val uid = accountRepository.loggedInUid.value
+        if (uid != null && notifier.canNotify()) {
+            notifyOfPopularPosts(uid)
+        }
+    }
+
+    // The posts are remembered before the notifications are shown, so a check that stops midway
+    // never shows one twice.
+    private suspend fun notifyOfPopularPosts(uid: String) {
+        val nowMillis = clock.millis()
+        val recentAfterMillis = selector.recentAfterMillis(nowMillis)
+        val recentPosts = postLookup.postsReceivedAfter(recentAfterMillis)
+        notifiedPostStore.forgetPostsSharedUpTo(recentAfterMillis)
+        val recipient = PopularPostRecipient(uid, notifiedPostStore.notifiedPostIds())
+        val rows = selector.rowsToNotify(recentPosts, nowMillis, recipient)
+        notifiedPostStore.remember(recentPosts, rows)
+        for (row in rows) {
+            notifier.notify(popularPostNotification(recentPosts, row))
+        }
+    }
+
+    private fun popularPostNotification(posts: PostTable, row: Int): PostNotification =
+        PostNotification(
+            channel = PostChannel.POPULAR_POSTS,
+            postId = posts.id(row),
+            title = titleOf(posts, row),
+            text = textOf(posts, row)
+        )
+
+    // Names the post's animal, if it names one.
+    private fun titleOf(posts: PostTable, row: Int): NotificationText {
+        val animal = posts.animalType(row).trim()
+        return if (animal.isEmpty()) {
+            NotificationText(R.string.notification_popular_post_title)
+        } else {
+            NotificationText(R.string.notification_popular_post_title_animal, animal)
+        }
+    }
+
+    // Gives the post's likes, and its place, if it has one.
+    private fun textOf(posts: PostTable, row: Int): NotificationText {
+        val likeCount = posts.likeCount(row).toString()
+        val place = posts.locationName(row).trim()
+        return if (place.isEmpty()) {
+            NotificationText(R.string.notification_popular_post_text_no_place, likeCount)
+        } else {
+            NotificationText(R.string.notification_popular_post_text, likeCount, place)
+        }
+    }
+}

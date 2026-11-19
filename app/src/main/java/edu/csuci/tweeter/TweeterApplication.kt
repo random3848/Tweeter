@@ -33,6 +33,7 @@ class TweeterApplication :
         configureMapTiles()
         container.prepareFirstScreens()
         container.schedulePostChecks()
+        container.createPostNotificationChannels()
     }
 
     // Firebase Storage sends photos with `Cache-Control: private, max-age=0`, so by default Coil

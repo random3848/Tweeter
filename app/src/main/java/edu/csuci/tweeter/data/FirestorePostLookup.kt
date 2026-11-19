@@ -11,8 +11,9 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 
-// The most posts [FirestorePostLookup.postsReceivedAfter] reads at once, so that a device that was
-// offline for long doesn't read every post shared meanwhile.
+// The most posts [FirestorePostLookup.postsReceivedAfter] reads at once, so that a check doesn't
+// read every post shared over a long time: since a device that was offline for long last checked,
+// or within the days a post can become popular in.
 private const val MAX_POSTS_PER_LOOKUP = 100L
 
 /**

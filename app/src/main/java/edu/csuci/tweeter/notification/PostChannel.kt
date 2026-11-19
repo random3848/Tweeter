@@ -27,5 +27,13 @@ enum class PostChannel(
         title = R.string.notification_channel_animals_near_you,
         description = R.string.notification_channel_animals_near_you_description,
         importance = NotificationManagerCompat.IMPORTANCE_DEFAULT
+    ),
+
+    /** Recent posts by others that many users liked, wherever they were shared. */
+    POPULAR_POSTS(
+        id = "popular_posts",
+        title = R.string.notification_channel_popular_posts,
+        description = R.string.notification_channel_popular_posts_description,
+        importance = NotificationManagerCompat.IMPORTANCE_DEFAULT
     )
 }
