@@ -18,7 +18,8 @@ class NearbyRareAnimalSelector(
 ) {
     /**
      * The rows of [posts] that [recipient] is to be notified of, in table order. Asks [rarity]
-     * only about the posts that pass every other test, since it may look the animal up online.
+     * only about the posts that pass every other test, and once per animal, since it may look the
+     * animal up online.
      *
      * @throws edu.csuci.tweeter.data.PostLookupException If [rarity] can't tell.
      */
@@ -26,7 +27,11 @@ class NearbyRareAnimalSelector(
         val nearbySightings = (0 until posts.size).filter { row ->
             isNearbySighting(posts, row, recipient)
         }
-        return nearbySightings.filter { row -> rarity.isRare(posts.animalType(row)) }.toIntArray()
+        val isRareByAnimal = HashMap<String, Boolean>()
+        return nearbySightings.filter { row ->
+            val animal = posts.animalType(row)
+            isRareByAnimal.getOrPut(animal) { rarity.isRare(animal) }
+        }.toIntArray()
     }
 
     // Whether the post in [row] names an animal and was shared near [recipient] by someone else.

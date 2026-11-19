@@ -13,11 +13,14 @@ Layout:
   from then on, so that Map shows it at once.
 - `app/src/main/java/edu/csuci/tweeter/data/`: the models (`Post`, `UserProfile`) and the
   repositories screens use through interfaces (`PostRepository`, `ProfileRepository`,
-  `AccountRepository`, `PhotoRepository`, `AnimalRepository`, `LikeRepository`). `AppContainer`
-  (owned by `TweeterApplication`) creates one Firebase implementation of each, except
-  `AnimalRepository`, which is the in-memory `FakeAnimalRepository` until the iNaturalist one is
-  built. A user's likes are documents under `users/{uid}/likes`, saved in one batch with the post's
-  `likeCount`, which the rules check against each other. Screens read posts as one `PostTable`, a
+  `AccountRepository`, `PhotoRepository`, `AnimalRepository`, `LikeRepository`,
+  `BookmarkRepository`). `AppContainer` (owned by `TweeterApplication`) creates one Firebase
+  implementation of each, except `AnimalRepository`, which is the in-memory `FakeAnimalRepository`
+  until the iNaturalist one is built. A user's likes are documents under `users/{uid}/likes`, saved
+  in one batch with the post's `likeCount`, which the rules check against each other. The posts a
+  user saved are empty documents under `users/{uid}/bookmarks`, which only they can read. Whether
+  the user liked or saved a post depends on who is looking, so screens hold those posts' IDs as
+  sets, not `PostTable` columns. Screens read posts as one `PostTable`, a
   structure of arrays with one array per `Post` field that a screen shows, and keep rows of it
   (`Int` indices) rather than `Post` objects; something that can outlive its table, such as a map
   pin, keeps the post's ID instead. `PostDocument` and `ProfileDocument` map the models to
@@ -33,16 +36,19 @@ Layout:
   closed, through its own `PostCheckWorker` subclass. A check looks posts up with `PostLookup` (in
   `data/`), chooses which to notify of with plain logic, and shows them through `PostNotifier`,
   each kind in its own `PostChannel`, which users turn off in the system's settings for the app;
-  the app creates every channel when it starts. `RareAnimalCheck` (every 15 minutes) looks at the
-  posts the server received since the time in its `LastCheckStore` and chooses with
-  `NearbyRareAnimalSelector` (with `AnimalRarity` in `data/`). `PopularPostCheck` (hourly) looks
-  at every recent post, since posts become popular after they are shared, chooses with
-  `PopularPostSelector`, and remembers the posts it notified of in a `NotifiedPostStore` until
-  they are too old to choose again. Tapping a notification opens the post in Feed through
-  `AppContainer.showInFeedRequest`. A new kind adds a channel, a check with its own name, and a
-  worker that `PostCheckWorkerFactory` creates and `AppContainer.schedulePostChecks()` schedules.
-  Feed asks a logged-in user once for permission to notify them (`ui/notification/`), for every
-  kind.
+  the app creates every channel when it starts, and a check whose channel is off looks nothing up.
+  Each check remembers the posts it notified each user of in a `NotifiedPostStore`.
+  `RareAnimalCheck` (every 15 minutes) looks at the posts the server received since the time in
+  its `LastCheckStore`, less a short settle window, skips those it notified of, and chooses with
+  `NearbyRareAnimalSelector` (with `AnimalRarity` in `data/`); its times are the server's, never
+  the device's. `PopularPostCheck` (hourly) looks at every recent post, since posts become
+  popular after they are shared, chooses with `PopularPostSelector`, and forgets the posts it
+  notified of once they are too old to choose again. Tapping a notification opens the post in
+  Feed through `AppContainer.showInFeedRequest`. A new kind adds a channel, a check with its own
+  name, and a worker that `PostCheckWorkerFactory` creates and `AppContainer.schedulePostChecks()`
+  schedules. Feed asks a logged-in user once for permission to notify them (`ui/notification/`),
+  for every kind. The `saved_numbers` file these remember things in is left out of backups
+  (`res/xml/`), since a restore doesn't bring back the permission.
 - `app/src/main/java/edu/csuci/tweeter/ui/camera/`: the photo the post and profile screens let the
   user choose, `ChosenPhoto`, and taking it with the camera app: `CameraCapture`, held by the
   screen's ViewModel, which exposes it as `CameraControls`, and `CameraOpener`, which the screen
@@ -470,7 +476,9 @@ Threads:
 Startup:
 - The first frame waits for everything its composition touches. A library whose first use is slow
   (Firebase, MapLibre) is started from `AppContainer.prepareFirstScreens()` on background threads,
-  and something not on screen at launch, like the map, isn't composed until it's needed.
+  which `MainActivity.onCreate` calls, not `Application.onCreate`, since WorkManager also starts
+  the process for checks that show no screen. Something not on screen at launch, like the map,
+  isn't composed until it's needed.
 
 Drawing:
 - Keep the GPU paths on: Compose draws with hardware acceleration, Coil decodes photos off the

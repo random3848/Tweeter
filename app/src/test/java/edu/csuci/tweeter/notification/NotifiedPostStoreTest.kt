@@ -11,6 +11,8 @@ import org.junit.Test
 
 private const val CHECK_NAME = "popularPosts"
 private const val OTHER_CHECK_NAME = "otherPosts"
+private const val USER_UID = "maya"
+private const val OTHER_UID = "jordan"
 private const val SHARED_MILLIS = 1_700_000_000_000L
 
 class NotifiedPostStoreTest {
@@ -18,34 +20,43 @@ class NotifiedPostStoreTest {
 
     @Test
     fun notifiedPostIds_nothingRemembered_isEmpty() = runTest {
-        assertEquals(emptySet<String>(), NotifiedPostStore(numbers, CHECK_NAME).notifiedPostIds())
+        assertEquals(emptySet<String>(), store().notifiedPostIds())
     }
 
     @Test
     fun remember_remembersOnlyChosenRows() = runTest {
         val posts = tableOf(post("first"), post("second"), post("third"))
 
-        NotifiedPostStore(numbers, CHECK_NAME).remember(posts, rows = intArrayOf(0, 2))
+        store().remember(posts, rows = intArrayOf(0, 2))
 
         assertNotified("first", "third")
     }
 
     @Test
     fun remember_thenNewStoreOverSameNumbers_knowsPosts() = runTest {
-        NotifiedPostStore(numbers, CHECK_NAME).remember(tableOf(post("first")), intArrayOf(0))
+        store().remember(tableOf(post("first")), intArrayOf(0))
 
-        val afterRestart = NotifiedPostStore(numbers, CHECK_NAME)
+        val afterRestart = store()
 
         assertEquals(setOf("first"), afterRestart.notifiedPostIds())
     }
 
     @Test
     fun remember_oneCheck_leavesOtherChecksAlone() = runTest {
-        NotifiedPostStore(numbers, CHECK_NAME).remember(tableOf(post("first")), intArrayOf(0))
+        store().remember(tableOf(post("first")), intArrayOf(0))
 
-        val otherCheckPosts = NotifiedPostStore(numbers, OTHER_CHECK_NAME).notifiedPostIds()
+        val otherCheckPosts = store(checkName = OTHER_CHECK_NAME).notifiedPostIds()
 
         assertEquals(emptySet<String>(), otherCheckPosts)
+    }
+
+    @Test
+    fun remember_oneUser_leavesOtherUsersAlone() = runTest {
+        store().remember(tableOf(post("first")), intArrayOf(0))
+
+        val otherUserPosts = store(uid = OTHER_UID).notifiedPostIds()
+
+        assertEquals(emptySet<String>(), otherUserPosts)
     }
 
     @Test
@@ -90,21 +101,24 @@ class NotifiedPostStoreTest {
     @Test
     fun forgetPostsSharedUpTo_oneCheck_leavesOtherChecksAlone() = runTest {
         val oldPost = tableOf(post("old", sharedMillis = SHARED_MILLIS - 1))
-        NotifiedPostStore(numbers, OTHER_CHECK_NAME).remember(oldPost, intArrayOf(0))
+        store(checkName = OTHER_CHECK_NAME).remember(oldPost, intArrayOf(0))
 
-        NotifiedPostStore(numbers, CHECK_NAME).forgetPostsSharedUpTo(SHARED_MILLIS)
+        store().forgetPostsSharedUpTo(SHARED_MILLIS)
 
-        assertEquals(setOf("old"), NotifiedPostStore(numbers, OTHER_CHECK_NAME).notifiedPostIds())
+        assertEquals(setOf("old"), store(checkName = OTHER_CHECK_NAME).notifiedPostIds())
     }
 
+    private fun store(checkName: String = CHECK_NAME, uid: String = USER_UID): NotifiedPostStore =
+        NotifiedPostStore(numbers, checkName, uid)
+
     private suspend fun storeRemembering(vararg posts: Post): NotifiedPostStore {
-        val store = NotifiedPostStore(numbers, CHECK_NAME)
+        val store = store()
         store.remember(tableOf(*posts), rows = IntArray(posts.size) { row -> row })
         return store
     }
 
     private suspend fun assertNotified(vararg postIds: String) {
-        assertEquals(postIds.toSet(), NotifiedPostStore(numbers, CHECK_NAME).notifiedPostIds())
+        assertEquals(postIds.toSet(), store().notifiedPostIds())
     }
 
     private fun tableOf(vararg posts: Post): PostTable = PostTable.of(posts.toList())

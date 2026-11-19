@@ -29,4 +29,12 @@ class LastCheckStore(private val numbers: NumberStore, checkName: String) {
             numbers.putLongs(mapOf(key to timeMillis))
         }
     }
+
+    /**
+     * Forgets the time, as if the check never looked, so that it starts over from the server's
+     * newest post once it may notify the user again.
+     */
+    suspend fun clear() {
+        numbers.removeLongs(listOf(key))
+    }
 }

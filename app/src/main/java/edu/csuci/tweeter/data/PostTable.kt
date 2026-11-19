@@ -92,6 +92,12 @@ class PostTable private constructor(
     fun rowsBy(authorUids: Set<String>): IntArray = rowsWhere(this.authorUids, authorUids::contains)
 
     /**
+     * The rows of the posts with any of the IDs [postIds], in table order. An ID the table doesn't
+     * hold, such as a deleted post's, has no row.
+     */
+    fun rowsOf(postIds: Set<String>): IntArray = rowsWhere(ids, postIds::contains)
+
+    /**
      * The rows of the posts of [animal] ([Post.animalType]), in table order: the posts naming it
      * the same way, ignoring case and the spaces around it. A blank [animal] matches no post.
      */

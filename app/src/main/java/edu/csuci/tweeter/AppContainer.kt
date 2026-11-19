@@ -8,17 +8,20 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import edu.csuci.tweeter.data.AccountRepository
 import edu.csuci.tweeter.data.AnimalRepository
+import edu.csuci.tweeter.data.BookmarkRepository
 import edu.csuci.tweeter.data.CameraFileStore
 import edu.csuci.tweeter.data.CommentRepository
 import edu.csuci.tweeter.data.FakeAnimalRepository
 import edu.csuci.tweeter.data.FirebaseAccountRepository
 import edu.csuci.tweeter.data.FirebasePhotoRepository
+import edu.csuci.tweeter.data.FirestoreBookmarkRepository
 import edu.csuci.tweeter.data.FirestoreCommentRepository
 import edu.csuci.tweeter.data.FirestoreFollowRepository
 import edu.csuci.tweeter.data.FirestoreLikeRepository
 import edu.csuci.tweeter.data.FirestorePostLookup
 import edu.csuci.tweeter.data.FirestorePostRepository
 import edu.csuci.tweeter.data.FirestoreProfileRepository
+import edu.csuci.tweeter.data.FirestoreReportRepository
 import edu.csuci.tweeter.data.FollowRepository
 import edu.csuci.tweeter.data.GuestSignIn
 import edu.csuci.tweeter.data.LikeRepository
@@ -30,6 +33,7 @@ import edu.csuci.tweeter.data.PostLookup
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.ProfileSaver
+import edu.csuci.tweeter.data.ReportRepository
 import edu.csuci.tweeter.data.SharedPreferencesNumberStore
 import edu.csuci.tweeter.location.DeviceLocationProvider
 import edu.csuci.tweeter.location.LastLocationStore
@@ -139,6 +143,11 @@ class AppContainer(private val context: Context) {
         FirestoreCommentRepository(firestore = FirebaseFirestore.getInstance())
     }
 
+    /** Reports of posts and users, stored in Firestore for the team to review. */
+    val reportRepository: ReportRepository by lazy {
+        FirestoreReportRepository(firestore = FirebaseFirestore.getInstance())
+    }
+
     /**
      * Shared authentication operations and the registered user's identity.
      */
@@ -152,6 +161,19 @@ class AppContainer(private val context: Context) {
      */
     val likeRepository: LikeRepository by lazy {
         FirestoreLikeRepository(
+            accountRepository = accountRepository,
+            guestSignIn = guestSignIn,
+            firestore = FirebaseFirestore.getInstance(),
+            dispatcher = Dispatchers.Default
+        )
+    }
+
+    /**
+     * The logged-in user's saved posts, stored in Firestore under their profile, and read on
+     * [Dispatchers.Default].
+     */
+    val bookmarkRepository: BookmarkRepository by lazy {
+        FirestoreBookmarkRepository(
             accountRepository = accountRepository,
             guestSignIn = guestSignIn,
             firestore = FirebaseFirestore.getInstance(),
@@ -250,21 +272,22 @@ class AppContainer(private val context: Context) {
             notifier = postNotifier,
             lastLocationStore = lastLocationStore,
             lastCheckStore = LastCheckStore(savedNumbers, checkName = RareAnimalCheckWorker.NAME),
+            notifiedPostStores = notifiedPostStoresOf(RareAnimalCheckWorker.NAME),
             postLookup = postLookup,
-            selector = NearbyRareAnimalSelector(PostCountRarity(postLookup)),
-            clock = Clock.systemUTC()
+            selector = NearbyRareAnimalSelector(PostCountRarity(postLookup))
         )
     }
+
+    // Gets the posts the check named [checkName] notified each user of the device of.
+    private fun notifiedPostStoresOf(checkName: String): (uid: String) -> NotifiedPostStore =
+        { uid -> NotifiedPostStore(savedNumbers, checkName, uid) }
 
     // Checks for recent posts by others that became popular.
     private val popularPostCheck: PopularPostCheck by lazy {
         PopularPostCheck(
             accountRepository = accountRepository,
             notifier = postNotifier,
-            notifiedPostStore = NotifiedPostStore(
-                savedNumbers,
-                checkName = PopularPostCheckWorker.NAME
-            ),
+            notifiedPostStores = notifiedPostStoresOf(PopularPostCheckWorker.NAME),
             postLookup = postLookup,
             selector = PopularPostSelector(),
             clock = Clock.systemUTC()
@@ -303,9 +326,9 @@ class AppContainer(private val context: Context) {
     /**
      * Gets ready, on background threads, what the first screens use: the repositories they read,
      * and the map engine, so that opening Map doesn't load it on the main thread. Their first use
-     * loads classes, settings and native libraries. Started from `Application.onCreate`, that
+     * loads classes, settings and native libraries. Started from `MainActivity.onCreate`, that
      * work runs on other cores while the activity starts, instead of on the main thread while the
-     * first frames wait.
+     * first frames wait; a process WorkManager starts for a check, which shows nothing, skips it.
      */
     fun prepareFirstScreens() {
         applicationScope.launch {

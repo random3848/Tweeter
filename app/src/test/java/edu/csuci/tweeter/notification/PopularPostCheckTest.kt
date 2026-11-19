@@ -19,6 +19,7 @@ import org.junit.Test
 
 private const val USER_UID = "maya"
 private const val OTHER_UID = "jordan"
+private const val THIRD_UID = "sam"
 private const val ANIMAL = "Bobcat"
 private const val PLACE = "Library, oak tree"
 private const val CHECK_NAME = "popularPosts"
@@ -127,6 +128,17 @@ class PopularPostCheckTest {
     }
 
     @Test
+    fun run_otherUserOnSameDevice_isNotifiedOfSamePost() = runTest {
+        share(post(id = "popular"))
+        checkAt(FIRST_CHECK_MILLIS).run()
+        accountRepository.logInAs(THIRD_UID)
+
+        checkAt(SECOND_CHECK_MILLIS).run()
+
+        assertEquals(listOf("popular", "popular"), notifiedPostIds())
+    }
+
+    @Test
     fun run_likesDropBelowThresholdAndReturn_doesNotNotifyTwice() = runTest {
         share(post(id = "popular"))
         checkAt(FIRST_CHECK_MILLIS).run()
@@ -157,7 +169,8 @@ class PopularPostCheckTest {
 
         checkAt(EXPIRY_CHECK_MILLIS).run()
 
-        assertEquals(emptySet<String>(), NotifiedPostStore(numbers, CHECK_NAME).notifiedPostIds())
+        val notifiedPosts = NotifiedPostStore(numbers, CHECK_NAME, USER_UID).notifiedPostIds()
+        assertEquals(emptySet<String>(), notifiedPosts)
     }
 
     @Test
@@ -195,6 +208,27 @@ class PopularPostCheckTest {
     }
 
     @Test
+    fun run_popularChannelTurnedOff_doesNotLookUpPosts() = runTest {
+        notifier.turnedOffChannels += PostChannel.POPULAR_POSTS
+        share(post(id = "popular"))
+        postLookup.failure = PostLookupException(IllegalStateException("Offline"))
+
+        checkAt(FIRST_CHECK_MILLIS).run()
+
+        assertNothingNotified()
+    }
+
+    @Test
+    fun run_otherChannelTurnedOff_stillNotifies() = runTest {
+        notifier.turnedOffChannels += PostChannel.ANIMALS_NEAR_YOU
+        share(post(id = "popular"))
+
+        checkAt(FIRST_CHECK_MILLIS).run()
+
+        assertEquals(listOf("popular"), notifiedPostIds())
+    }
+
+    @Test
     fun run_lookupFails_throwsAndNotifiesOnNextRun() = runTest {
         share(post(id = "popular"))
         postLookup.failure = PostLookupException(IllegalStateException("Offline"))
@@ -215,7 +249,7 @@ class PopularPostCheckTest {
     private fun checkAt(nowMillis: Long): PopularPostCheck = PopularPostCheck(
         accountRepository = accountRepository,
         notifier = notifier,
-        notifiedPostStore = NotifiedPostStore(numbers, CHECK_NAME),
+        notifiedPostStores = { uid -> NotifiedPostStore(numbers, CHECK_NAME, uid) },
         postLookup = postLookup,
         selector = PopularPostSelector(minLikeCount = MIN_LIKES, windowMillis = WINDOW_MILLIS),
         clock = Clock.fixed(Instant.ofEpochMilli(nowMillis), ZoneOffset.UTC)

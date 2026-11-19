@@ -12,14 +12,14 @@ import java.time.Clock
  *
  * Unlike the posts [RareAnimalCheck] looks for, popular posts aren't new: a post becomes popular
  * some time after it is shared. So each check looks at every post that is still recent, as
- * [selector] judges by [clock], and [notifiedPostStore] remembers the posts it notified of until
- * they are too old to look at again. A check while nobody is logged in or the app may not show
- * notifications looks nothing up, and a post that becomes popular meanwhile is notified of once
- * the user can be, if it is still recent then.
+ * [selector] judges by [clock], and remembers the posts it notified the user of, in their store
+ * from [notifiedPostStores], until they are too old to look at again. A check while nobody is
+ * logged in, or the user turned off the channel or notifications, looks nothing up, and a post
+ * that becomes popular meanwhile is notified of once the user can be, if it is still recent then.
  *
  * @param accountRepository Who is logged in, whom the check notifies.
  * @param notifier Shows the notifications, if the user lets it.
- * @param notifiedPostStore The posts the user was notified of as popular.
+ * @param notifiedPostStores Gets the posts a user was notified of as popular, by their ID.
  * @param postLookup Where recent posts are looked up.
  * @param selector Chooses which recent posts the user hears of, and says how recent they must be.
  * @param clock The time now, which posts' ages are measured to.
@@ -27,7 +27,7 @@ import java.time.Clock
 class PopularPostCheck(
     private val accountRepository: AccountRepository,
     private val notifier: PostNotifier,
-    private val notifiedPostStore: NotifiedPostStore,
+    private val notifiedPostStores: (uid: String) -> NotifiedPostStore,
     private val postLookup: PostLookup,
     private val selector: PopularPostSelector,
     private val clock: Clock
@@ -41,7 +41,7 @@ class PopularPostCheck(
      */
     override suspend fun run() {
         val uid = accountRepository.loggedInUid.value
-        if (uid != null && notifier.canNotify()) {
+        if (uid != null && notifier.canNotify(PostChannel.POPULAR_POSTS)) {
             notifyOfPopularPosts(uid)
         }
     }
@@ -52,10 +52,11 @@ class PopularPostCheck(
         val nowMillis = clock.millis()
         val recentAfterMillis = selector.recentAfterMillis(nowMillis)
         val recentPosts = postLookup.postsReceivedAfter(recentAfterMillis)
-        notifiedPostStore.forgetPostsSharedUpTo(recentAfterMillis)
-        val recipient = PopularPostRecipient(uid, notifiedPostStore.notifiedPostIds())
+        val notifiedPosts = notifiedPostStores(uid)
+        notifiedPosts.forgetPostsSharedUpTo(recentAfterMillis)
+        val recipient = PopularPostRecipient(uid, notifiedPosts.notifiedPostIds())
         val rows = selector.rowsToNotify(recentPosts, nowMillis, recipient)
-        notifiedPostStore.remember(recentPosts, rows)
+        notifiedPosts.remember(recentPosts, rows)
         for (row in rows) {
             notifier.notify(popularPostNotification(recentPosts, row))
         }

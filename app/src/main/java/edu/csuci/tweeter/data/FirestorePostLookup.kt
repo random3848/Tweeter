@@ -31,6 +31,13 @@ class FirestorePostLookup(
 ) : PostLookup {
     private val posts = firestore.collection(PostDocument.COLLECTION)
 
+    override suspend fun newestPostMillis(): Long? {
+        val query = posts.orderBy(PostDocument.Field.TIMESTAMP.key, Query.Direction.DESCENDING)
+            .limit(1)
+        val newestPost = readPosts(query)
+        return if (newestPost.size == 0) null else newestPost.timestampMillis(0)
+    }
+
     // Firestore keeps times to the microsecond, and PostTable to the millisecond, so a post
     // received during millisecond [timeMillis] is matched by its first microsecond or later and
     // comes back as [timeMillis]. Starting at the next millisecond leaves it out.
@@ -39,13 +46,19 @@ class FirestorePostLookup(
         val query = posts.whereGreaterThanOrEqualTo(timestamp, Timestamp(Date(timeMillis + 1)))
             .orderBy(timestamp, Query.Direction.DESCENDING)
             .limit(MAX_POSTS_PER_LOOKUP)
-        val snapshot = lookUp { query.get(Source.SERVER).await() }
-        return withContext(dispatcher) { snapshot.toPostTable() }
+        return readPosts(query)
     }
 
-    override suspend fun countPostsOfAnimal(animal: String): Int {
-        val query = posts.whereEqualTo(PostDocument.Field.ANIMAL_TYPE.key, animal).count()
+    override suspend fun countPostsOfAnimal(animal: String, maxCount: Int): Int {
+        val query = posts.whereEqualTo(PostDocument.Field.ANIMAL_TYPE.key, animal)
+            .limit(maxCount.toLong())
+            .count()
         return lookUp { query.get(AggregateSource.SERVER).await() }.count.toInt()
+    }
+
+    private suspend fun readPosts(query: Query): PostTable {
+        val snapshot = lookUp { query.get(Source.SERVER).await() }
+        return withContext(dispatcher) { snapshot.toPostTable() }
     }
 
     private suspend fun <T> lookUp(read: suspend () -> T): T {
