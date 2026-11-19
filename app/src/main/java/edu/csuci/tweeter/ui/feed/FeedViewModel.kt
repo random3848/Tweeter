@@ -10,6 +10,8 @@ import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
 import edu.csuci.tweeter.data.FollowRepository
 import edu.csuci.tweeter.data.PostDeleter
+import edu.csuci.tweeter.data.PostLookup
+import edu.csuci.tweeter.data.PostLookupException
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostRows
 import edu.csuci.tweeter.data.PostTable
@@ -34,10 +36,34 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.runningFold
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.launch
 
 /** What the feed shows: the [choice] in effect, and the [authors] whose posts it shows. */
 private data class ShownChoice(val choice: FeedChoice, val authors: FeedAuthors)
+
+/**
+ * The posts the feed lists, as [shown] picks them, and the post another screen asked it to show.
+ *
+ * @property postToShow The ID of the post asked for, or null while none is.
+ */
+private class ListedFeed(
+    val shown: ShownChoice,
+    val listedPosts: PostRows,
+    val postToShow: String?
+) {
+    /** Where in [listedPosts] the post to show is, or null if none is asked for or listed. */
+    val positionToShow: Int? = postToShow?.let(::positionOf)
+
+    /** The post to show, if the feed doesn't list it, or null. */
+    val unlistedPostToShow: String?
+        get() = postToShow.takeIf { positionToShow == null }
+
+    private fun positionOf(postId: String): Int? {
+        val row = listedPosts.table.rowOf(postId) ?: return null
+        return listedPosts.rows.indexOf(row).takeIf { position -> position >= 0 }
+    }
+}
 
 /**
  * The UI state of the home feed screen.
@@ -50,13 +76,14 @@ private data class ShownChoice(val choice: FeedChoice, val authors: FeedAuthors)
  * @property isLoading Whether the first posts are still being loaded from the repository.
  * @property positionToShow Where in [listedPosts] the post another screen asked the feed to show
  *     is, such as Map's popup's, which the feed scrolls to, then calls
- *     [FeedViewModel.clearPostToShow]. Null if none was asked for, or [listedPosts] don't hold it,
- *     as while the feed shows the posts it had before that one was shared, or when its author
- *     isn't among the friends shown.
+ *     [FeedViewModel.clearPostToShow]. Null if none was asked for, or [listedPosts] don't hold it:
+ *     while the feed shows the posts it had before that one was shared, or once its author isn't
+ *     among the friends shown, until the feed shows everyone's posts in their place.
  * @property likedPostIds The IDs of the posts the user liked, whose hearts are filled.
  * @property bookmarkedPostIds The IDs of the posts the user saved, whose bookmarks are filled: none
  *     until they're read, since the posts don't wait for them.
- * @property canLike Whether the user can like and save posts: they're logged in, not a guest.
+ * @property isLoggedIn Whether a user is logged in, not a guest: the feed lets them like and save
+ *     posts, and opens Log in for guests who try.
  */
 data class FeedUiState(
     val listedPosts: PostRows = PostRows.EMPTY,
@@ -67,7 +94,7 @@ data class FeedUiState(
     val positionToShow: Int? = null,
     val likedPostIds: Set<String> = emptySet(),
     val bookmarkedPostIds: Set<String> = emptySet(),
-    val canLike: Boolean = false
+    val isLoggedIn: Boolean = false
 ) {
     /** Every post, newest first, of which the feed shows [listedPosts]. */
     val posts: PostTable
@@ -85,7 +112,10 @@ data class FeedUiState(
  * @param accountRepository Who is logged in: guests can't like or save posts, and only the user's
  *     own posts show a delete button.
  * @param followRepository Who the user's friends are, for [FeedChoice.FRIENDS].
- * @param showInFeedRequest The post another screen asks the feed to show, which it scrolls to.
+ * @param showInFeedRequest The post another screen asks the feed to show, which it scrolls to,
+ *     showing everyone's posts if it shows only friends and the post's author isn't one of them.
+ * @param postLookup Tells the feed whether a post it was asked to show, but can't find, was
+ *     deleted, so that it withdraws the request.
  * @param showOnMapRequest Where [showOnMap] asks Map to show a post.
  * @param postsDispatcher Where posts are put in order and the post to show is found: off the main
  *     thread, since each is a pass over the posts.
@@ -100,6 +130,7 @@ class FeedViewModel(
     accountRepository: AccountRepository,
     followRepository: FollowRepository,
     private val showInFeedRequest: ShowPostRequest,
+    private val postLookup: PostLookup,
     private val showOnMapRequest: ShowPostRequest,
     postsDispatcher: CoroutineDispatcher,
     private val clock: Clock,
@@ -135,6 +166,18 @@ class FeedViewModel(
             }
             .filterNotNull()
 
+    // The posts listed for what the user chose, and the post asked to show, which is shown among
+    // everyone's posts or withdrawn when the feed doesn't list it.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val listedFeed: Flow<ListedFeed> =
+        combine(rankedPosts, shown, showInFeedRequest.postId) { ranked, shown, postToShow ->
+            ListedFeed(shown, shown.authors.listedIn(ranked.listedPosts), postToShow)
+        }
+            .transformLatest { feed ->
+                emit(feed)
+                showUnlistedPost(feed)
+            }
+
     /**
      * The current state of the feed, updated whenever posts change, the user picks what to see,
      * their friends change, another screen asks the feed to show a post, or the user likes or saves
@@ -142,22 +185,19 @@ class FeedViewModel(
      */
     val uiState: StateFlow<FeedUiState> =
         combine(
-            rankedPosts,
-            shown,
-            showInFeedRequest.postId,
+            listedFeed,
             postLiker.likedPostIds(),
             accountRepository.loggedInUid
-        ) { ranked, shown, postToShow, likedPostIds, loggedInUid ->
-            val listedPosts = shown.authors.listedIn(ranked.listedPosts)
+        ) { feed, likedPostIds, loggedInUid ->
             FeedUiState(
-                listedPosts = listedPosts,
-                choice = shown.choice,
+                listedPosts = feed.listedPosts,
+                choice = feed.shown.choice,
                 offeredChoices = FeedChoice.offeredTo(isLoggedIn = loggedInUid != null),
-                authors = shown.authors,
+                authors = feed.shown.authors,
                 isLoading = false,
-                positionToShow = postToShow?.let { postId -> listedPosts.positionOf(postId) },
+                positionToShow = feed.positionToShow,
                 likedPostIds = likedPostIds,
-                canLike = loggedInUid != null
+                isLoggedIn = loggedInUid != null
             )
         }
             .combine(postBookmarker.bookmarkedPostIdsStartingEmpty()) { state, bookmarkedPostIds ->
@@ -203,10 +243,33 @@ class FeedViewModel(
         UserFriends.Unknown -> FeedAuthors.UnknownFriends
     }
 
-    // Where in these rows the post with [postId] is, or null if they don't hold it.
-    private fun PostRows.positionOf(postId: String): Int? {
-        val row = table.rowOf(postId) ?: return null
-        return rows.indexOf(row).takeIf { position -> position >= 0 }
+    // Shows the post asked for when the feed doesn't list it: among everyone's posts if the
+    // choice leaves its author out, or not at all if it was deleted, withdrawing the request, so
+    // that it can't scroll the feed later, when the user picks another choice.
+    private suspend fun showUnlistedPost(feed: ListedFeed) {
+        val postId = feed.unlistedPostToShow ?: return
+        val posts = feed.listedPosts.table
+        val row = posts.rowOf(postId)
+        if (row == null) {
+            withdrawIfDeleted(postId)
+        } else if (feed.shown.authors.leavesOut(posts.authorUid(row))) {
+            choice.choose(feed.shown.choice.forEveryone())
+        }
+    }
+
+    // Withdraws the request for the post with [postId], which the feed's table doesn't hold, if
+    // the server doesn't hold it either: it was deleted. The table may come from Firestore's cache,
+    // from before the post was shared, so only the server can tell. While the server can't be
+    // reached, the request waits for the post.
+    private suspend fun withdrawIfDeleted(postId: String) {
+        val isKnownDeleted = try {
+            !postLookup.holdsPost(postId)
+        } catch (error: PostLookupException) {
+            false
+        }
+        if (isKnownDeleted) {
+            showInFeedRequest.withdraw(postId)
+        }
     }
 
     /** Forgets the post to show once the feed has scrolled to it, so it doesn't scroll again. */
@@ -220,10 +283,8 @@ class FeedViewModel(
      * shows the like as it was.
      */
     fun toggleLike(postId: String) {
-        val isLiked = postId in uiState.value.likedPostIds
-        viewModelScope.launch {
-            if (isLiked) postLiker.unlike(postId) else postLiker.like(postId)
-        }
+        val likedPostIds = uiState.value.likedPostIds
+        viewModelScope.launch { postLiker.toggle(postId, likedPostIds) }
     }
 
     /**
@@ -232,10 +293,8 @@ class FeedViewModel(
      * shows the post as it was.
      */
     fun toggleBookmark(postId: String) {
-        val isBookmarked = postId in uiState.value.bookmarkedPostIds
-        viewModelScope.launch {
-            if (isBookmarked) postBookmarker.unbookmark(postId) else postBookmarker.bookmark(postId)
-        }
+        val bookmarkedPostIds = uiState.value.bookmarkedPostIds
+        viewModelScope.launch { postBookmarker.toggle(postId, bookmarkedPostIds) }
     }
 
     /** Asks Map to show the post with [postId], which opens its popup when Map opens. */
@@ -267,6 +326,7 @@ class FeedViewModel(
                     accountRepository = application.container.accountRepository,
                     followRepository = application.container.followRepository,
                     showInFeedRequest = application.container.showInFeedRequest,
+                    postLookup = application.container.postLookup,
                     showOnMapRequest = application.container.showOnMapRequest,
                     postsDispatcher = Dispatchers.Default,
                     clock = Clock.systemUTC(),

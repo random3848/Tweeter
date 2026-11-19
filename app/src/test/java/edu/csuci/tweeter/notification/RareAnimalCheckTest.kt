@@ -320,6 +320,19 @@ class RareAnimalCheckTest {
         assertEquals(1, postLookup.countedAnimals.count { animal -> animal == RARE_ANIMAL })
     }
 
+    // The posts already on the server when the checks started, and the post notified of, are
+    // looked at again within the settle window, but their animals aren't counted again.
+    @Test
+    fun run_postsNotifiedOf_areNotCounted() = runTest {
+        startChecking()
+        share(sighting(id = "rare"))
+        check.run()
+
+        check.run()
+
+        assertEquals(listOf(RARE_ANIMAL), postLookup.countedAnimals)
+    }
+
     // Knows where the user is, and checks once, so that the next check notifies of what was
     // shared since.
     private suspend fun startChecking() {

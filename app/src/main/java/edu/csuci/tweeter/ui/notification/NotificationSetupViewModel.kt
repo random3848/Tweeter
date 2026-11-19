@@ -23,8 +23,10 @@ import kotlinx.coroutines.launch
  * @param accountRepository Who is logged in; guests get no notifications.
  * @param permissionRecord Whether the app already asked for the permission, which it asks once.
  * @param canNotify Whether the app has permission to show notifications.
- * @param updateLastLocation Gets the device's location, if the user lets the app, and saves it as
- *     where the device last was, which notifications of posts near the user measure from.
+ * @param updateLastLocation Saves roughly where the device is, if the user lets the app get their
+ *     location, as where the device last was, which notifications of posts near the user measure
+ *     from. It runs each time the ViewModel is created, so it uses a recent or low-power location,
+ *     not a fresh GPS fix.
  */
 class NotificationSetupViewModel(
     accountRepository: AccountRepository,
@@ -67,7 +69,7 @@ class NotificationSetupViewModel(
                     accountRepository = container.accountRepository,
                     permissionRecord = container.notificationPermissionRecord,
                     canNotify = container.postNotifier::hasPermission,
-                    updateLastLocation = { container.deviceLocationProvider.currentFix() }
+                    updateLastLocation = container.deviceLocationProvider::saveRoughLocation
                 )
             }
         }

@@ -64,7 +64,7 @@ class SavedPostsViewModelTest {
     }
 
     @Test
-    fun uiState_listsSavedPostsNewestFirst() = runTest {
+    fun uiState_listsSavedPostsNewestSharedFirst() = runTest {
         val viewModel = collectedSavedPostsViewModel()
 
         assertEquals(listOf(NEWER_SAVED, OLDER_SAVED), viewModel.uiState.value.listedPosts.ids())
@@ -153,19 +153,19 @@ class SavedPostsViewModelTest {
     }
 
     @Test
-    fun uiState_userLoggedIn_canLike() = runTest {
+    fun uiState_userLoggedIn_isLoggedIn() = runTest {
         val viewModel = collectedSavedPostsViewModel()
 
-        assertTrue(viewModel.uiState.value.canLike)
+        assertTrue(viewModel.uiState.value.isLoggedIn)
     }
 
     @Test
-    fun uiState_guest_cannotLike() = runTest {
+    fun uiState_guest_isNotLoggedIn() = runTest {
         val viewModel = collectedSavedPostsViewModel()
 
         accountRepository.logOut()
 
-        assertFalse(viewModel.uiState.value.canLike)
+        assertFalse(viewModel.uiState.value.isLoggedIn)
     }
 
     @Test

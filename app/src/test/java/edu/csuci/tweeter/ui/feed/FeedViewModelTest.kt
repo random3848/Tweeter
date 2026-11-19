@@ -8,6 +8,7 @@ import edu.csuci.tweeter.data.FakeAccountRepository
 import edu.csuci.tweeter.data.FakeBookmarkRepository
 import edu.csuci.tweeter.data.FakeFollowRepository
 import edu.csuci.tweeter.data.FakeLikeRepository
+import edu.csuci.tweeter.data.FakePostLookup
 import edu.csuci.tweeter.data.FakePostRepository
 import edu.csuci.tweeter.data.FollowRepository
 import edu.csuci.tweeter.data.LikeRepository
@@ -15,6 +16,8 @@ import edu.csuci.tweeter.data.ListenerBookmarkRepository
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.Post
 import edu.csuci.tweeter.data.PostDeleter
+import edu.csuci.tweeter.data.PostLookup
+import edu.csuci.tweeter.data.PostLookupException
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.SAMPLE_POSTS
@@ -64,6 +67,7 @@ private const val FOLLOWED_UID = "sam"
 private const val FRIENDS_NEWER_POST_ID = "friends-newer"
 private const val FRIENDS_OLDER_POST_ID = "friends-older"
 private const val FOLLOWED_POST_ID = "followed"
+private const val DELETED_POST_ID = "deleted"
 
 class FeedViewModelTest {
     private val showInFeedRequest = ShowPostRequest()
@@ -139,14 +143,50 @@ class FeedViewModelTest {
     @Test
     fun uiState_postAskedToShowNotLoadedYet_hasItsPositionOnceItArrives() = runTest {
         val repository = FakePostRepository()
-        val viewModel = collectedFeedViewModel(repository)
+        val newPost = SAMPLE_POSTS.first().copy(id = NEW_POST_ID, timestamp = Instant.now())
+        val viewModel =
+            collectedFeedViewModel(repository, postLookup = FakePostLookup(listOf(newPost)))
         showInFeedRequest.send(NEW_POST_ID)
         val positionBeforePostArrives = viewModel.uiState.value.positionToShow
 
-        repository.addPost(SAMPLE_POSTS.first().copy(id = NEW_POST_ID, timestamp = Instant.now()))
+        repository.addPost(newPost)
 
         assertNull(positionBeforePostArrives)
         assertEquals(0, viewModel.uiState.value.positionToShow)
+    }
+
+    @Test
+    fun uiState_postAskedToShowDeleted_dropsRequest() = runTest {
+        collectedFeedViewModel(postLookup = FakePostLookup(SAMPLE_POSTS))
+
+        showInFeedRequest.send(DELETED_POST_ID)
+
+        assertNull(showInFeedRequest.postId.value)
+    }
+
+    @Test
+    fun uiState_postAskedToShowDeletedBeforeShown_dropsRequest() = runTest {
+        val repository = FakePostRepository()
+        val postLookup = FakePostLookup(SAMPLE_POSTS)
+        collectedFeedViewModel(repository, postLookup = postLookup)
+        val post = SAMPLE_POSTS[1]
+        showInFeedRequest.send(post.id)
+
+        postLookup.posts = SAMPLE_POSTS - post
+        repository.deletePost(post.id)
+
+        assertNull(showInFeedRequest.postId.value)
+    }
+
+    @Test
+    fun uiState_postAskedToShowNotLoadedWhileServerUnreachable_keepsRequest() = runTest {
+        val postLookup = FakePostLookup()
+        postLookup.failure = PostLookupException(IllegalStateException("Offline"))
+        collectedFeedViewModel(postLookup = postLookup)
+
+        showInFeedRequest.send(NEW_POST_ID)
+
+        assertEquals(NEW_POST_ID, showInFeedRequest.postId.value)
     }
 
     @Test
@@ -376,7 +416,7 @@ class FeedViewModelTest {
     }
 
     @Test
-    fun uiState_postAskedToShowNotAmongFriends_hasNoPosition() = runTest {
+    fun uiState_postAskedToShowNotAmongFriends_showsItAmongEveryonesNewestFirst() = runTest {
         val viewModel = collectedFeedViewModel(
             FakePostRepository(postsByFriendAndOthers),
             follows = followsOfUser()
@@ -385,7 +425,53 @@ class FeedViewModelTest {
 
         showInFeedRequest.send(FOLLOWED_POST_ID)
 
+        val uiState = viewModel.uiState.value
+        assertEquals(FeedChoice.NEWEST, uiState.choice)
+        assertEquals(FOLLOWED_POST_ID, uiState.postIdToShow())
+    }
+
+    @Test
+    fun choose_bestAfterPostNotAmongFriendsWasShown_doesNotShowItAgain() = runTest {
+        val viewModel = collectedFeedViewModel(
+            FakePostRepository(postsByFriendAndOthers),
+            follows = followsOfUser()
+        )
+        viewModel.choose(FeedChoice.FRIENDS)
+        showInFeedRequest.send(FOLLOWED_POST_ID)
+        viewModel.scrollToPostToShow()
+
+        viewModel.choose(FeedChoice.BEST)
+
         assertNull(viewModel.uiState.value.positionToShow)
+    }
+
+    @Test
+    fun uiState_postAskedToShowWhileFriendsAreRead_waitsForThem() = runTest {
+        val follows = followsOfUser()
+        follows.readsAnswered = CompletableDeferred()
+        val viewModel =
+            collectedFeedViewModel(FakePostRepository(postsByFriendAndOthers), follows = follows)
+        viewModel.choose(FeedChoice.FRIENDS)
+        showInFeedRequest.send(FRIENDS_OLDER_POST_ID)
+
+        follows.readsAnswered?.complete(Unit)
+
+        val uiState = viewModel.uiState.value
+        assertEquals(FeedChoice.FRIENDS, uiState.choice)
+        assertEquals(FRIENDS_OLDER_POST_ID, uiState.postIdToShow())
+    }
+
+    @Test
+    fun uiState_postAskedToShowWhenFriendsCannotBeRead_showsItAmongEveryones() = runTest {
+        val follows = followsOfUser()
+        follows.failsReads = true
+        val viewModel =
+            collectedFeedViewModel(FakePostRepository(postsByFriendAndOthers), follows = follows)
+        viewModel.choose(FeedChoice.FRIENDS)
+
+        showInFeedRequest.send(FRIENDS_OLDER_POST_ID)
+
+        assertEquals(FRIENDS_OLDER_POST_ID, viewModel.uiState.value.postIdToShow())
     }
 
     @Test
@@ -406,17 +492,17 @@ class FeedViewModelTest {
     }
 
     @Test
-    fun uiState_userLoggedIn_canLike() = runTest {
+    fun uiState_userLoggedIn_isLoggedIn() = runTest {
         val viewModel = collectedFeedViewModel(account = FakeAccountRepository(USER_UID))
 
-        assertTrue(viewModel.uiState.value.canLike)
+        assertTrue(viewModel.uiState.value.isLoggedIn)
     }
 
     @Test
-    fun uiState_guest_cannotLike() = runTest {
+    fun uiState_guest_isNotLoggedIn() = runTest {
         val viewModel = collectedFeedViewModel(account = FakeAccountRepository(initialUid = null))
 
-        assertFalse(viewModel.uiState.value.canLike)
+        assertFalse(viewModel.uiState.value.isLoggedIn)
     }
 
     @Test
@@ -540,7 +626,8 @@ class FeedViewModelTest {
         account: AccountRepository = FakeAccountRepository(USER_UID),
         follows: FollowRepository = FakeFollowRepository(),
         postsDispatcher: CoroutineDispatcher = UnconfinedTestDispatcher(),
-        bookmarks: BookmarkRepository = FakeBookmarkRepository()
+        bookmarks: BookmarkRepository = FakeBookmarkRepository(),
+        postLookup: PostLookup = FakePostLookup(SAMPLE_POSTS)
     ): FeedViewModel = FeedViewModel(
         postRepository = repository,
         postLiker = PostLiker(likes),
@@ -554,6 +641,7 @@ class FeedViewModelTest {
         accountRepository = account,
         followRepository = follows,
         showInFeedRequest = showInFeedRequest,
+        postLookup = postLookup,
         showOnMapRequest = showOnMapRequest,
         postsDispatcher = postsDispatcher,
         clock = clock,
@@ -567,7 +655,8 @@ class FeedViewModelTest {
         likes: LikeRepository = FakeLikeRepository(),
         account: AccountRepository = FakeAccountRepository(USER_UID),
         follows: FollowRepository = FakeFollowRepository(),
-        bookmarks: BookmarkRepository = FakeBookmarkRepository()
+        bookmarks: BookmarkRepository = FakeBookmarkRepository(),
+        postLookup: PostLookup = FakePostLookup(SAMPLE_POSTS)
     ): FeedViewModel {
         val viewModel = feedViewModel(
             repository,
@@ -575,7 +664,8 @@ class FeedViewModelTest {
             account,
             follows,
             postsDispatcher = UnconfinedTestDispatcher(testScheduler),
-            bookmarks = bookmarks
+            bookmarks = bookmarks,
+            postLookup = postLookup
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect()
@@ -610,6 +700,18 @@ class FeedViewModelTest {
     )
 
     private fun FeedUiState.shownPostIds(): List<String> = listedPosts.rows.map(posts::id)
+
+    // The ID of the post at [FeedUiState.positionToShow], or null if there's none.
+    private fun FeedUiState.postIdToShow(): String? =
+        positionToShow?.let { position -> posts.id(listedPosts.rows[position]) }
+
+    // Scrolls to the post to show, if the feed lists it, then clears the request, as FeedScreen
+    // does.
+    private fun FeedViewModel.scrollToPostToShow() {
+        if (uiState.value.positionToShow != null) {
+            clearPostToShow()
+        }
+    }
 
     // Posts whose like counts a test changes, as other users' likes do.
     private class LikedPostRepository(initialPosts: List<Post>) :

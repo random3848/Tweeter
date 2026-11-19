@@ -30,7 +30,9 @@ Layout:
 - `app/src/main/java/edu/csuci/tweeter/location/`: finding where a photo was taken
   (`PhotoLocator`, from its EXIF tags or the device) and removing its location tags before upload
   (`LocationTagRemover`). `DeviceLocationProvider` (one in `AppContainer`) saves each fix it gets
-  in `LastLocationStore` as where the device last was.
+  in `LastLocationStore` as where the device last was, as its functions' names say:
+  `getAndSaveCurrentFix` (a fresh GPS fix, for photos and the location picker) and
+  `saveRoughLocation` (a recent or low-power location, for notifications).
 - `app/src/main/java/edu/csuci/tweeter/notification/`: notifications about posts, with no server.
   WorkManager runs each kind of check (a `PostCheck`) every so often, also while the app is
   closed, through its own `PostCheckWorker` subclass. A check looks posts up with `PostLookup` (in
@@ -41,16 +43,17 @@ Layout:
   Each check remembers the posts it notified each user of in a `NotifiedPostStore`. Checks go by
   the server's times, never the device's, whose clock may be wrong. `RareAnimalCheck` (every 15
   minutes) looks at the posts the server received since the time in its `LastCheckStore`, less a
-  short settle window, skips those it notified of, and chooses with `NearbyRareAnimalSelector`
-  (with `AnimalRarity` in `data/`). `PopularPostCheck` (hourly) looks at every post received
-  within days of the server's newest, since posts become popular after they are shared, chooses
-  with `PopularPostSelector`, and forgets the posts it notified of once they are too old to choose
-  again. Tapping a notification opens the post in Feed through `AppContainer.showInFeedRequest`.
+  short settle window, skips those it notified of before it counts any animal's posts, and chooses
+  with `NearbyRareAnimalSelector` (with `AnimalRarity` in `data/`). `PopularPostCheck` (hourly)
+  looks at every post received within days of the server's newest, since posts become popular
+  after they are shared, chooses with `PopularPostSelector`, and forgets the posts it notified of
+  once they are too old to choose again. Tapping a notification opens the post in Feed through
+  `AppContainer.showInFeedRequest`.
   A new kind adds a channel, a check with its own name, and a worker that `PostCheckWorkerFactory`
   creates and `AppContainer.schedulePostChecks()` schedules. Feed asks a logged-in user once for
-  permission to notify them (`ui/notification/`), for every kind. The `saved_numbers` file these
-  remember things in is left out of backups (`res/xml/`), since a restore doesn't bring back the
-  permission.
+  permission to notify them (`ui/notification/`), for every kind, and saves roughly where the
+  device is each time it opens. The `saved_numbers` file these remember things in is left out of
+  backups (`res/xml/`), since a restore doesn't bring back the permission.
 - `app/src/main/java/edu/csuci/tweeter/ui/camera/`: the photo the post and profile screens let the
   user choose, `ChosenPhoto`, and taking it with the camera app: `CameraCapture`, held by the
   screen's ViewModel, which exposes it as `CameraControls`, and `CameraOpener`, which the screen

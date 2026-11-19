@@ -340,7 +340,8 @@ class PostViewModel(
                     accountRepository = application.container.accountRepository,
                     photoLocator = PhotoLocator(
                         readExif = { ExifLocationReader(application).read(Uri.parse(it)) },
-                        currentDeviceFix = application.container.deviceLocationProvider::currentFix,
+                        currentDeviceFix =
+                            application.container.deviceLocationProvider::getAndSaveCurrentFix,
                         ioDispatcher = Dispatchers.IO
                     ),
                     photo = photo,

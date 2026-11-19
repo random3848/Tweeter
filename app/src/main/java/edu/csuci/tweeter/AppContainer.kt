@@ -53,7 +53,6 @@ import edu.csuci.tweeter.notification.SystemPostNotifier
 import edu.csuci.tweeter.notification.schedulePostCheck
 import edu.csuci.tweeter.ui.map.startMapEngine
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
-import java.time.Clock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -241,7 +240,7 @@ class AppContainer(private val context: Context) {
     // Where the device last was, which notifications of posts near the user measure from.
     private val lastLocationStore: LastLocationStore by lazy { LastLocationStore(savedNumbers) }
 
-    /** Live location fixes, each saved as where the device last was. */
+    /** Location fixes, each saved as where the device last was. */
     val deviceLocationProvider: DeviceLocationProvider by lazy {
         DeviceLocationProvider(context, lastLocationStore)
     }
@@ -256,7 +255,15 @@ class AppContainer(private val context: Context) {
 
     /** Whether the app has asked the user for permission to show notifications. */
     val notificationPermissionRecord: NotificationPermissionRecord by lazy {
-        NotificationPermissionRecord(savedNumbers, Clock.systemUTC())
+        NotificationPermissionRecord(savedNumbers)
+    }
+
+    /**
+     * Looks posts up on the server: for the checks for posts to notify the user of, and for Feed,
+     * to tell whether a post it was asked to show and can't find was deleted.
+     */
+    val postLookup: PostLookup by lazy {
+        FirestorePostLookup(FirebaseFirestore.getInstance(), dispatcher = Dispatchers.Default)
     }
 
     // Looks posts up on the server for the checks for posts to notify the user of.

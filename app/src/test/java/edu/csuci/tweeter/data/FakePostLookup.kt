@@ -46,4 +46,9 @@ class FakePostLookup(var posts: List<Post> = emptyList()) : PostLookup {
         maxCounts += maxCount
         return posts.count { it.animalType == animal }.coerceAtMost(maxCount)
     }
+
+    override suspend fun holdsPost(postId: String): Boolean {
+        failure?.let { throw it }
+        return posts.any { it.id == postId }
+    }
 }

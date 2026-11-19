@@ -16,10 +16,10 @@ import edu.csuci.tweeter.ui.feed.PostList
 import edu.csuci.tweeter.ui.navigation.BackTopBar
 
 /**
- * The posts the logged-in user saved to view later, newest first, as Feed shows posts, under a top
- * bar with a back arrow. Profile's "Saved posts" button opens it. Pressing a post's filled bookmark
- * unsaves it, which takes it off the list. As in Feed, a heart under each post likes it, and the
- * logged-in user's own posts have a delete button.
+ * The posts the logged-in user saved to view later, newest shared first, as Feed shows posts, under
+ * a top bar with a back arrow. Profile's "Saved posts" button opens it. Pressing a post's filled
+ * bookmark unsaves it, which takes it off the list. As in Feed, a heart under each post likes it,
+ * and the logged-in user's own posts have a delete button.
  *
  * @param onBack Returns to the screen it was opened from.
  * @param onShowOnMap Opens Map, once the post the user chose is requested there.
@@ -44,9 +44,9 @@ fun SavedPostsScreen(
         viewModel.showOnMap(postId)
         onShowOnMap()
     }
-    val likePost = if (uiState.canLike) viewModel::toggleLike else { _: String -> onLogIn() }
+    val likePost = if (uiState.isLoggedIn) viewModel::toggleLike else { _: String -> onLogIn() }
     val bookmarkPost =
-        if (uiState.canLike) viewModel::toggleBookmark else { _: String -> onLogIn() }
+        if (uiState.isLoggedIn) viewModel::toggleBookmark else { _: String -> onLogIn() }
     Column(modifier = modifier.fillMaxSize()) {
         BackTopBar(title = stringResource(R.string.saved_posts_title), onBack = onBack)
         PostList(

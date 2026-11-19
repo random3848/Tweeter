@@ -6,11 +6,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -22,55 +24,59 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.data.Report
 import edu.csuci.tweeter.data.ReportReason
 
 /**
- * The dialog that reports user [reportedUid], or their post [postId]: a required reason, optional
- * details, then a confirmation once sent, or an error the user can send again from.
+ * The dialog that reports what [reportViewModel] was told to with
+ * [ReportViewModel.startReport]: a required reason and optional details, then a spinner until the
+ * server has the report, and a confirmation once it does, or an error the user can send again
+ * from.
  *
- * @param reportedUid The user reported, or the reported post's author.
- * @param postId The reported post's ID, or [Report.NO_POST] for a profile.
  * @param title The dialog's title.
  * @param onDismiss Closes the dialog, after the draft is discarded so the next one opens empty.
+ *     A report being sent is kept, and goes on sending.
  * @param reportViewModel Holds the draft and sends it.
  */
 @Composable
-fun ReportDialog(
-    reportedUid: String,
-    postId: String,
-    title: String,
-    onDismiss: () -> Unit,
-    reportViewModel: ReportViewModel = viewModel(
-        key = "report/$reportedUid/$postId",
-        factory = ReportViewModel.createFactory(reportedUid, postId)
-    )
-) {
+fun ReportDialog(title: String, onDismiss: () -> Unit, reportViewModel: ReportViewModel) {
     val dismiss = {
         reportViewModel.discardDraft()
         onDismiss()
     }
-    if (reportViewModel.status == ReportStatus.SENT) {
-        ReportSentDialog(onDismiss = dismiss)
-        return
+    when (reportViewModel.status) {
+        ReportStatus.EDITING, ReportStatus.FAILED -> {
+            ReportFormDialog(
+                title = title,
+                onDismiss = dismiss,
+                reportViewModel = reportViewModel
+            )
+        }
+
+        ReportStatus.SENDING -> ReportSendingDialog(title = title, onDismiss = dismiss)
+
+        ReportStatus.SENT -> ReportSentDialog(onDismiss = dismiss)
     }
-    val isSending = reportViewModel.status == ReportStatus.SENDING
+}
+
+@Composable
+private fun ReportFormDialog(
+    title: String,
+    onDismiss: () -> Unit,
+    reportViewModel: ReportViewModel
+) {
     AlertDialog(
-        onDismissRequest = dismiss,
+        onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { ReportForm(reportViewModel) },
         confirmButton = {
-            TextButton(
-                onClick = reportViewModel::send,
-                enabled = reportViewModel.reason != null && !isSending
-            ) {
+            TextButton(onClick = reportViewModel::send, enabled = reportViewModel.reason != null) {
                 Text(stringResource(R.string.report_send))
             }
         },
         dismissButton = {
-            TextButton(onClick = dismiss) {
+            TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.report_cancel))
             }
         }
@@ -141,6 +147,40 @@ private fun labelOf(reason: ReportReason): Int = when (reason) {
     ReportReason.SEXUAL_CONTENT -> R.string.report_reason_sexual_content
     ReportReason.VIOLENCE -> R.string.report_reason_violence
     ReportReason.OTHER -> R.string.report_reason_other
+}
+
+// Shown in place of the form, which can't change a report already sent. Closing it doesn't stop
+// the report, which Firestore keeps queued while offline, so its only button is Close.
+@Composable
+private fun ReportSendingDialog(title: String, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { SendingProgress() },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.report_close))
+            }
+        }
+    )
+}
+
+@Composable
+private fun SendingProgress() {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+            Text(
+                text = stringResource(R.string.report_sending),
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(start = 12.dp)
+            )
+        }
+        Text(
+            text = stringResource(R.string.report_sending_queued),
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
 }
 
 @Composable

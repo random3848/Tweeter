@@ -26,4 +26,12 @@ class ShowPostRequest {
     fun clear() {
         _postId.value = null
     }
+
+    /**
+     * Withdraws the request for the post with [postId], which can't be shown, as when it was
+     * deleted, unless a request for another post has replaced it.
+     */
+    fun withdraw(postId: String) {
+        _postId.compareAndSet(postId, null)
+    }
 }

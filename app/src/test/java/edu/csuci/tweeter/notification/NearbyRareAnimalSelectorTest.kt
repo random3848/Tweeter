@@ -26,7 +26,7 @@ private val HOME = GeoPoint(latitude = 34.1626, longitude = -119.0434)
 class NearbyRareAnimalSelectorTest {
     private val rarity = FakeAnimalRarity(rareAnimals = setOf(RARE_ANIMAL))
     private val selector = NearbyRareAnimalSelector(rarity, radiusMeters = RADIUS_METERS)
-    private val recipient = Recipient(uid = USER_UID, location = HOME)
+    private val recipient = Recipient(uid = USER_UID, location = HOME, notifiedPostIds = setOf())
 
     @Test
     fun rowsToNotify_rareAnimalNearbyByOtherUser_selectsIt() = runTest {
@@ -105,6 +105,17 @@ class NearbyRareAnimalSelectorTest {
         selector.rowsToNotify(posts, recipient)
 
         assertEquals(listOf(RARE_ANIMAL), rarity.askedAnimals)
+    }
+
+    @Test
+    fun rowsToNotify_alreadyNotified_selectsNothingAndAsksNothing() = runTest {
+        val notifiedRecipient = recipient.copy(notifiedPostIds = setOf("seen"))
+        val posts = tableOf(sighting(id = "seen"))
+
+        val rows = selector.rowsToNotify(posts, notifiedRecipient)
+
+        assertArrayEquals(intArrayOf(), rows)
+        assertEquals(emptyList<String>(), rarity.askedAnimals)
     }
 
     @Test
