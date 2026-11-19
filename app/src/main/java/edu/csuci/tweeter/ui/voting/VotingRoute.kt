@@ -6,7 +6,8 @@ import edu.csuci.tweeter.ui.navigation.opaqueComposable
 import kotlinx.serialization.Serializable
 
 /**
- * The voting page of one post, opened by the post's animal name while votes disagree.
+ * The voting page of one post, opened by the post's animal name while votes disagree or the post
+ * shows no animal.
  *
  * @property postId The post's ID.
  */

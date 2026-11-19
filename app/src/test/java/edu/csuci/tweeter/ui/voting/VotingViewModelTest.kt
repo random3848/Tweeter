@@ -28,12 +28,15 @@ import org.junit.Before
 import org.junit.Test
 
 private const val POST_ID = "raccoon post"
+private const val UNKNOWN_POST_ID = "unknown animal post"
 private const val USER_UID = "maya"
 private const val AUTHOR_UID = "jordan"
 private const val AUTHOR_INITIALS = "JR"
 private const val PHOTO_URL = "https://example.com/raccoon.jpg"
 private const val RACCOON = "Raccoon"
 private const val POSSUM = "Possum"
+private const val COYOTE = "Coyote"
+private const val NO_ANIMAL = ""
 private const val ROUND = 2
 
 class VotingViewModelTest {
@@ -46,7 +49,8 @@ class VotingViewModelTest {
                 imageUri = PHOTO_URL,
                 animalType = RACCOON,
                 voteRound = ROUND
-            )
+            ),
+            SAMPLE_POSTS[1].copy(id = UNKNOWN_POST_ID, animalType = NO_ANIMAL)
         ) + SAMPLE_POSTS
     )
 
@@ -177,14 +181,65 @@ class VotingViewModelTest {
         assertEquals(RACCOON, viewModel.uiState.value.ballot?.userVote)
     }
 
+    @Test
+    fun uiState_namedPost_isNotAnimalUnknown() = runTest {
+        val viewModel = collectedVotingViewModel()
+
+        assertFalse(viewModel.uiState.value.isAnimalUnknown)
+    }
+
+    @Test
+    fun uiState_unknownPostWithoutMajority_isAnimalUnknown() = runTest {
+        val tie = mapOf(POSSUM to 1, COYOTE to 1)
+        val votes = FakeVoteRepository(initialVoteCounts = mapOf(UNKNOWN_POST_ID to tie))
+
+        val viewModel = collectedVotingViewModel(votes, postId = UNKNOWN_POST_ID)
+
+        assertTrue(viewModel.uiState.value.isAnimalUnknown)
+    }
+
+    @Test
+    fun uiState_unknownPostWithMajority_isNotAnimalUnknown() = runTest {
+        val majority = mapOf(POSSUM to 2, COYOTE to 1)
+        val votes = FakeVoteRepository(initialVoteCounts = mapOf(UNKNOWN_POST_ID to majority))
+
+        val viewModel = collectedVotingViewModel(votes, postId = UNKNOWN_POST_ID)
+
+        assertFalse(viewModel.uiState.value.isAnimalUnknown)
+    }
+
+    @Test
+    fun suggestAnimal_noVote_votesForAnimal() = runTest {
+        val viewModel = collectedVotingViewModel(postId = UNKNOWN_POST_ID)
+
+        viewModel.suggestAnimal(POSSUM)
+
+        assertEquals(listOf(POSSUM), viewModel.uiState.value.shares.map { it.animal })
+        assertEquals(POSSUM, viewModel.uiState.value.ballot?.userVote)
+    }
+
+    @Test
+    fun suggestAnimal_animalVotedFor_keepsVote() = runTest {
+        val votes = FakeVoteRepository(
+            initialVotes = mapOf(UNKNOWN_POST_ID to AnimalVote(POSSUM, round = 0)),
+            initialVoteCounts = mapOf(UNKNOWN_POST_ID to mapOf(POSSUM to 1))
+        )
+        val viewModel = collectedVotingViewModel(votes, postId = UNKNOWN_POST_ID)
+
+        viewModel.suggestAnimal(POSSUM)
+
+        assertEquals(POSSUM, viewModel.uiState.value.ballot?.userVote)
+    }
+
     // The state follows the repositories while the test collects it, as it does in the app while
     // the voting page collects it.
     private fun TestScope.collectedVotingViewModel(
         votes: VoteRepository = FakeVoteRepository(),
-        loggedInUid: String? = USER_UID
+        loggedInUid: String? = USER_UID,
+        postId: String = POST_ID
     ): VotingViewModel {
         val viewModel = VotingViewModel(
-            postId = POST_ID,
+            postId = postId,
             postRepository = postRepository,
             postVoter = PostVoter(votes),
             accountRepository = FakeAccountRepository(initialUid = loggedInUid),

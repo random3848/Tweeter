@@ -49,8 +49,8 @@ import edu.csuci.tweeter.ui.voting.Voter
  * divider between posts. Each has its author, photo, caption and the poster's confidence, as Feed
  * shows them, and the logged-in user's own posts have a delete button, which asks before deleting.
  * Each also has a like button and its like count, a button that opens its comments under it,
- * where logged-in users can add one, and, when the poster named an animal, its animal name
- * control ([AnimalVoteControl]).
+ * where logged-in users can add one, and its animal name control ([AnimalVoteControl]), which asks
+ * what animal it is when the poster didn't know.
  *
  * @param listedPosts The posts to list.
  * @param isLoading Whether the posts are still being read.
@@ -164,21 +164,17 @@ private fun PostItems(
                     isOpen = showsComments,
                     onClick = { showsComments = !showsComments }
                 )
-                val posterAnimal = posts.animalType(row)
-                // A post whose poster named no animal has none to vote on.
-                if (posterAnimal.isNotBlank()) {
-                    AnimalVoteControl(
-                        postId = postId,
-                        posterAnimal = posterAnimal,
-                        shownAnimal = posts.shownAnimal(row),
-                        agreement = posts.agreement(row),
-                        round = posts.voteRound(row),
-                        voter = Voter.of(loggedInUid, posts.authorUid(row)),
-                        votes = votes,
-                        onLogIn = onLogIn,
-                        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
-                    )
-                }
+                AnimalVoteControl(
+                    postId = postId,
+                    posterAnimal = posts.animalType(row),
+                    shownAnimal = posts.shownAnimal(row),
+                    agreement = posts.agreement(row),
+                    round = posts.voteRound(row),
+                    voter = Voter.of(loggedInUid, posts.authorUid(row)),
+                    votes = votes,
+                    onLogIn = onLogIn,
+                    modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                )
             }
             PostCaption(caption = posts.caption(row))
             ConfidenceRating(confidence = posts.confidence(row))

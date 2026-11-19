@@ -106,6 +106,67 @@ class AnimalPickerViewModelTest {
     }
 
     @Test
+    fun init_isNotUnknown() {
+        assertFalse(createViewModel().isUnknown)
+    }
+
+    @Test
+    fun markUnknown_emptiesFieldAndForgetsChoice() {
+        val viewModel = createViewModel()
+        viewModel.updateQuery("fox")
+        viewModel.chooseAnimal("Island fox")
+
+        viewModel.markUnknown()
+
+        assertTrue(viewModel.isUnknown)
+        assertEquals("", viewModel.query)
+        assertNull(viewModel.chosenAnimal)
+        assertTrue(viewModel.isComplete)
+    }
+
+    @Test
+    fun markUnknown_whileSearching_doesNotShowSuggestionsAfterward() {
+        val repository = SlowAnimalRepository()
+        val viewModel = AnimalPickerViewModel(repository)
+        viewModel.updateQuery("fox")
+
+        viewModel.markUnknown()
+        repository.finish("fox", listOf("Island fox"))
+
+        assertEquals(emptyList<String>(), viewModel.suggestions)
+    }
+
+    @Test
+    fun chooseAnimal_afterMarkingUnknown_isNoLongerUnknown() {
+        val viewModel = createViewModel()
+        viewModel.markUnknown()
+
+        viewModel.chooseAnimal("Island fox")
+
+        assertFalse(viewModel.isUnknown)
+    }
+
+    @Test
+    fun updateQuery_afterMarkingUnknown_isNoLongerUnknown() {
+        val viewModel = createViewModel()
+        viewModel.markUnknown()
+
+        viewModel.updateQuery("fo")
+
+        assertFalse(viewModel.isUnknown)
+    }
+
+    @Test
+    fun clear_afterMarkingUnknown_isNoLongerUnknown() {
+        val viewModel = createViewModel()
+        viewModel.markUnknown()
+
+        viewModel.clear()
+
+        assertFalse(viewModel.isUnknown)
+    }
+
+    @Test
     fun updateQuery_earlierSearchFinishesLast_keepsLatestSuggestions() {
         val repository = SlowAnimalRepository()
         val viewModel = AnimalPickerViewModel(repository)

@@ -43,6 +43,9 @@ private const val CAMERA_ROLL_URI = "content://media/1"
 private const val OTHER_CAMERA_ROLL_URI = "content://media/2"
 private const val UPLOADED_URL = "https://example.com/uploaded.jpg"
 private val PICKED_POINT = GeoPoint(latitude = 34.16, longitude = -119.04)
+private const val ANIMAL = "Island fox"
+private const val NO_ANIMAL = ""
+private const val CONFIDENCE = 4
 
 class PostViewModelTest {
     @get:Rule
@@ -328,6 +331,28 @@ class PostViewModelTest {
         assertEquals(emptyList<String>(), contentUrisInDirectory())
     }
 
+    @Test
+    fun uploadPhoto_namedAnimal_postsConfidence() {
+        val viewModel = createViewModel(photoRepository = UploadingPhotoRepository())
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+        viewModel.pickLocation(PICKED_POINT)
+
+        viewModel.uploadPhoto(caption = "", animalType = ANIMAL, confidence = CONFIDENCE)
+
+        assertEquals(CONFIDENCE, postedConfidence())
+    }
+
+    @Test
+    fun uploadPhoto_noAnimal_postsNoConfidence() {
+        val viewModel = createViewModel(photoRepository = UploadingPhotoRepository())
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+        viewModel.pickLocation(PICKED_POINT)
+
+        viewModel.uploadPhoto(caption = "", animalType = NO_ANIMAL, confidence = CONFIDENCE)
+
+        assertNull(postedConfidence())
+    }
+
     // Starts a capture, returning the pending CameraFile created by the ViewModel.
     private fun startCapture(viewModel: PostViewModel): CameraFile {
         viewModel.requestPhotoCapture()
@@ -372,6 +397,10 @@ class PostViewModelTest {
     }
 
     private fun postCount(): Int = runBlocking { postRepository.getPostTable().first().size }
+
+    // The confidence of the only post shared.
+    private fun postedConfidence(): Int? =
+        runBlocking { postRepository.getPostTable().first().confidence(0) }
 
     private fun contentUriOf(file: File): String = CONTENT_URI_PREFIX + file.name
 

@@ -238,6 +238,9 @@ class PostViewModel(
      * Uploads the photo at [photoUri] without its location tags and shares it as a post at
      * [location] by the logged-in user, then forgets the photo. Ignored while one runs, or while
      * [photoUri] or [location] is null. Fails if nobody is logged in.
+     *
+     * A blank [animalType] posts a photo of an animal the user doesn't know, which asks others
+     * what it is; [confidence], which is about a named animal, is then left out.
      */
     fun uploadPhoto(caption: String, animalType: String, confidence: Int?) {
         val uri = photo.uri
@@ -322,7 +325,7 @@ class PostViewModel(
         // Firestore replaces this with the time it receives the post.
         timestamp = Instant.now(),
         animalType = animalType,
-        confidence = confidence
+        confidence = confidence.takeIf { animalType.isNotBlank() }
     )
 
     /** Creates ViewModels using the app's shared repositories. */

@@ -108,6 +108,21 @@ class PostDocumentTest {
     }
 
     @Test
+    fun toPost_namedAnimal_keepsConfidence() {
+        val namedPost = post.copy(animalType = "Island fox", confidence = Post.MAX_CONFIDENCE)
+        val fields = storedFieldsOf(namedPost)
+
+        assertEquals(namedPost, PostDocument.toPost(post.id, Field.entries.readFrom(fields)))
+    }
+
+    @Test
+    fun toPost_noAnimal_dropsConfidence() {
+        val fields = storedFieldsOf(post.copy(animalType = "", confidence = Post.MAX_CONFIDENCE))
+
+        assertNull(PostDocument.toPost(post.id, Field.entries.readFrom(fields))?.confidence)
+    }
+
+    @Test
     fun toPost_missingUsername_returnsNull() {
         val fields = storedFieldsOf(post) - "username"
 

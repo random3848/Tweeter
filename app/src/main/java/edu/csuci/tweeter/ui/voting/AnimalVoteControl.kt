@@ -27,7 +27,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import edu.csuci.tweeter.R
-import edu.csuci.tweeter.data.FULL_AGREEMENT
 import edu.csuci.tweeter.data.PostBallot
 import edu.csuci.tweeter.data.VoteChange
 import edu.csuci.tweeter.data.countedVoteOn
@@ -44,9 +43,14 @@ import edu.csuci.tweeter.ui.theme.DISPUTED_YELLOW
  * The poster has only ↓, which reclassifies the post as the animal they pick, and guests' arrows
  * open Log in.
  *
+ * A post that shows no animal, since its poster didn't know what it is and no animal has a
+ * majority yet, asks "What animal is this?" in yellow instead of a name, which opens its voting
+ * page. With nothing to agree with, it has no ↑, and other users' ↓ suggests an animal.
+ *
  * @param postId The post's ID.
  * @param posterAnimal The animal the poster named ([edu.csuci.tweeter.data.Post.animalType]).
- * @param shownAnimal The animal the post shows ([edu.csuci.tweeter.data.shownAnimalOf]).
+ * @param shownAnimal The animal the post shows ([edu.csuci.tweeter.data.shownAnimalOf]), blank for
+ *     none.
  * @param agreement The share of the votes that name [shownAnimal].
  * @param round The post's current voting round, the one the user's vote counts in.
  * @param voter Who the user is to the post.
@@ -66,7 +70,7 @@ internal fun AnimalVoteControl(
     onLogIn: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isAgreed = agreement == FULL_AGREEMENT
+    val identification = Identification.of(shownAnimal, agreement)
     Row(
         modifier = modifier
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
@@ -75,9 +79,13 @@ internal fun AnimalVoteControl(
     ) {
         AnimalName(
             name = shownAnimal,
-            isAgreed = isAgreed,
+            identification = identification,
             onClick = {
-                if (isAgreed) votes.onOpenAnimal(shownAnimal) else votes.onOpenVoting(postId)
+                if (identification == Identification.AGREED) {
+                    votes.onOpenAnimal(shownAnimal)
+                } else {
+                    votes.onOpenVoting(postId)
+                }
             },
             // Gives way to the arrows, so a long name is cut short instead of them.
             modifier = Modifier.weight(1f, fill = false)
@@ -91,7 +99,7 @@ internal fun AnimalVoteControl(
                 VoteArrows(
                     isAgreeing = false,
                     isDisagreeing = false,
-                    onAgree = onLogIn,
+                    onAgree = onLogIn.takeIf { identification.hasShownAnimal },
                     onDisagree = onLogIn
                 )
             }
@@ -103,6 +111,7 @@ internal fun AnimalVoteControl(
                 UserVoteArrows(
                     ballot = PostBallot(postId, round, userVote),
                     shownAnimal = shownAnimal,
+                    canAgree = identification.hasShownAnimal,
                     onChangeVote = votes.onChangeVote
                 )
             }
@@ -110,21 +119,27 @@ internal fun AnimalVoteControl(
     }
 }
 
-// The name of the animal a post shows, colored by whether every vote agrees with it.
+// The name of the animal a post shows, colored by whether every vote agrees with it, or the
+// question that asks what it is while it shows none.
 @Composable
 private fun AnimalName(
     name: String,
-    isAgreed: Boolean,
+    identification: Identification,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val text = when (identification) {
+        Identification.UNKNOWN -> stringResource(R.string.animal_vote_unknown)
+        Identification.AGREED, Identification.DISPUTED -> name
+    }
+    val isAgreed = identification == Identification.AGREED
     val openLabel = if (isAgreed) {
         R.string.animal_vote_open_posts
     } else {
         R.string.animal_vote_open_votes
     }
     Text(
-        text = name,
+        text = text,
         style = MaterialTheme.typography.labelLarge,
         color = if (isAgreed) AGREED_GREEN else DISPUTED_YELLOW,
         maxLines = 1,
@@ -141,18 +156,21 @@ private fun AnimalName(
 }
 
 // A logged-in user's arrows on someone else's post, and the dialog ↓ opens to name another animal.
+// Without an animal shown, [canAgree] is false and there is no ↑.
 @Composable
 private fun UserVoteArrows(
     ballot: PostBallot,
     shownAnimal: String,
+    canAgree: Boolean,
     onChangeVote: (VoteChange) -> Unit
 ) {
     var isPickingAnimal by rememberSaveable(ballot.postId) { mutableStateOf(false) }
     val isDisagreeing = ballot.disagreesWith(shownAnimal)
+    val agree = { onChangeVote(ballot.toggling(shownAnimal)) }
     VoteArrows(
         isAgreeing = ballot.agreesWith(shownAnimal),
         isDisagreeing = isDisagreeing,
-        onAgree = { onChangeVote(ballot.toggling(shownAnimal)) },
+        onAgree = agree.takeIf { canAgree },
         onDisagree = {
             if (isDisagreeing) {
                 ballot.withdrawal()?.let(onChangeVote)
@@ -202,23 +220,31 @@ private fun ReclassifyArrow(
     }
 }
 
-// ↑ and ↓, each highlighted while the user's vote is what it stands for.
+// ↑ and ↓, each highlighted while the user's vote is what it stands for. Without [onAgree] there
+// is no ↑, since the post shows no animal to agree with, and ↓ suggests one instead of
+// disagreeing.
 @Composable
 private fun VoteArrows(
     isAgreeing: Boolean,
     isDisagreeing: Boolean,
-    onAgree: () -> Unit,
+    onAgree: (() -> Unit)?,
     onDisagree: () -> Unit
 ) {
-    VoteArrow(
-        icon = R.drawable.ic_arrow_upward,
-        description = R.string.animal_vote_agree,
-        isChecked = isAgreeing,
-        onClick = onAgree
-    )
+    if (onAgree != null) {
+        VoteArrow(
+            icon = R.drawable.ic_arrow_upward,
+            description = R.string.animal_vote_agree,
+            isChecked = isAgreeing,
+            onClick = onAgree
+        )
+    }
     VoteArrow(
         icon = R.drawable.ic_arrow_downward,
-        description = R.string.animal_vote_disagree,
+        description = if (onAgree == null) {
+            R.string.animal_vote_suggest
+        } else {
+            R.string.animal_vote_disagree
+        },
         isChecked = isDisagreeing,
         onClick = onDisagree
     )

@@ -13,6 +13,7 @@ import edu.csuci.tweeter.data.PostBallot
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.countedVoteOn
+import edu.csuci.tweeter.data.shownAnimalOf
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -32,7 +33,10 @@ import kotlinx.coroutines.launch
  * @property isPostGone Whether the post was deleted, so there are no votes to show.
  * @property imageUri The post's photo.
  * @property posterInitials The initials of the poster's avatar, which mark the poster's animal.
- * @property shares Every animal voted for on the post, the poster's first.
+ * @property shares Every animal voted for on the post, the poster's first, unless the poster named
+ *     none.
+ * @property isAnimalUnknown Whether the post shows no animal: its poster didn't know what it is,
+ *     and no animal has a majority of the votes yet.
  * @property ballot The user's vote on the post, and the changes they can make to it; null while
  *     the post is read, or once it's gone.
  * @property voter Who the user is to the post: guests and the poster can't vote.
@@ -43,6 +47,7 @@ data class VotingUiState(
     val imageUri: String = "",
     val posterInitials: String = "",
     val shares: List<AnimalShare> = emptyList(),
+    val isAnimalUnknown: Boolean = false,
     val ballot: PostBallot? = null,
     val voter: Voter = Voter.GUEST
 )
@@ -62,7 +67,7 @@ private data class VotedPost(
  * @param postId The post whose votes these are.
  * @param postRepository Where the post comes from.
  * @param postVoter The post's vote counts and the user's votes, and saves the votes
- *     [toggleVote] changes.
+ *     [toggleVote] and [suggestAnimal] change.
  * @param accountRepository Who is logged in: guests and the poster can't vote.
  * @param statesDispatcher Where the post is found among the posts and its votes are put in
  *     order: off the main thread, since finding it is a pass over every post.
@@ -106,6 +111,15 @@ class VotingViewModel(
         viewModelScope.launch { postVoter.changeVote(ballot.toggling(animal)) }
     }
 
+    /**
+     * Votes for [animal], one the user suggests the post shows, instead of the user's current
+     * vote, unless that already names it or a change to the post's votes is still being saved.
+     */
+    fun suggestAnimal(animal: String) {
+        val change = uiState.value.ballot?.changeTo(animal) ?: return
+        viewModelScope.launch { postVoter.changeVote(change) }
+    }
+
     private fun votedPostIn(posts: PostTable): VotedPost? {
         val row = posts.rowOf(postId) ?: return null
         return VotedPost(
@@ -127,6 +141,7 @@ class VotingViewModel(
         imageUri = post.imageUri,
         posterInitials = post.posterInitials,
         shares = animalSharesOf(post.posterAnimal, voteCounts),
+        isAnimalUnknown = shownAnimalOf(post.posterAnimal, voteCounts).isBlank(),
         ballot = PostBallot(postId, post.round, userVotes.countedVoteOn(postId, post.round)),
         voter = Voter.of(loggedInUid, post.authorUid)
     )

@@ -547,7 +547,10 @@ private fun PostDetailsDialog(
     animalPicker: AnimalPickerViewModel = viewModel(factory = AnimalPickerViewModel.factory)
 ) {
     var caption by rememberSaveable { mutableStateOf("") }
-    var confidence by rememberSaveable { mutableStateOf(3f) }
+    // Confidence is about the animal the post names, so it's asked only while one is chosen, and
+    // starts over for each: saying they don't know the animal clears it.
+    val namesAnimal = animalPicker.chosenAnimal != null
+    var confidence by rememberSaveable(namesAnimal) { mutableStateOf(3f) }
     // The picker outlives the dialog, so it's emptied on close, as the caption is.
     val close = {
         animalPicker.clear()
@@ -565,13 +568,15 @@ private fun PostDetailsDialog(
                     label = { Text("Caption") }
                 )
                 AnimalField(picker = animalPicker)
-                Text("Confidence: ${confidence.roundToInt()} of 5")
-                Slider(
-                    value = confidence,
-                    onValueChange = { confidence = it },
-                    valueRange = 1f..5f,
-                    steps = 3
-                )
+                if (namesAnimal) {
+                    Text("Confidence: ${confidence.roundToInt()} of 5")
+                    Slider(
+                        value = confidence,
+                        onValueChange = { confidence = it },
+                        valueRange = 1f..5f,
+                        steps = 3
+                    )
+                }
             }
         },
         confirmButton = {

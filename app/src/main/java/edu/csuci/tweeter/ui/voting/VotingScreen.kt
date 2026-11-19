@@ -19,9 +19,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,11 +45,17 @@ import edu.csuci.tweeter.ui.feed.PhotoCard
 import edu.csuci.tweeter.ui.navigation.BackTopBar
 
 /**
- * The voting page of one post, opened by the post's animal name while votes disagree: the post's
- * photo, then a row for each animal voted for, with how many voted for it and a bar of its share
- * of the votes. The poster's animal comes first, marked with the poster's initials. An animal's
- * name opens its page, and the arrow beside it, for users other than the poster, votes for it, or
- * takes the vote back when it's theirs already; guests' arrows open Log in.
+ * The voting page of one post, opened by the post's animal name while votes disagree or the post
+ * shows no animal: the post's photo, then a row for each animal voted for, with how many voted for
+ * it and a bar of its share of the votes. The poster's animal comes first, marked with the
+ * poster's initials. An animal's name opens its page, and the arrow beside it, for users other
+ * than the poster, votes for it, or takes the vote back when it's theirs already; guests' arrows
+ * open Log in.
+ *
+ * While the post shows no animal, because its poster didn't know what it is and no animal has a
+ * majority yet, the page asks "What animal is this?" above the rows, says so when nobody has
+ * suggested one, and has a button under them, for users other than the poster, that opens the
+ * dialog that suggests an animal by voting for it. A guest's button opens Log in.
  *
  * @param postId The post whose votes it shows.
  * @param onBack Returns to the screen it was opened from.
@@ -64,6 +74,7 @@ fun VotingScreen(
     viewModel: VotingViewModel = viewModel(factory = VotingViewModel.createFactory(postId))
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var isSuggesting by rememberSaveable { mutableStateOf(false) }
     Column(modifier = modifier.fillMaxSize()) {
         BackTopBar(title = stringResource(R.string.voting_title), onBack = onBack)
         val bodyModifier = Modifier.weight(1f).fillMaxWidth()
@@ -85,37 +96,67 @@ fun VotingScreen(
                 PostVotesList(
                     uiState = uiState,
                     onOpenAnimal = onOpenAnimal,
-                    onVote = voteActionFor(uiState.voter, viewModel::toggleVote, onLogIn),
+                    actions = votingActionsFor(
+                        voter = uiState.voter,
+                        toggleVote = viewModel::toggleVote,
+                        openSuggestions = { isSuggesting = true },
+                        onLogIn = onLogIn
+                    ),
                     modifier = bodyModifier
                 )
             }
         }
     }
+    if (isSuggesting) {
+        AnimalVoteDialog(
+            isOwnPost = false,
+            onPick = { animal ->
+                isSuggesting = false
+                viewModel.suggestAnimal(animal)
+            },
+            onDismiss = { isSuggesting = false }
+        )
+    }
 }
 
-// What a share's arrow does for [voter]: votes for its animal, opens Log in for a guest, or
-// nothing for the poster, who gets no arrows.
-private fun voteActionFor(
+/**
+ * What a user's voting controls on the page do.
+ *
+ * @property onVote A share's arrow, given its animal.
+ * @property onSuggest The button that suggests an animal for a post that shows none.
+ */
+private class VotingActions(val onVote: (String) -> Unit, val onSuggest: () -> Unit)
+
+// What [voter]'s controls do: vote for a share's animal and open the dialog that suggests one,
+// open Log in for a guest, or nothing for the poster, who gets no controls.
+private fun votingActionsFor(
     voter: Voter,
     toggleVote: (String) -> Unit,
+    openSuggestions: () -> Unit,
     onLogIn: () -> Unit
-): ((String) -> Unit)? = when (voter) {
-    Voter.GUEST -> { _: String -> onLogIn() }
+): VotingActions? = when (voter) {
+    Voter.GUEST -> VotingActions(onVote = { onLogIn() }, onSuggest = onLogIn)
     Voter.POSTER -> null
-    Voter.USER -> toggleVote
+    Voter.USER -> VotingActions(onVote = toggleVote, onSuggest = openSuggestions)
 }
 
-// The post's photo, then its shares.
+// The post's photo, then its shares, and while it shows no animal, the question above them, what
+// to say when there are none, and the button that suggests one under them.
 @Composable
 private fun PostVotesList(
     uiState: VotingUiState,
     onOpenAnimal: (String) -> Unit,
-    onVote: ((String) -> Unit)?,
+    actions: VotingActions?,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(modifier = modifier, contentPadding = PaddingValues(bottom = 16.dp)) {
         item {
             PhotoCard(imageUri = uiState.imageUri)
+        }
+        if (uiState.isAnimalUnknown) {
+            item {
+                UnknownAnimalQuestion()
+            }
         }
         items(uiState.shares, key = { share -> share.animal }) { share ->
             AnimalShareRow(
@@ -123,9 +164,51 @@ private fun PostVotesList(
                 posterInitials = uiState.posterInitials,
                 isVotedFor = uiState.ballot?.agreesWith(share.animal) == true,
                 onOpenAnimal = onOpenAnimal,
-                onVote = onVote
+                onVote = actions?.onVote
             )
         }
+        if (uiState.shares.isEmpty()) {
+            item {
+                NoSuggestionsMessage()
+            }
+        }
+        if (uiState.isAnimalUnknown && actions != null) {
+            item {
+                SuggestAnimalButton(onClick = actions.onSuggest)
+            }
+        }
+    }
+}
+
+@Composable
+private fun UnknownAnimalQuestion() {
+    Text(
+        text = stringResource(R.string.animal_vote_unknown),
+        style = MaterialTheme.typography.titleLarge,
+        color = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.padding(start = 12.dp, top = 16.dp, end = 12.dp, bottom = 4.dp)
+    )
+}
+
+// What the page says while no animal has a vote, as on a post whose poster named none before
+// anyone suggests one.
+@Composable
+private fun NoSuggestionsMessage() {
+    Text(
+        text = stringResource(R.string.voting_no_suggestions),
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+    )
+}
+
+@Composable
+private fun SuggestAnimalButton(onClick: () -> Unit) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Text(stringResource(R.string.animal_vote_suggest))
     }
 }
 

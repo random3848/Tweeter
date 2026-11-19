@@ -73,6 +73,12 @@ The meeting left these open; #150 settled them as follows. Revisit any of them a
   it names the new animal, clears every vote and removes the 1–5 confidence rating.
 - **Wide bar:** the voting page's rows each have a bar showing that animal's share of the votes.
 - **Animal photos:** the voting page has none until iNaturalist (#125) supplies them.
+- **Unsure posts (#56):** "I don't know what it is" on the post screen leaves the animal blank, with
+  no confidence, so it needs no new field, and posts that never named an animal count as unsure
+  too. Until an animal has more than half of the votes, the name control reads "What animal is
+  this?" in yellow and opens the voting page, which asks the same and has a button to suggest an
+  animal. With nothing to agree with there's no ↑; others' ↓ suggests an animal, which votes for
+  it, and the poster's ↓ names it, as reclassifying does.
 
 ## Dependencies
 
@@ -84,7 +90,7 @@ The meeting left these open; #150 settled them as follows. Revisit any of them a
   observed near the post's location, instead.
 - **Animal details page (#154, unassigned).** Until it's built, the name can open the existing
   page of posts that name the animal (`AnimalPostsScreen`).
-- **Unsure posts (#56).** These open the same voting page, so #56 builds on it.
+- **Unsure posts (#56)** build on the same voting page; see the decisions above.
 - **Correct misidentifications (#61, unassigned)** covers the same ground as this design.
 
 ## Where it lands in the code
@@ -96,4 +102,6 @@ The meeting left these open; #150 settled them as follows. Revisit any of them a
   vote. Reclassifying starts the next round (`voteRound`), so earlier votes stop counting without
   the poster deleting other users' documents.
 - The shown animal and agreement are worked out in `data/AnimalVotes.kt` and kept as `PostTable`
-  columns. The voting page (`ui/voting/VotingScreen.kt`) reads one post's tally when it opens.
+  columns, and `ui/voting/Identification.kt` turns them into the name control's state: unknown,
+  agreed or disputed. The voting page (`ui/voting/VotingScreen.kt`) reads one post's tally when it
+  opens.

@@ -94,7 +94,8 @@ object PostDocument {
      * The text fields that may be empty ([Field.AUTHOR_UID] among them) and the counts default
      * when missing, so a post added by hand in the Firebase console only needs [Field.USERNAME],
      * [Field.LATITUDE], [Field.LONGITUDE], [Field.IMAGE_URI] and [Field.TIMESTAMP]. A confidence
-     * outside 1 to 5 is dropped, and so are vote counts that aren't positive whole numbers.
+     * outside 1 to 5 is dropped, and so is one on a post that names no animal, since it's about
+     * the animal named; vote counts that aren't positive whole numbers are dropped too.
      */
     fun toPost(id: String, fields: Array<Any?>): Post? {
         val username = fields[Field.USERNAME.ordinal] as? String ?: return null
@@ -103,6 +104,7 @@ object PostDocument {
         val longitude = (fields[Field.LONGITUDE.ordinal] as? Number)?.toDouble() ?: return null
         val imageUri = fields[Field.IMAGE_URI.ordinal] as? String ?: return null
         val timestamp = fields[Field.TIMESTAMP.ordinal] as? Timestamp ?: return null
+        val animalType = textIn(fields, Field.ANIMAL_TYPE)
 
         return Post(
             id = id,
@@ -122,12 +124,21 @@ object PostDocument {
             isLiked = false,
             isBookmarked = false,
             timestamp = timestamp.toInstant(),
-            animalType = textIn(fields, Field.ANIMAL_TYPE),
-            confidence = (fields[Field.CONFIDENCE.ordinal] as? Number)?.toInt()
-                ?.takeIf { it in Post.MIN_CONFIDENCE..Post.MAX_CONFIDENCE },
+            animalType = animalType,
+            confidence = confidenceIn(fields, animalType),
             voteCounts = voteCountsOf(fields[Field.VOTE_COUNTS.ordinal]),
             voteRound = countIn(fields, Field.VOTE_ROUND)
         )
+    }
+
+    // The confidence in [fields], unless it's outside 1 to 5 or the post names no animal, which it
+    // would be about: [animalType].
+    private fun confidenceIn(fields: Array<Any?>, animalType: String): Int? {
+        if (animalType.isBlank()) {
+            return null
+        }
+        return (fields[Field.CONFIDENCE.ordinal] as? Number)?.toInt()
+            ?.takeIf { it in Post.MIN_CONFIDENCE..Post.MAX_CONFIDENCE }
     }
 
     /**
