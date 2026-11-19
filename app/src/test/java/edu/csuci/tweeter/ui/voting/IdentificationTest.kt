@@ -65,6 +65,37 @@ class IdentificationTest {
         assertTrue(Identification.AGREED.hasShownAnimal && Identification.DISPUTED.hasShownAnimal)
     }
 
+    @Test
+    fun opensAnimalPage_namedPostAgreedOnPosterAnimal_isTrue() {
+        val identification = identificationOf(RACCOON, emptyMap())
+
+        assertTrue(identification.opensAnimalPage(shownAnimal = RACCOON, posterAnimal = RACCOON))
+    }
+
+    @Test
+    fun opensAnimalPage_unknownPostAgreedOnSuggestedAnimal_isFalse() {
+        val identification = identificationOf(NO_ANIMAL, mapOf(POSSUM to 2))
+
+        assertFalse(identification.opensAnimalPage(shownAnimal = POSSUM, posterAnimal = NO_ANIMAL))
+    }
+
+    @Test
+    fun opensAnimalPage_disputed_isFalse() {
+        assertFalse(
+            Identification.DISPUTED.opensAnimalPage(shownAnimal = RACCOON, posterAnimal = RACCOON)
+        )
+    }
+
+    @Test
+    fun opensAnimalPage_unknown_isFalse() {
+        assertFalse(
+            Identification.UNKNOWN.opensAnimalPage(
+                shownAnimal = NO_ANIMAL,
+                posterAnimal = NO_ANIMAL
+            )
+        )
+    }
+
     // How sure everyone is of a post of [posterAnimal] with [voteCounts], as its card works it out
     // from its table row.
     private fun identificationOf(

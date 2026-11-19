@@ -34,6 +34,7 @@
     <string name="animal_vote_agree">Agree</string>
     <string name="animal_vote_disagree">Disagree</string>
     <string name="animal_vote_reclassify">Change the animal</string>
+    <string name="animal_vote_name">Name the animal</string>
     <string name="animal_vote_open_posts">See this animal\'s posts</string>
     <string name="animal_vote_open_votes">See the votes</string>
     <string name="animal_vote_unknown">What animal is this?</string>
@@ -41,6 +42,7 @@
     <string name="animal_vote_dialog_title">What animal do you think it is?</string>
     <string name="animal_vote_dialog_search">Search animals</string>
     <string name="animal_vote_dialog_reclassify_note">Picking another animal clears your post\'s votes and your confidence rating.</string>
+    <string name="animal_vote_dialog_name_note">Naming the animal clears the animals others suggested for your post.</string>
     <string name="animal_vote_dialog_cancel">Cancel</string>
 
     <string name="voting_title">Votes</string>

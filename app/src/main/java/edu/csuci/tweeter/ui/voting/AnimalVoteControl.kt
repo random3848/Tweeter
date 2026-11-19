@@ -35,15 +35,17 @@ import edu.csuci.tweeter.ui.theme.DISPUTED_YELLOW
  * A post's animal name control, `[ name | ↑ | ↓ ]`: the animal the post shows, green while every
  * vote agrees with it and yellow otherwise, then the user's vote controls.
  *
- * The name opens the animal's page while every vote agrees, and the post's voting page otherwise.
- * For other users, ↑ votes for the animal the post shows, and ↓ opens the dialog that votes for
- * another; the arrow of the user's vote is highlighted, and tapping it again takes the vote back.
- * The poster has only ↓, which reclassifies the post as the animal they pick, and guests' arrows
- * open Log in.
+ * The name opens the animal's page while every vote agrees with the animal the poster named, and
+ * the post's voting page otherwise. For other users, ↑ votes for the animal the post shows, and ↓
+ * opens the dialog that votes for another; the arrow of the user's vote is highlighted, and
+ * tapping it again takes the vote back. The poster has only ↓, which reclassifies the post as the
+ * animal they pick, or names it if they didn't know it, and guests' arrows open Log in.
  *
  * A post that shows no animal, since its poster didn't know what it is and no animal has a
- * majority yet, asks "What animal is this?" in yellow instead of a name, which opens its voting
- * page. With nothing to agree with, it has no ↑, and other users' ↓ suggests an animal.
+ * majority yet, asks "What animal is this?" in yellow instead of a name. With nothing to agree
+ * with, it has no ↑, and other users' ↓ suggests an animal. Once the votes pick one, the post
+ * shows it like a named post, but its name still opens the voting page, since the animal's page
+ * lists only posts whose poster named that animal.
  *
  * @param postId The post's ID.
  * @param posterAnimal The animal the poster named ([edu.csuci.tweeter.data.Post.animalType]).
@@ -71,6 +73,7 @@ internal fun AnimalVoteControl(
     modifier: Modifier = Modifier
 ) {
     val identification = Identification.of(shownAnimal, agreement)
+    val opensAnimalPage = identification.opensAnimalPage(shownAnimal, posterAnimal)
     Row(
         modifier = modifier
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
@@ -80,8 +83,9 @@ internal fun AnimalVoteControl(
         AnimalName(
             name = shownAnimal,
             identification = identification,
+            opensAnimalPage = opensAnimalPage,
             onClick = {
-                if (identification == Identification.AGREED) {
+                if (opensAnimalPage) {
                     actions.onOpenAnimal(shownAnimal)
                 } else {
                     actions.onOpenVoting(postId)
@@ -119,11 +123,13 @@ internal fun AnimalVoteControl(
 }
 
 // The name of the animal a post shows, colored by whether every vote agrees with it, or the
-// question that asks what it is while it shows none.
+// question that asks what it is while it shows none. [opensAnimalPage] says whether pressing it
+// opens the animal's page or the post's voting page.
 @Composable
 private fun AnimalName(
     name: String,
     identification: Identification,
+    opensAnimalPage: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -132,7 +138,7 @@ private fun AnimalName(
         Identification.AGREED, Identification.DISPUTED -> name
     }
     val isAgreed = identification == Identification.AGREED
-    val openLabel = if (isAgreed) {
+    val openLabel = if (opensAnimalPage) {
         R.string.animal_vote_open_posts
     } else {
         R.string.animal_vote_open_votes
@@ -182,7 +188,7 @@ private fun UserVoteArrows(
     )
     if (isPickingAnimal) {
         AnimalVoteDialog(
-            isOwnPost = false,
+            posterNote = null,
             onPick = { animal ->
                 isPickingAnimal = false
                 // Picking the animal the user already voted for keeps the vote.
@@ -195,7 +201,8 @@ private fun UserVoteArrows(
     }
 }
 
-// The poster's ↓ on their own post, and the dialog it opens to reclassify the post.
+// The poster's ↓ on their own post, and the dialog it opens to reclassify the post, or to name
+// its animal if they didn't know it, which clears the animals others suggested instead.
 @Composable
 private fun ReclassifyArrow(
     postId: String,
@@ -203,15 +210,20 @@ private fun ReclassifyArrow(
     onReclassify: (postId: String, animal: String) -> Unit
 ) {
     var isPickingAnimal by rememberSaveable(postId) { mutableStateOf(false) }
+    val isNaming = posterAnimal.isBlank()
     VoteArrow(
         icon = R.drawable.ic_arrow_downward,
-        description = R.string.animal_vote_reclassify,
+        description = if (isNaming) R.string.animal_vote_name else R.string.animal_vote_reclassify,
         isChecked = false,
         onClick = { isPickingAnimal = true }
     )
     if (isPickingAnimal) {
         AnimalVoteDialog(
-            isOwnPost = true,
+            posterNote = if (isNaming) {
+                R.string.animal_vote_dialog_name_note
+            } else {
+                R.string.animal_vote_dialog_reclassify_note
+            },
             onPick = { animal ->
                 isPickingAnimal = false
                 // Picking the animal the post already names changes nothing.

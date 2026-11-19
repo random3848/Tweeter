@@ -82,7 +82,10 @@ The meeting left these open; #150 settled them as follows. Revisit any of them a
   too. Until an animal has more than half of the votes, the name control reads "What animal is
   this?" in yellow and opens the voting page, which asks the same and has a button to suggest an
   animal. With nothing to agree with there's no ↑; others' ↓ suggests an animal, which votes for
-  it, and the poster's ↓ names it, as reclassifying does.
+  it, and the poster's ↓, read as "Name the animal", names it, as reclassifying does, warning that
+  this clears the suggestions. Once the votes pick an animal the post shows it in green or yellow
+  like a named post, but its name keeps opening the voting page: the animal's page lists posts by
+  the poster's animal (`PostTable.rowsOfAnimal`), so it wouldn't list this one.
 
 ## Dependencies
 

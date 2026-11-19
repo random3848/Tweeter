@@ -1,5 +1,6 @@
 package edu.csuci.tweeter.ui.voting
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -30,15 +31,15 @@ private const val PICKER_KEY = "animalVoteDialog"
  * The dialog that asks "What animal do you think it is?": the user searches the animals
  * [edu.csuci.tweeter.data.AnimalRepository] knows, and picks one of them.
  *
- * @param isOwnPost Whether the post is the user's own, which picking an animal reclassifies, as a
- *     note in the dialog warns.
+ * @param posterNote The note that warns the poster what picking an animal does to their own post,
+ *     or null on someone else's post, where picking one votes for it.
  * @param onPick Called with the animal the user picked; the dialog is then closed by the caller.
  * @param onDismiss Closes the dialog without picking an animal.
  * @param picker Searches the animals as the user types.
  */
 @Composable
 internal fun AnimalVoteDialog(
-    isOwnPost: Boolean,
+    @StringRes posterNote: Int?,
     onPick: (String) -> Unit,
     onDismiss: () -> Unit,
     picker: AnimalPickerViewModel = viewModel(
@@ -60,7 +61,7 @@ internal fun AnimalVoteDialog(
         title = { Text(stringResource(R.string.animal_vote_dialog_title)) },
         text = {
             AnimalSearch(
-                isOwnPost = isOwnPost,
+                posterNote = posterNote,
                 picker = picker,
                 onPick = { animal ->
                     picker.clear()
@@ -74,14 +75,14 @@ internal fun AnimalVoteDialog(
 // The search field and the animals that match it, with the note for a poster above them.
 @Composable
 private fun AnimalSearch(
-    isOwnPost: Boolean,
+    @StringRes posterNote: Int?,
     picker: AnimalPickerViewModel,
     onPick: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (isOwnPost) {
+        if (posterNote != null) {
             Text(
-                text = stringResource(R.string.animal_vote_dialog_reclassify_note),
+                text = stringResource(posterNote),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

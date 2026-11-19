@@ -3,6 +3,7 @@ package edu.csuci.tweeter.ui.post
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
@@ -95,11 +96,15 @@ private fun AnimalSearchField(picker: AnimalPickerViewModel) {
 @Composable
 private fun UnknownAnimalChoice(isUnknown: Boolean, onChange: (Boolean) -> Unit) {
     Row(
-        modifier = Modifier.toggleable(
-            value = isUnknown,
-            role = Role.Checkbox,
-            onValueChange = onChange
-        ),
+        // As tall as the minimum touch target, which the checkbox, drawn without its own click
+        // handling, doesn't give the row.
+        modifier = Modifier
+            .heightIn(min = 48.dp)
+            .toggleable(
+                value = isUnknown,
+                role = Role.Checkbox,
+                onValueChange = onChange
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // The row takes the taps, so that its text toggles the box too.

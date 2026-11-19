@@ -109,7 +109,7 @@ fun VotingScreen(
     }
     if (isSuggesting) {
         AnimalVoteDialog(
-            isOwnPost = false,
+            posterNote = null,
             onPick = { animal ->
                 isSuggesting = false
                 viewModel.suggestAnimal(animal)
