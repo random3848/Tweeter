@@ -16,9 +16,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
- * Gets the app ready to notify the logged-in user of posts near them, once a user is logged in:
- * asks [NotificationSetup] to request permission to show notifications if the app may not yet and
- * never asked, and updates where the device last was.
+ * Gets the app ready to notify the logged-in user about posts, once a user is logged in: asks
+ * [NotificationSetup] to request permission to show notifications if the app may not yet and never
+ * asked, and updates where the device last was, for notifications of posts near them.
  *
  * @param accountRepository Who is logged in; guests get no notifications.
  * @param permissionRecord Whether the app already asked for the permission, which it asks once.

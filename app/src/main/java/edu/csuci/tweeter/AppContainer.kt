@@ -289,8 +289,7 @@ class AppContainer(private val context: Context) {
             notifier = postNotifier,
             notifiedPostStores = notifiedPostStoresOf(PopularPostCheckWorker.NAME),
             postLookup = postLookup,
-            selector = PopularPostSelector(),
-            clock = Clock.systemUTC()
+            selector = PopularPostSelector()
         )
     }
 

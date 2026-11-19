@@ -4,7 +4,6 @@ import edu.csuci.tweeter.R
 import edu.csuci.tweeter.data.AccountRepository
 import edu.csuci.tweeter.data.PostLookup
 import edu.csuci.tweeter.data.PostTable
-import java.time.Clock
 
 /**
  * One check for posts by others that have become popular, which notifies the logged-in user of
@@ -12,25 +11,27 @@ import java.time.Clock
  *
  * Unlike the posts [RareAnimalCheck] looks for, popular posts aren't new: a post becomes popular
  * some time after it is shared. So each check looks at every post that is still recent, as
- * [selector] judges by [clock], and remembers the posts it notified the user of, in their store
- * from [notifiedPostStores], until they are too old to look at again. A check while nobody is
- * logged in, or the user turned off the channel or notifications, looks nothing up, and a post
- * that becomes popular meanwhile is notified of once the user can be, if it is still recent then.
+ * [selector] judges, and remembers the posts it notified the user of, in their store from
+ * [notifiedPostStores], until they are too old to look at again. A check while nobody is logged
+ * in, or the user turned off the channel or notifications, looks nothing up, and a post that
+ * becomes popular meanwhile is notified of once the user can be, if it is still recent then.
+ *
+ * Times are the server's, never the device's, whose clock may be wrong: a post's age is measured
+ * to when the server received its newest post. So while nobody posts, the posts before stay
+ * recent.
  *
  * @param accountRepository Who is logged in, whom the check notifies.
  * @param notifier Shows the notifications, if the user lets it.
  * @param notifiedPostStores Gets the posts a user was notified of as popular, by their ID.
- * @param postLookup Where recent posts are looked up.
+ * @param postLookup Where recent posts are looked up, and the server's time.
  * @param selector Chooses which recent posts the user hears of, and says how recent they must be.
- * @param clock The time now, which posts' ages are measured to.
  */
 class PopularPostCheck(
     private val accountRepository: AccountRepository,
     private val notifier: PostNotifier,
     private val notifiedPostStores: (uid: String) -> NotifiedPostStore,
     private val postLookup: PostLookup,
-    private val selector: PopularPostSelector,
-    private val clock: Clock
+    private val selector: PopularPostSelector
 ) : PostCheck {
     /**
      * Notifies the user of each recent post by someone else that is popular now, unless they were
@@ -47,9 +48,9 @@ class PopularPostCheck(
     }
 
     // The posts are remembered before the notifications are shown, so a check that stops midway
-    // never shows one twice.
+    // never shows one twice. With no posts on the server, there is nothing to notify of.
     private suspend fun notifyOfPopularPosts(uid: String) {
-        val nowMillis = clock.millis()
+        val nowMillis = postLookup.newestPostMillis() ?: return
         val recentAfterMillis = selector.recentAfterMillis(nowMillis)
         val recentPosts = postLookup.postsReceivedAfter(recentAfterMillis)
         val notifiedPosts = notifiedPostStores(uid)

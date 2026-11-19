@@ -3,6 +3,7 @@ package edu.csuci.tweeter.data
 import com.google.firebase.FirebaseException
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.AggregateSource
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.Source
@@ -11,10 +12,10 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 
-// The most posts [FirestorePostLookup.postsReceivedAfter] reads at once, so that a check doesn't
-// read every post shared over a long time: since a device that was offline for long last checked,
-// or within the days a post can become popular in.
-private const val MAX_POSTS_PER_LOOKUP = 100L
+// How many posts each page of [FirestorePostLookup.postsReceivedAfter] holds, so that a lookup of
+// many posts, such as the days a post can become popular in, comes in responses of bounded size.
+// The lookup reads every page.
+private const val POSTS_PER_PAGE = 100
 
 /**
  * A [PostLookup] that asks Cloud Firestore's server, never its cache on the device, which a
@@ -40,13 +41,20 @@ class FirestorePostLookup(
 
     // Firestore keeps times to the microsecond, and PostTable to the millisecond, so a post
     // received during millisecond [timeMillis] is matched by its first microsecond or later and
-    // comes back as [timeMillis]. Starting at the next millisecond leaves it out.
+    // comes back as [timeMillis]. Starting at the next millisecond leaves it out. Each page starts
+    // after the last document of the page before, by its exact time and then its ID, so posts
+    // received in the same millisecond are neither skipped nor read twice; the time's
+    // single-field index serves that order without a composite index.
     override suspend fun postsReceivedAfter(timeMillis: Long): PostTable {
         val timestamp = PostDocument.Field.TIMESTAMP.key
         val query = posts.whereGreaterThanOrEqualTo(timestamp, Timestamp(Date(timeMillis + 1)))
             .orderBy(timestamp, Query.Direction.DESCENDING)
-            .limit(MAX_POSTS_PER_LOOKUP)
-        return readPosts(query)
+            .limit(POSTS_PER_PAGE.toLong())
+        val documents = readEveryPage<DocumentSnapshot>(POSTS_PER_PAGE) { lastDocument ->
+            val page = if (lastDocument == null) query else query.startAfter(lastDocument)
+            lookUp { page.get(Source.SERVER).await() }.documents
+        }
+        return withContext(dispatcher) { documents.toPostTable() }
     }
 
     override suspend fun countPostsOfAnimal(animal: String, maxCount: Int): Int {

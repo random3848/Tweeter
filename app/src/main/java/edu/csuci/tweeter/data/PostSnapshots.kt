@@ -11,13 +11,19 @@ private val postFieldPaths = fieldPathsOf(PostDocument.Field.entries)
 
 /**
  * The well-formed posts of this snapshot of [PostDocument]s, in its order, as one table; the others
- * are logged and left out. Only [PostDocument]'s fields are read, into one array reused for every
+ * are logged and left out.
+ */
+internal fun QuerySnapshot.toPostTable(): PostTable = documents.toPostTable()
+
+/**
+ * The well-formed posts of these [PostDocument]s, in their order, as one table; the others are
+ * logged and left out. Only [PostDocument]'s fields are read, into one array reused for every
  * document.
  */
-internal fun QuerySnapshot.toPostTable(): PostTable {
-    val builder = PostTable.Builder(capacity = size())
+internal fun List<DocumentSnapshot>.toPostTable(): PostTable {
+    val builder = PostTable.Builder(capacity = size)
     val fields = arrayOfNulls<Any>(postFieldPaths.size)
-    for (document in documents) {
+    for (document in this) {
         fields.fillFrom(document)
         val post = PostDocument.toPost(document.id, fields)
         if (post == null) {

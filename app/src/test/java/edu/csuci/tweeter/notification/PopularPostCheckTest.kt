@@ -7,9 +7,7 @@ import edu.csuci.tweeter.data.FakePostLookup
 import edu.csuci.tweeter.data.Post
 import edu.csuci.tweeter.data.PostLookupException
 import edu.csuci.tweeter.data.SAMPLE_POSTS
-import java.time.Clock
 import java.time.Instant
-import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit.DAYS
 import java.util.concurrent.TimeUnit.HOURS
 import kotlinx.coroutines.test.runTest
@@ -24,16 +22,18 @@ private const val ANIMAL = "Bobcat"
 private const val PLACE = "Library, oak tree"
 private const val CHECK_NAME = "popularPosts"
 private const val MIN_LIKES = 10
+private const val POSTS_PER_PAGE = 2
 
+// November 2023 by the server's clock, so the clock of any device running these tests is years
+// ahead of the server's.
 private const val SHARED_MILLIS = 1_700_000_000_000L
+
+// The year 2200 by the server's clock, so the clock of any device running these tests is far
+// behind the server's.
+private const val FUTURE_SHARED_MILLIS = 7_258_118_400_000L
+
 private val HOUR_MILLIS = HOURS.toMillis(1)
 private val WINDOW_MILLIS = DAYS.toMillis(3)
-private val FIRST_CHECK_MILLIS = SHARED_MILLIS + HOUR_MILLIS
-private val SECOND_CHECK_MILLIS = FIRST_CHECK_MILLIS + HOUR_MILLIS
-private val THIRD_CHECK_MILLIS = SECOND_CHECK_MILLIS + HOUR_MILLIS
-
-// The first check at which a post shared at SHARED_MILLIS is no longer recent.
-private val EXPIRY_CHECK_MILLIS = SHARED_MILLIS + WINDOW_MILLIS
 
 class PopularPostCheckTest {
     private val accountRepository = FakeAccountRepository(initialUid = USER_UID)
@@ -41,11 +41,21 @@ class PopularPostCheckTest {
     private val numbers = FakeNumberStore()
     private val postLookup = FakePostLookup()
 
+    // A new check for each run, with its own stores over the same saved numbers, would act the
+    // same: it keeps nothing in memory between runs.
+    private val check = PopularPostCheck(
+        accountRepository = accountRepository,
+        notifier = notifier,
+        notifiedPostStores = { uid -> NotifiedPostStore(numbers, CHECK_NAME, uid) },
+        postLookup = postLookup,
+        selector = PopularPostSelector(minLikeCount = MIN_LIKES, windowMillis = WINDOW_MILLIS)
+    )
+
     @Test
     fun run_popularPostByOtherUser_namesAnimalPlaceAndLikes() = runTest {
         share(post(id = "popular", likeCount = MIN_LIKES + 2))
 
-        checkAt(FIRST_CHECK_MILLIS).run()
+        check.run()
 
         val expected = PostNotification(
             channel = PostChannel.POPULAR_POSTS,
@@ -60,7 +70,7 @@ class PopularPostCheckTest {
     fun run_postWithoutAnimal_saysPostIsPopular() = runTest {
         share(post(id = "popular", animal = " "))
 
-        checkAt(FIRST_CHECK_MILLIS).run()
+        check.run()
 
         val title = notifier.notifications.single().title
         assertEquals(NotificationText(R.string.notification_popular_post_title), title)
@@ -70,7 +80,7 @@ class PopularPostCheckTest {
     fun run_postWithoutPlace_givesLikesOnly() = runTest {
         share(post(id = "popular", place = ""))
 
-        checkAt(FIRST_CHECK_MILLIS).run()
+        check.run()
 
         val text = notifier.notifications.single().text
         assertEquals(
@@ -80,10 +90,17 @@ class PopularPostCheckTest {
     }
 
     @Test
+    fun run_noPostsOnServer_notifiesOfNothing() = runTest {
+        check.run()
+
+        assertNothingNotified()
+    }
+
+    @Test
     fun run_belowThreshold_notifiesOfNothing() = runTest {
         share(post(id = "almost", likeCount = MIN_LIKES - 1))
 
-        checkAt(FIRST_CHECK_MILLIS).run()
+        check.run()
 
         assertNothingNotified()
     }
@@ -91,10 +108,10 @@ class PopularPostCheckTest {
     @Test
     fun run_postReachesThresholdLater_notifiesOfItThen() = runTest {
         share(post(id = "rising", likeCount = MIN_LIKES - 1))
-        checkAt(FIRST_CHECK_MILLIS).run()
+        check.run()
         postLookup.posts = listOf(post(id = "rising", likeCount = MIN_LIKES))
 
-        checkAt(SECOND_CHECK_MILLIS).run()
+        check.run()
 
         assertEquals(listOf("rising"), notifiedPostIds())
     }
@@ -103,26 +120,72 @@ class PopularPostCheckTest {
     fun run_ownPost_notifiesOfNothing() = runTest {
         share(post(id = "mine", authorUid = USER_UID))
 
-        checkAt(FIRST_CHECK_MILLIS).run()
+        check.run()
 
         assertNothingNotified()
     }
 
     @Test
-    fun run_postNoLongerRecent_notifiesOfNothing() = runTest {
-        share(post(id = "old"))
-
-        checkAt(EXPIRY_CHECK_MILLIS).run()
-
-        assertNothingNotified()
-    }
-
-    @Test
-    fun run_againAfterRestart_doesNotNotifyOfSamePostTwice() = runTest {
+    fun run_postJustInsideWindowOfNewestPost_notifiesOfIt() = runTest {
         share(post(id = "popular"))
-        checkAt(FIRST_CHECK_MILLIS).run()
+        serverTimeIs(SHARED_MILLIS + WINDOW_MILLIS - 1)
 
-        checkAt(SECOND_CHECK_MILLIS).run()
+        check.run()
+
+        assertEquals(listOf("popular"), notifiedPostIds())
+    }
+
+    @Test
+    fun run_postWindowOlderThanNewestPost_notifiesOfNothing() = runTest {
+        share(post(id = "old"))
+        serverTimeIs(SHARED_MILLIS + WINDOW_MILLIS)
+
+        check.run()
+
+        assertNothingNotified()
+    }
+
+    @Test
+    fun run_deviceClockAheadOfServer_measuresWindowFromServer() = runTest {
+        share(post(id = "popular"))
+        serverTimeIs(SHARED_MILLIS + HOUR_MILLIS)
+
+        check.run()
+
+        assertEquals(listOf("popular"), notifiedPostIds())
+    }
+
+    @Test
+    fun run_deviceClockBehindServer_measuresWindowFromServer() = runTest {
+        share(post(id = "old", sharedMillis = FUTURE_SHARED_MILLIS))
+        serverTimeIs(FUTURE_SHARED_MILLIS + WINDOW_MILLIS)
+
+        check.run()
+
+        assertNothingNotified()
+    }
+
+    @Test
+    fun run_moreRecentPostsThanOnePage_notifiesOfOldestToo() = runTest {
+        postLookup.pageSize = POSTS_PER_PAGE
+        share(post(id = "oldest"))
+        repeat(POSTS_PER_PAGE) { index ->
+            val sharedMillis = SHARED_MILLIS + index + 1
+            share(post(id = "newer-$index", likeCount = 0, sharedMillis = sharedMillis))
+        }
+
+        check.run()
+
+        assertEquals(listOf("oldest"), notifiedPostIds())
+    }
+
+    @Test
+    fun run_again_doesNotNotifyOfSamePostTwice() = runTest {
+        share(post(id = "popular"))
+        check.run()
+        serverTimeIs(SHARED_MILLIS + HOUR_MILLIS)
+
+        check.run()
 
         assertEquals(listOf("popular"), notifiedPostIds())
     }
@@ -130,10 +193,10 @@ class PopularPostCheckTest {
     @Test
     fun run_otherUserOnSameDevice_isNotifiedOfSamePost() = runTest {
         share(post(id = "popular"))
-        checkAt(FIRST_CHECK_MILLIS).run()
+        check.run()
         accountRepository.logInAs(THIRD_UID)
 
-        checkAt(SECOND_CHECK_MILLIS).run()
+        check.run()
 
         assertEquals(listOf("popular", "popular"), notifiedPostIds())
     }
@@ -141,12 +204,12 @@ class PopularPostCheckTest {
     @Test
     fun run_likesDropBelowThresholdAndReturn_doesNotNotifyTwice() = runTest {
         share(post(id = "popular"))
-        checkAt(FIRST_CHECK_MILLIS).run()
+        check.run()
         postLookup.posts = listOf(post(id = "popular", likeCount = MIN_LIKES - 1))
-        checkAt(SECOND_CHECK_MILLIS).run()
+        check.run()
         postLookup.posts = listOf(post(id = "popular", likeCount = MIN_LIKES))
 
-        checkAt(THIRD_CHECK_MILLIS).run()
+        check.run()
 
         assertEquals(listOf("popular"), notifiedPostIds())
     }
@@ -154,20 +217,21 @@ class PopularPostCheckTest {
     @Test
     fun run_again_notifiesOfPostPopularSinceLastCheck() = runTest {
         share(post(id = "first"))
-        checkAt(FIRST_CHECK_MILLIS).run()
+        check.run()
         share(post(id = "second"))
 
-        checkAt(SECOND_CHECK_MILLIS).run()
+        check.run()
 
         assertEquals(listOf("first", "second"), notifiedPostIds())
     }
 
     @Test
-    fun run_postLeavesWindow_forgetsIt() = runTest {
+    fun run_postLeavesWindowOfNewestPost_forgetsIt() = runTest {
         share(post(id = "popular"))
-        checkAt(FIRST_CHECK_MILLIS).run()
+        check.run()
+        serverTimeIs(SHARED_MILLIS + WINDOW_MILLIS)
 
-        checkAt(EXPIRY_CHECK_MILLIS).run()
+        check.run()
 
         val notifiedPosts = NotifiedPostStore(numbers, CHECK_NAME, USER_UID).notifiedPostIds()
         assertEquals(emptySet<String>(), notifiedPosts)
@@ -179,7 +243,7 @@ class PopularPostCheckTest {
         share(post(id = "popular"))
         postLookup.failure = PostLookupException(IllegalStateException("Not signed in"))
 
-        checkAt(FIRST_CHECK_MILLIS).run()
+        check.run()
 
         assertNothingNotified()
     }
@@ -188,10 +252,10 @@ class PopularPostCheckTest {
     fun run_userLogsInWhilePostIsRecent_notifiesOfItThen() = runTest {
         accountRepository.logOut()
         share(post(id = "popular"))
-        checkAt(FIRST_CHECK_MILLIS).run()
+        check.run()
         accountRepository.logInAs(USER_UID)
 
-        checkAt(SECOND_CHECK_MILLIS).run()
+        check.run()
 
         assertEquals(listOf("popular"), notifiedPostIds())
     }
@@ -202,7 +266,7 @@ class PopularPostCheckTest {
         share(post(id = "popular"))
         postLookup.failure = PostLookupException(IllegalStateException("Offline"))
 
-        checkAt(FIRST_CHECK_MILLIS).run()
+        check.run()
 
         assertNothingNotified()
     }
@@ -213,7 +277,7 @@ class PopularPostCheckTest {
         share(post(id = "popular"))
         postLookup.failure = PostLookupException(IllegalStateException("Offline"))
 
-        checkAt(FIRST_CHECK_MILLIS).run()
+        check.run()
 
         assertNothingNotified()
     }
@@ -223,7 +287,7 @@ class PopularPostCheckTest {
         notifier.turnedOffChannels += PostChannel.ANIMALS_NEAR_YOU
         share(post(id = "popular"))
 
-        checkAt(FIRST_CHECK_MILLIS).run()
+        check.run()
 
         assertEquals(listOf("popular"), notifiedPostIds())
     }
@@ -233,9 +297,9 @@ class PopularPostCheckTest {
         share(post(id = "popular"))
         postLookup.failure = PostLookupException(IllegalStateException("Offline"))
 
-        val failure = runCatching { checkAt(FIRST_CHECK_MILLIS).run() }.exceptionOrNull()
+        val failure = runCatching { check.run() }.exceptionOrNull()
         postLookup.failure = null
-        checkAt(SECOND_CHECK_MILLIS).run()
+        check.run()
 
         assertTrue(failure is PostLookupException)
         assertEquals(listOf("popular"), notifiedPostIds())
@@ -245,15 +309,11 @@ class PopularPostCheckTest {
         postLookup.posts += post
     }
 
-    // A new check, with its own stores over the same saved numbers, as after the app restarts.
-    private fun checkAt(nowMillis: Long): PopularPostCheck = PopularPostCheck(
-        accountRepository = accountRepository,
-        notifier = notifier,
-        notifiedPostStores = { uid -> NotifiedPostStore(numbers, CHECK_NAME, uid) },
-        postLookup = postLookup,
-        selector = PopularPostSelector(minLikeCount = MIN_LIKES, windowMillis = WINDOW_MILLIS),
-        clock = Clock.fixed(Instant.ofEpochMilli(nowMillis), ZoneOffset.UTC)
-    )
+    // Makes the server's newest post one received at [millis], with no likes, which is how the
+    // check tells the time.
+    private fun serverTimeIs(millis: Long) {
+        share(post(id = "newest-$millis", likeCount = 0, sharedMillis = millis))
+    }
 
     private fun notifiedPostIds(): List<String> = notifier.notifications.map { it.postId }
 
@@ -266,13 +326,14 @@ class PopularPostCheckTest {
         likeCount: Int = MIN_LIKES,
         animal: String = ANIMAL,
         place: String = PLACE,
-        authorUid: String = OTHER_UID
+        authorUid: String = OTHER_UID,
+        sharedMillis: Long = SHARED_MILLIS
     ): Post = SAMPLE_POSTS.first().copy(
         id = id,
         authorUid = authorUid,
         animalType = animal,
         locationName = place,
         likeCount = likeCount,
-        timestamp = Instant.ofEpochMilli(SHARED_MILLIS)
+        timestamp = Instant.ofEpochMilli(sharedMillis)
     )
 }
