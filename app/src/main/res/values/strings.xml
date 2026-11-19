@@ -172,6 +172,9 @@
     <string name="report_send">Send</string>
     <string name="report_cancel">Cancel</string>
     <string name="report_failed">Could not send the report. Please try again.</string>
+    <string name="report_sending">Sending…</string>
+    <string name="report_sending_queued">If you\'re offline, it\'s sent once you\'re back online, even if you close this.</string>
+    <string name="report_close">Close</string>
     <string name="report_sent_title">Report sent</string>
     <string name="report_sent_message">Thanks. Our team will review it.</string>
     <string name="report_sent_done">Done</string>

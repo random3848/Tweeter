@@ -13,8 +13,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.data.Report
+import edu.csuci.tweeter.data.ReportTarget
 
 /**
  * The flag beside another user's post that reports it. Logged-in users get the report dialog;
@@ -25,6 +27,7 @@ import edu.csuci.tweeter.data.Report
  * @param isLoggedIn Whether the user is logged in rather than a guest.
  * @param onLogIn Opens Log in, for guests.
  * @param modifier Applied to the button.
+ * @param reportViewModel The screen's reports, shared by every report button on it.
  */
 @Composable
 fun ReportPostButton(
@@ -32,12 +35,20 @@ fun ReportPostButton(
     authorUid: String,
     isLoggedIn: Boolean,
     onLogIn: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    reportViewModel: ReportViewModel = viewModel(factory = ReportViewModel.factory)
 ) {
     var isReporting by rememberSaveable(postId) { mutableStateOf(false) }
 
     IconButton(
-        onClick = { if (isLoggedIn) isReporting = true else onLogIn() },
+        onClick = {
+            if (isLoggedIn) {
+                reportViewModel.startReport(ReportTarget(reportedUid = authorUid, postId = postId))
+                isReporting = true
+            } else {
+                onLogIn()
+            }
+        },
         modifier = modifier
     ) {
         Icon(
@@ -49,10 +60,9 @@ fun ReportPostButton(
 
     if (isReporting) {
         ReportDialog(
-            reportedUid = authorUid,
-            postId = postId,
             title = stringResource(R.string.report_post_title),
-            onDismiss = { isReporting = false }
+            onDismiss = { isReporting = false },
+            reportViewModel = reportViewModel
         )
     }
 }
@@ -65,18 +75,28 @@ fun ReportPostButton(
  * @param isLoggedIn Whether the user is logged in rather than a guest.
  * @param onLogIn Opens Log in, for guests.
  * @param modifier Applied to the button.
+ * @param reportViewModel The screen's reports, shared by every report button on it.
  */
 @Composable
 fun ReportUserButton(
     userUid: String,
     isLoggedIn: Boolean,
     onLogIn: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    reportViewModel: ReportViewModel = viewModel(factory = ReportViewModel.factory)
 ) {
     var isReporting by rememberSaveable(userUid) { mutableStateOf(false) }
 
     TextButton(
-        onClick = { if (isLoggedIn) isReporting = true else onLogIn() },
+        onClick = {
+            if (isLoggedIn) {
+                val profile = ReportTarget(reportedUid = userUid, postId = Report.NO_POST)
+                reportViewModel.startReport(profile)
+                isReporting = true
+            } else {
+                onLogIn()
+            }
+        },
         modifier = modifier
     ) {
         Text(text = stringResource(R.string.report_user))
@@ -84,10 +104,9 @@ fun ReportUserButton(
 
     if (isReporting) {
         ReportDialog(
-            reportedUid = userUid,
-            postId = Report.NO_POST,
             title = stringResource(R.string.report_user_title),
-            onDismiss = { isReporting = false }
+            onDismiss = { isReporting = false },
+            reportViewModel = reportViewModel
         )
     }
 }

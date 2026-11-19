@@ -206,7 +206,9 @@ service cloud.firestore {
                (report.postId == '' ? 'profile' : report.postId);
       }
 
-      // Whether the user [report] reports wrote its post, if it's about one.
+      // Whether the user [report] reports wrote its post, if it's about one. A profile's report
+      // can't check that its user exists: until a user saves their profile they have no
+      // /users/{uid} document, though their posts open their profile and its Report button.
       function isByPostAuthor(report) {
         return report.postId == ''
             || get(/databases/$(database)/documents/posts/$(report.postId)).data.authorUid ==
