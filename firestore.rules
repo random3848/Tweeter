@@ -161,5 +161,32 @@ service cloud.firestore {
             && !existsAfter(likePath(postId));
       }
     }
+
+    // Reports of posts and users, which the team reviews in the Firebase console. Logged-in users
+    // can only send one, as themselves and not about themselves; nobody can read, change or delete
+    // one from the app. The fields and limits match Report and FirestoreReportRepository.
+    match /reports/{reportId} {
+      allow create: if isLoggedIn()
+                    && request.resource.data.keys().hasOnly([
+                         'reporterUid', 'reportedUid', 'postId', 'reason', 'details', 'timestamp'
+                       ])
+                    && request.resource.data.keys().hasAll([
+                         'reporterUid', 'reportedUid', 'postId', 'reason', 'details', 'timestamp'
+                       ])
+                    && request.resource.data.reporterUid == request.auth.uid
+                    && request.resource.data.reportedUid is string
+                    && request.resource.data.reportedUid.size() > 0
+                    && request.resource.data.reportedUid.size() <= 128
+                    && request.resource.data.reportedUid != request.auth.uid
+                    && request.resource.data.postId is string
+                    && request.resource.data.postId.size() <= 128
+                    && request.resource.data.reason in [
+                         'SPAM', 'HARASSMENT', 'SEXUAL_CONTENT', 'VIOLENCE', 'OTHER'
+                       ]
+                    && request.resource.data.details is string
+                    && request.resource.data.details.size() <= 500
+                    // Set by Firestore when it receives the report, not by the phone's clock.
+                    && request.resource.data.timestamp == request.time;
+    }
   }
 }
