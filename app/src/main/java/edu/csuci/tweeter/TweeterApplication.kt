@@ -1,6 +1,7 @@
 package edu.csuci.tweeter
 
 import android.app.Application
+import androidx.work.Configuration
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import edu.csuci.tweeter.ui.map.configureMapTiles
@@ -11,18 +12,27 @@ import edu.csuci.tweeter.ui.map.configureMapTiles
  * It is registered in AndroidManifest.xml (`android:name`), so Android creates it before any
  * screen. That makes [onCreate] the place for setup that must happen before the first screen,
  * such as how the map downloads its tiles. It also makes the image loader every screen's photos
- * load with ([newImageLoader]).
+ * load with ([newImageLoader]), and WorkManager's configuration ([workManagerConfiguration]).
  */
 class TweeterApplication :
     Application(),
-    ImageLoaderFactory {
+    ImageLoaderFactory,
+    Configuration.Provider {
     /** The shared objects, for ViewModel factories to read. */
     val container: AppContainer by lazy { AppContainer(this) }
+
+    // WorkManager is started on its first use, on a background thread (see
+    // AppContainer.schedulePostChecks), rather than before onCreate on the main thread: the
+    // manifest removes its startup initializer. It creates the app's workers with the container's
+    // factory.
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder().setWorkerFactory(container.workerFactory).build()
 
     override fun onCreate() {
         super.onCreate()
         configureMapTiles()
         container.prepareFirstScreens()
+        container.schedulePostChecks()
     }
 
     // Firebase Storage sends photos with `Cache-Control: private, max-age=0`, so by default Coil

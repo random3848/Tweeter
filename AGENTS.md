@@ -26,7 +26,17 @@ Layout:
   an in-memory `PostRepository` for tests and for working offline.
 - `app/src/main/java/edu/csuci/tweeter/location/`: finding where a photo was taken
   (`PhotoLocator`, from its EXIF tags or the device) and removing its location tags before upload
-  (`LocationTagRemover`).
+  (`LocationTagRemover`). `DeviceLocationProvider` (one in `AppContainer`) saves each fix it gets
+  in `LastLocationStore` as where the device last was.
+- `app/src/main/java/edu/csuci/tweeter/notification/`: notifications about posts, with no server.
+  WorkManager runs each kind of check every 15 minutes, also while the app is closed: a check
+  (`RareAnimalCheck`, run by `RareAnimalCheckWorker`) looks up the posts the server received since
+  the time in its `LastCheckStore` with `PostLookup` (in `data/`), chooses which to notify of with
+  plain logic (`NearbyRareAnimalSelector`, with `AnimalRarity` in `data/`), and shows them through
+  `PostNotifier`, each kind in its own `PostChannel`. Tapping one opens the post in Feed through
+  `AppContainer.showInFeedRequest`. A new kind adds a channel, a check with its own name, and a
+  worker that `PostCheckWorkerFactory` creates and `AppContainer.schedulePostChecks()` schedules.
+  Feed asks a logged-in user once for permission to notify them (`ui/notification/`).
 - `app/src/main/java/edu/csuci/tweeter/ui/camera/`: the photo the post and profile screens let the
   user choose, `ChosenPhoto`, and taking it with the camera app: `CameraCapture`, held by the
   screen's ViewModel, which exposes it as `CameraControls`, and `CameraOpener`, which the screen

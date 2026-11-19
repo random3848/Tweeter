@@ -177,4 +177,10 @@
         <item quantity="other">%d followers</item>
     </plurals>
 
+    <string name="notification_channel_animals_near_you">Rare animals near you</string>
+    <string name="notification_channel_animals_near_you_description">When someone posts a rare animal near where you last used the app.</string>
+    <string name="notification_rare_animal_title">Rare animal nearby: %1$s</string>
+    <string name="notification_rare_animal_text">Spotted at %1$s</string>
+    <string name="notification_rare_animal_text_no_place">Spotted near you</string>
+
 </resources>

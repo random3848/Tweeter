@@ -1,0 +1,65 @@
+package edu.csuci.tweeter.notification
+
+import android.Manifest
+import android.app.Notification
+import android.content.Context
+import android.content.pm.PackageManager
+import androidx.core.app.NotificationChannelCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import edu.csuci.tweeter.R
+
+/**
+ * A [PostNotifier] that shows notifications in the system's notification shade, creating each
+ * [PostChannel] before its first notification. Tapping one opens the post in Feed, through
+ * [PostNotificationTap].
+ *
+ * A post's notification is tagged with its ID and numbered by its channel, so a post has at most
+ * one notification of each channel.
+ *
+ * @param context Any context; only its application context is kept.
+ */
+class SystemPostNotifier(context: Context) : PostNotifier {
+    private val appContext = context.applicationContext
+    private val manager = NotificationManagerCompat.from(appContext)
+
+    override fun canNotify(): Boolean = ContextCompat.checkSelfPermission(
+        appContext,
+        Manifest.permission.POST_NOTIFICATIONS
+    ) == PackageManager.PERMISSION_GRANTED
+
+    override fun notify(notification: PostNotification) {
+        if (canNotify()) {
+            createChannel(notification.channel)
+            show(notification.postId, notification.channel.ordinal, build(notification))
+        }
+    }
+
+    // Creating a channel that exists changes nothing but its name and description, so this needs
+    // no record of which channels were created.
+    private fun createChannel(channel: PostChannel) {
+        val systemChannel = NotificationChannelCompat.Builder(channel.id, channel.importance)
+            .setName(appContext.getString(channel.title))
+            .setDescription(appContext.getString(channel.description))
+            .build()
+        manager.createNotificationChannel(systemChannel)
+    }
+
+    @Suppress("MissingPermission") // Checked by canNotify() in notify().
+    private fun show(tag: String, id: Int, notification: Notification) {
+        manager.notify(tag, id, notification)
+    }
+
+    private fun build(notification: PostNotification): Notification =
+        NotificationCompat.Builder(appContext, notification.channel.id)
+            .setSmallIcon(R.drawable.ic_location_pin)
+            .setContentTitle(stringOf(notification.title))
+            .setContentText(stringOf(notification.text))
+            .setContentIntent(PostNotificationTap.pendingIntentFor(appContext, notification.postId))
+            .setAutoCancel(true)
+            .build()
+
+    private fun stringOf(text: NotificationText): String =
+        appContext.getString(text.resId, *text.args.toTypedArray())
+}
