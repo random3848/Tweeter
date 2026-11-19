@@ -40,24 +40,14 @@ class PostBookmarker(private val bookmarkRepository: BookmarkRepository) {
         .distinctUntilChanged()
 
     /**
-     * Saves the post with [postId], unless a change to its bookmark is still being saved. A
-     * bookmark that can't be saved is logged; the bookmark then shows the post unsaved.
+     * Saves the post with [postId], or unsaves it if [bookmarkedPostIds], the bookmarks the screen
+     * shows, hold it, unless a change to its bookmark is still being saved. A change that can't be
+     * saved is logged; the bookmark then shows the post as it was.
      */
-    suspend fun bookmark(postId: String) {
-        changeBookmark(postId, bookmarkRepository::bookmark)
-    }
-
-    /**
-     * Unsaves the post with [postId], unless a change to its bookmark is still being saved. A
-     * change that can't be saved is logged; the bookmark then shows the post saved.
-     */
-    suspend fun unbookmark(postId: String) {
-        changeBookmark(postId, bookmarkRepository::unbookmark)
-    }
-
-    // Saves [change] to the bookmark of the post with [postId], unless another is still being
-    // saved.
-    private suspend fun changeBookmark(postId: String, change: suspend (postId: String) -> Unit) {
+    suspend fun toggle(postId: String, bookmarkedPostIds: Set<String>) {
+        val isBookmarked = postId in bookmarkedPostIds
+        val change =
+            if (isBookmarked) bookmarkRepository::unbookmark else bookmarkRepository::bookmark
         pendingChanges.saveUnlessPending(postId) { saveBookmarkChange(postId, change) }
     }
 
