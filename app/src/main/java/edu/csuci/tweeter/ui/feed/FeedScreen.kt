@@ -20,6 +20,7 @@ import edu.csuci.tweeter.R
 import edu.csuci.tweeter.ui.CenteredMessage
 import edu.csuci.tweeter.ui.navigation.TweeterTopBar
 import edu.csuci.tweeter.ui.voting.PostVotes
+import edu.csuci.tweeter.ui.voting.VoteActions
 
 /**
  * The home feed, the screen the app opens to, under the app's top bar.
@@ -78,10 +79,12 @@ fun FeedScreen(
     val likePost = if (uiState.canLike) feedViewModel::toggleLike else { _: String -> onLogIn() }
     val votes = PostVotes(
         userVotes = userVotes,
-        onChangeVote = feedViewModel::changeVote,
-        onReclassify = feedViewModel::reclassify,
-        onOpenAnimal = onOpenAnimal,
-        onOpenVoting = onOpenVoting
+        actions = VoteActions(
+            onToggleVote = feedViewModel::toggleVote,
+            onReclassify = feedViewModel::reclassify,
+            onOpenAnimal = onOpenAnimal,
+            onOpenVoting = onOpenVoting
+        )
     )
     Column(modifier = modifier.fillMaxSize()) {
         TweeterTopBar(actions = topBarActions)

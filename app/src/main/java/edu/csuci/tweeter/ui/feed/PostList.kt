@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.data.PostRows
+import edu.csuci.tweeter.data.countedVoteOn
 import edu.csuci.tweeter.ui.CenteredMessage
 import edu.csuci.tweeter.ui.comments.PostComments
 import edu.csuci.tweeter.ui.postDetailsText
@@ -167,14 +168,16 @@ private fun PostItems(
                 val posterAnimal = posts.animalType(row)
                 // A post whose poster named no animal has none to vote on.
                 if (posterAnimal.isNotBlank()) {
+                    val round = posts.voteRound(row)
                     AnimalVoteControl(
                         postId = postId,
                         posterAnimal = posterAnimal,
                         shownAnimal = posts.shownAnimal(row),
                         agreement = posts.agreement(row),
-                        round = posts.voteRound(row),
+                        round = round,
                         voter = Voter.of(loggedInUid, posts.authorUid(row)),
-                        votes = votes,
+                        userVote = votes.userVotes.countedVoteOn(postId, round),
+                        actions = votes.actions,
                         onLogIn = onLogIn,
                         modifier = Modifier.padding(start = 4.dp, top = 4.dp)
                     )

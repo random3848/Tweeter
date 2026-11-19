@@ -33,8 +33,8 @@ import kotlinx.coroutines.launch
  * @property imageUri The post's photo.
  * @property posterInitials The initials of the poster's avatar, which mark the poster's animal.
  * @property shares Every animal voted for on the post, the poster's first.
- * @property ballot The user's vote on the post, and the changes they can make to it; null while
- *     the post is read, or once it's gone.
+ * @property ballot The user's vote on the post, which a change to it is worked out from; null
+ *     while the post is read, or once it's gone.
  * @property voter Who the user is to the post: guests and the poster can't vote.
  */
 data class VotingUiState(
@@ -84,7 +84,8 @@ class VotingViewModel(
     /** The post and its votes, updated as they or the user's votes change, or the user logs in. */
     val uiState: StateFlow<VotingUiState> = combine(
         votedPost,
-        postVoter.voteCounts(postId),
+        // The post's listener reports every change to it, such as a like, with the same counts.
+        postVoter.voteCounts(postId).distinctUntilChanged(),
         postVoter.userVotes(),
         accountRepository.loggedInUid
     ) { post, voteCounts, userVotes, loggedInUid ->
@@ -103,7 +104,7 @@ class VotingViewModel(
      */
     fun toggleVote(animal: String) {
         val ballot = uiState.value.ballot ?: return
-        viewModelScope.launch { postVoter.changeVote(ballot.toggling(animal)) }
+        viewModelScope.launch { postVoter.toggleVote(ballot, animal) }
     }
 
     private fun votedPostIn(posts: PostTable): VotedPost? {

@@ -29,7 +29,7 @@
         <item quantity="other">%d posts</item>
     </plurals>
 
-    <string name="animal_posts_empty">No posts name this animal anymore.</string>
+    <string name="animal_posts_empty">No posts name this animal.</string>
 
     <string name="animal_vote_agree">Agree</string>
     <string name="animal_vote_disagree">Disagree</string>

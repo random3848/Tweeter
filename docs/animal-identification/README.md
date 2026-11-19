@@ -66,8 +66,12 @@ The meeting left these open; #150 settled them as follows. Revisit any of them a
 - **Switching:** a post shows another animal once that animal has more than half of all votes,
   the poster's included (`SWITCHING_SHARE`). At exactly half the poster's animal stays.
 - **Colors:** green at 100% agreement, yellow below it; no gradient.
-- **Choosing an animal:** the popup searches the app's animal list (`AnimalRepository`), so a
-  voter can't type a name that isn't in it.
+- **Choosing an animal:** the popup searches the app's animal list (`AnimalRepository`). The
+  rules can't check names against that list, so they bound what a voter can store instead: an
+  animal is taken out of a post's `voteCounts` once its last vote goes, so each voter holds at most
+  one name there, and a post holds at most 50 animals (`MAX_VOTED_ANIMALS` in the app,
+  `maxVotedAnimals()` in the rules). A vote that would add an animal past that is refused, and
+  only logged, as other failed votes are; the voter can still vote for an animal already there.
 - **↑:** votes for the animal the post shows. Tapping a highlighted arrow again withdraws the vote.
 - **Poster:** the poster's animal is their vote, so they get only ↓, which reclassifies the post:
   it names the new animal, clears every vote and removes the 1–5 confidence rating.
@@ -92,8 +96,9 @@ The meeting left these open; #150 settled them as follows. Revisit any of them a
 - The name control (`ui/voting/AnimalVoteControl.kt`) sits in each post's like and comments row,
   and the 1–5 confidence rating stays under the caption.
 - A user's vote is `users/{uid}/votes/{postId}`, holding the animal and the post's voting round.
-  The post's `voteCounts` change in the same batch, and the rules check they change by exactly that
-  vote. Reclassifying starts the next round (`voteRound`), so earlier votes stop counting without
-  the poster deleting other users' documents.
+  The post's `voteCounts` change in the same transaction, which reads them first so that an
+  animal left without votes is removed, and the rules check they change by exactly that vote.
+  Reclassifying starts the next round (`voteRound`), so earlier votes stop counting without the
+  poster deleting other users' documents.
 - The shown animal and agreement are worked out in `data/AnimalVotes.kt` and kept as `PostTable`
   columns. The voting page (`ui/voting/VotingScreen.kt`) reads one post's tally when it opens.

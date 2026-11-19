@@ -13,12 +13,12 @@ import edu.csuci.tweeter.data.FollowRepository
 import edu.csuci.tweeter.data.LikeRepository
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.Post
+import edu.csuci.tweeter.data.PostBallot
 import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.SAMPLE_POSTS
 import edu.csuci.tweeter.data.UnsavableLikeRepository
-import edu.csuci.tweeter.data.VoteChange
 import edu.csuci.tweeter.data.VoteRepository
 import edu.csuci.tweeter.data.assertSamePosts
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
@@ -492,11 +492,11 @@ class FeedViewModelTest {
     }
 
     @Test
-    fun changeVote_savesUsersVote() = runTest {
+    fun toggleVote_savesUsersVote() = runTest {
         val viewModel = feedViewModelFollowingVotes(FakeVoteRepository())
-        val change = VoteChange(likedPostId, VOTE_ROUND, previousAnimal = null, newAnimal = POSSUM)
+        val ballot = PostBallot(likedPostId, VOTE_ROUND, userVote = null)
 
-        viewModel.changeVote(change)
+        viewModel.toggleVote(ballot, POSSUM)
 
         val expected = mapOf(likedPostId to AnimalVote(POSSUM, VOTE_ROUND))
         assertEquals(expected, viewModel.userVotes.value)

@@ -8,9 +8,9 @@ import edu.csuci.tweeter.data.FakeLikeRepository
 import edu.csuci.tweeter.data.FakePhotoRepository
 import edu.csuci.tweeter.data.FakePostRepository
 import edu.csuci.tweeter.data.FakeVoteRepository
+import edu.csuci.tweeter.data.PostBallot
 import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.SAMPLE_POSTS
-import edu.csuci.tweeter.data.VoteChange
 import edu.csuci.tweeter.ui.feed.PostLiker
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 import edu.csuci.tweeter.ui.voting.PostVoter
@@ -149,11 +149,11 @@ class AnimalPostsViewModelTest {
     }
 
     @Test
-    fun changeVote_savesUsersVote() = runTest {
+    fun toggleVote_animalVotedFor_withdrawsUsersVote() = runTest {
         val viewModel = collectedAnimalPostsViewModel()
-        val change = VoteChange(OLDER_FOX, VOTE_ROUND, previousAnimal = POSSUM, newAnimal = null)
+        val ballot = PostBallot(OLDER_FOX, VOTE_ROUND, userVote = POSSUM)
 
-        viewModel.changeVote(change)
+        viewModel.toggleVote(ballot, POSSUM)
 
         assertEquals(emptyMap<String, AnimalVote>(), viewModel.userVotes.value)
     }

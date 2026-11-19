@@ -2,6 +2,7 @@ package edu.csuci.tweeter.ui.voting
 
 import android.util.Log
 import edu.csuci.tweeter.data.AnimalVote
+import edu.csuci.tweeter.data.PostBallot
 import edu.csuci.tweeter.data.VoteChange
 import edu.csuci.tweeter.data.VoteException
 import edu.csuci.tweeter.data.VoteRepository
@@ -33,11 +34,25 @@ class PostVoter(private val voteRepository: VoteRepository) {
     fun voteCounts(postId: String): Flow<Map<String, Int>> = voteRepository.getVoteCounts(postId)
 
     /**
-     * Saves [change] to the user's vote, unless a change to the votes on its post is still being
-     * saved. A change that can't be saved is logged; the post then shows the vote as it was.
+     * Votes for [animal] instead of the [ballot]'s vote, or takes the vote back if it already
+     * names [animal], as tapping a highlighted vote control again does, unless a change to the
+     * votes on the post is still being saved. A change that can't be saved is logged; the post
+     * then shows the vote as it was.
      */
-    suspend fun changeVote(change: VoteChange) {
-        changeVotes(change.postId) { voteRepository.changeVote(change) }
+    suspend fun toggleVote(ballot: PostBallot, animal: String) {
+        val change = changeToggling(ballot, animal)
+        changeVotes(ballot.postId) { voteRepository.changeVote(change) }
+    }
+
+    // The change from the [ballot]'s vote to one for [animal], or to none if it names [animal].
+    private fun changeToggling(ballot: PostBallot, animal: String): VoteChange {
+        val newAnimal = if (ballot.userVote == animal) null else animal
+        return VoteChange(
+            ballot.postId,
+            ballot.round,
+            previousAnimal = ballot.userVote,
+            newAnimal = newAnimal
+        )
     }
 
     /**

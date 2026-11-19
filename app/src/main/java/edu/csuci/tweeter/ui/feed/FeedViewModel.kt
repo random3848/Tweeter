@@ -10,11 +10,11 @@ import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
 import edu.csuci.tweeter.data.AnimalVote
 import edu.csuci.tweeter.data.FollowRepository
+import edu.csuci.tweeter.data.PostBallot
 import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostRows
 import edu.csuci.tweeter.data.PostTable
-import edu.csuci.tweeter.data.VoteChange
 import edu.csuci.tweeter.ui.ChoicePerUser
 import edu.csuci.tweeter.ui.UserChoice
 import edu.csuci.tweeter.ui.friends.FriendsReader
@@ -81,7 +81,7 @@ data class FeedUiState(
  * @param postRepository Where posts are read from.
  * @param postLiker Which posts the user liked, and saves the likes [toggleLike] makes.
  * @param postVoter The user's votes on what animal posts show, and saves the changes
- *     [changeVote] and [reclassify] make.
+ *     [toggleVote] and [reclassify] make.
  * @param postDeleter Deletes the logged-in user's posts and their photos.
  * @param accountRepository Who is logged in: guests can't like posts, and only the user's own posts
  *     show a delete button.
@@ -229,12 +229,12 @@ class FeedViewModel(
     }
 
     /**
-     * Saves [change] to the user's vote on a post's animal, unless a change to the post's votes is
-     * still being saved. A change that can't be saved is logged; the post then shows the vote as
-     * it was.
+     * Votes for [animal] instead of the [ballot]'s vote on a post's animal, or takes the vote back
+     * if it already names [animal], unless a change to the post's votes is still being saved. A
+     * change that can't be saved is logged; the post then shows the vote as it was.
      */
-    fun changeVote(change: VoteChange) {
-        viewModelScope.launch { postVoter.changeVote(change) }
+    fun toggleVote(ballot: PostBallot, animal: String) {
+        viewModelScope.launch { postVoter.toggleVote(ballot, animal) }
     }
 
     /**

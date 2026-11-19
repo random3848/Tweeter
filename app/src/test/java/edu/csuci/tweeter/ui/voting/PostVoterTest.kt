@@ -4,9 +4,9 @@ package edu.csuci.tweeter.ui.voting
 
 import edu.csuci.tweeter.data.AnimalVote
 import edu.csuci.tweeter.data.FakeVoteRepository
+import edu.csuci.tweeter.data.PostBallot
 import edu.csuci.tweeter.data.SlowVoteRepository
 import edu.csuci.tweeter.data.UnsavableVoteRepository
-import edu.csuci.tweeter.data.VoteChange
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -20,39 +20,58 @@ private const val POST_ID = "post"
 private const val OTHER_POST_ID = "other post"
 private const val ROUND = 1
 private const val POSSUM = "Possum"
+private const val RACCOON = "Raccoon"
 
 class PostVoterTest {
     @Test
-    fun changeVote_savesIt() = runTest {
+    fun toggleVote_noVote_votesForAnimal() = runTest {
         val votes = FakeVoteRepository()
 
-        PostVoter(votes).changeVote(voteFor(POSSUM, POST_ID))
+        PostVoter(votes).toggleVote(ballotOf(POST_ID, userVote = null), POSSUM)
 
         assertEquals(mapOf(POST_ID to AnimalVote(POSSUM, ROUND)), votes.getVotes().first())
     }
 
     @Test
-    fun changeVote_notSaved_doesNotThrow() = runTest {
+    fun toggleVote_voteForAnimal_withdrawsIt() = runTest {
+        val votes = votesWithUsersVoteFor(POSSUM)
+
+        PostVoter(votes).toggleVote(ballotOf(POST_ID, userVote = POSSUM), POSSUM)
+
+        assertEquals(emptyMap<String, AnimalVote>(), votes.getVotes().first())
+    }
+
+    @Test
+    fun toggleVote_voteForOtherAnimal_movesItToAnimal() = runTest {
+        val votes = votesWithUsersVoteFor(RACCOON)
+
+        PostVoter(votes).toggleVote(ballotOf(POST_ID, userVote = RACCOON), POSSUM)
+
+        assertEquals(mapOf(POST_ID to AnimalVote(POSSUM, ROUND)), votes.getVotes().first())
+    }
+
+    @Test
+    fun toggleVote_notSaved_doesNotThrow() = runTest {
         val votes = UnsavableVoteRepository()
 
-        PostVoter(votes).changeVote(voteFor(POSSUM, POST_ID))
+        PostVoter(votes).toggleVote(ballotOf(POST_ID, userVote = null), POSSUM)
 
         assertEquals(1, votes.attemptCount)
     }
 
     @Test
-    fun changeVote_afterChangeNotSaved_triesAgain() = runTest {
+    fun toggleVote_afterChangeNotSaved_triesAgain() = runTest {
         val votes = UnsavableVoteRepository()
         val voter = PostVoter(votes)
-        voter.changeVote(voteFor(POSSUM, POST_ID))
+        voter.toggleVote(ballotOf(POST_ID, userVote = null), POSSUM)
 
-        voter.changeVote(voteFor(POSSUM, POST_ID))
+        voter.toggleVote(ballotOf(POST_ID, userVote = null), POSSUM)
 
         assertEquals(2, votes.attemptCount)
     }
 
     @Test
-    fun changeVote_tappedAgainBeforeSaved_changesOnce() = runTest {
+    fun toggleVote_tappedAgainBeforeSaved_changesOnce() = runTest {
         val votes = SlowVoteRepository()
         val voter = PostVoter(votes)
 
@@ -63,7 +82,7 @@ class PostVoterTest {
     }
 
     @Test
-    fun changeVote_otherPostWhileOneIsSaving_changesBoth() = runTest {
+    fun toggleVote_otherPostWhileOneIsSaving_changesBoth() = runTest {
         val votes = SlowVoteRepository()
         val voter = PostVoter(votes)
 
@@ -74,7 +93,7 @@ class PostVoterTest {
     }
 
     @Test
-    fun changeVote_afterLastChangeSaved_changesAgain() = runTest {
+    fun toggleVote_afterLastChangeSaved_changesAgain() = runTest {
         val votes = SlowVoteRepository()
         val voter = PostVoter(votes)
         startVote(voter, POST_ID)
@@ -116,13 +135,18 @@ class PostVoterTest {
         assertEquals(1, votes.changeCount)
     }
 
-    private fun voteFor(animal: String, postId: String) =
-        VoteChange(postId, ROUND, previousAnimal = null, newAnimal = animal)
+    private fun ballotOf(postId: String, userVote: String?) = PostBallot(postId, ROUND, userVote)
+
+    // The votes when the user's vote on the post, the only one on it, names [animal].
+    private fun votesWithUsersVoteFor(animal: String) = FakeVoteRepository(
+        initialVotes = mapOf(POST_ID to AnimalVote(animal, ROUND)),
+        initialVoteCounts = mapOf(POST_ID to mapOf(animal to 1))
+    )
 
     // Starts voting on the post, which waits for the slow repository until the test finishes it.
     private fun TestScope.startVote(voter: PostVoter, postId: String) {
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
-            voter.changeVote(voteFor(POSSUM, postId))
+            voter.toggleVote(ballotOf(postId, userVote = null), POSSUM)
         }
     }
 }

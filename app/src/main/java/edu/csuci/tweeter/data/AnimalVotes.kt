@@ -42,16 +42,15 @@ fun shownAnimalOf(posterAnimal: String, voteCounts: Map<String, Int>): String {
 }
 
 /**
- * Returns the share of the votes on a post of [posterAnimal] with [voteCounts] that name the
- * animal it shows ([shownAnimalOf]), up to [FULL_AGREEMENT]. It's 0 when the post shows no animal,
- * as when it has no votes at all.
+ * Returns the share of the votes on a post of [posterAnimal] with [voteCounts] that name
+ * [shownAnimal], the animal it shows ([shownAnimalOf], which the caller has worked out already),
+ * up to [FULL_AGREEMENT]. It's 0 when the post shows no animal, as when it has no votes at all.
  */
-fun agreementOf(posterAnimal: String, voteCounts: Map<String, Int>): Double {
+fun agreementOf(shownAnimal: String, posterAnimal: String, voteCounts: Map<String, Int>): Double {
     val totalVotes = totalVotesOf(posterAnimal, voteCounts)
     if (totalVotes == 0) {
         return 0.0
     }
-    val shownAnimal = shownAnimalOf(posterAnimal, voteCounts)
     return votesFor(shownAnimal, posterAnimal, voteCounts).toDouble() / totalVotes
 }
 

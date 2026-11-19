@@ -121,7 +121,7 @@ private fun PostVotesList(
             AnimalShareRow(
                 share = share,
                 posterInitials = uiState.posterInitials,
-                isVotedFor = uiState.ballot?.agreesWith(share.animal) == true,
+                isVotedFor = uiState.ballot?.userVote == share.animal,
                 onOpenAnimal = onOpenAnimal,
                 onVote = onVote
             )

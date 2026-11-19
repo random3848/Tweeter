@@ -9,11 +9,11 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
 import edu.csuci.tweeter.data.AnimalVote
+import edu.csuci.tweeter.data.PostBallot
 import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostRows
 import edu.csuci.tweeter.data.PostTable
-import edu.csuci.tweeter.data.VoteChange
 import edu.csuci.tweeter.ui.feed.PostLiker
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 import edu.csuci.tweeter.ui.voting.PostVoter
@@ -54,7 +54,7 @@ data class AnimalPostsUiState(
  *     show a delete button.
  * @param postLiker Which posts the user liked, and saves the likes [toggleLike] makes.
  * @param postVoter The user's votes on what animal posts show, and saves the changes
- *     [changeVote] and [reclassify] make.
+ *     [toggleVote] and [reclassify] make.
  * @param showOnMapRequest Where [showOnMap] asks Map to show a post.
  * @param rowsDispatcher Where the animal's rows are found: off the main thread, since finding
  *     them is a pass over every post.
@@ -110,11 +110,11 @@ class AnimalPostsViewModel(
     }
 
     /**
-     * Saves [change] to the user's vote on a post's animal, unless a change to the post's votes is
-     * still being saved.
+     * Votes for [animal] instead of the [ballot]'s vote on a post's animal, or takes the vote back
+     * if it already names [animal], unless a change to the post's votes is still being saved.
      */
-    fun changeVote(change: VoteChange) {
-        viewModelScope.launch { postVoter.changeVote(change) }
+    fun toggleVote(ballot: PostBallot, animal: String) {
+        viewModelScope.launch { postVoter.toggleVote(ballot, animal) }
     }
 
     /**

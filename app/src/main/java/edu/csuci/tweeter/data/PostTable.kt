@@ -229,6 +229,7 @@ class PostTable private constructor(
             check(size < capacity) { "Can't add a post past the capacity of $capacity" }
             addTexts(size, post)
             addNumbers(size, post)
+            addVotes(size, post)
             size++
         }
 
@@ -265,7 +266,6 @@ class PostTable private constructor(
             imageUris[row] = post.imageUri
             captions[row] = post.caption
             animalTypes[row] = post.animalType
-            shownAnimals[row] = shownAnimalOf(post.animalType, post.voteCounts)
         }
 
         private fun addNumbers(row: Int, post: Post) {
@@ -275,8 +275,14 @@ class PostTable private constructor(
             timestampsMillis[row] = post.timestamp.toEpochMilli()
             // Post keeps confidences from 1 to 5, which a Byte holds, and 0 means none.
             confidences[row] = post.confidence?.toByte() ?: NO_CONFIDENCE
-            agreements[row] = agreementOf(post.animalType, post.voteCounts)
             voteRounds[row] = post.voteRound
+        }
+
+        // The animal [post] shows and the agreement on it, which is worked out from that animal.
+        private fun addVotes(row: Int, post: Post) {
+            val shownAnimal = shownAnimalOf(post.animalType, post.voteCounts)
+            shownAnimals[row] = shownAnimal
+            agreements[row] = agreementOf(shownAnimal, post.animalType, post.voteCounts)
         }
     }
 
