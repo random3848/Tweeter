@@ -17,6 +17,14 @@ data class Report(
     val reason: ReportReason,
     val details: String
 ) {
+    /**
+     * The report's ID, naming the reporter, the reported user and the post (or the profile), so a
+     * user keeps one report per post or user reported and reporting it again replaces it.
+     * firestore.rules requires this ID.
+     */
+    val id: String
+        get() = "${reporterUid}_${reportedUid}_${postId.ifEmpty { PROFILE_TARGET }}"
+
     /** The limits and defaults of reports. */
     companion object {
         /** The longest [details] can be; firestore.rules checks the same number. */
@@ -24,5 +32,8 @@ data class Report(
 
         /** The [postId] of a report about a user's profile rather than one of their posts. */
         const val NO_POST = ""
+
+        // What ends the ID of a report about a profile, in place of a post's ID.
+        private const val PROFILE_TARGET = "profile"
     }
 }

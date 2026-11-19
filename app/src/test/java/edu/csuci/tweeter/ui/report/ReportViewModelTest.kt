@@ -2,10 +2,13 @@
 
 package edu.csuci.tweeter.ui.report
 
+import androidx.lifecycle.SavedStateHandle
+import edu.csuci.tweeter.data.AccountRepository
 import edu.csuci.tweeter.data.FakeAccountRepository
 import edu.csuci.tweeter.data.FakeReportRepository
 import edu.csuci.tweeter.data.Report
 import edu.csuci.tweeter.data.ReportReason
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -20,10 +23,13 @@ import org.junit.Test
 private const val REPORTER_UID = "maya"
 private const val REPORTED_UID = "troll"
 private const val POST_ID = "post"
+private const val OTHER_USER_UID = "sam"
+private const val DETAILS = "Kicked a cat"
 
 class ReportViewModelTest {
     private val reportRepository = FakeReportRepository()
     private val accountRepository = FakeAccountRepository(REPORTER_UID)
+    private val savedStateHandle = SavedStateHandle()
 
     @Before
     fun setUp() {
@@ -92,12 +98,7 @@ class ReportViewModelTest {
 
     @Test
     fun send_guest_sendsNothing() {
-        val viewModel = ReportViewModel(
-            reportedUid = REPORTED_UID,
-            postId = POST_ID,
-            reportRepository = reportRepository,
-            accountRepository = FakeAccountRepository()
-        )
+        val viewModel = createViewModel(accountRepository = FakeAccountRepository())
         viewModel.chooseReason(ReportReason.SPAM)
 
         viewModel.send()
@@ -107,12 +108,7 @@ class ReportViewModelTest {
 
     @Test
     fun send_ownContent_sendsNothing() {
-        val viewModel = ReportViewModel(
-            reportedUid = REPORTER_UID,
-            postId = POST_ID,
-            reportRepository = reportRepository,
-            accountRepository = accountRepository
-        )
+        val viewModel = createViewModel(reportedUid = REPORTER_UID)
         viewModel.chooseReason(ReportReason.SPAM)
 
         viewModel.send()
@@ -129,10 +125,142 @@ class ReportViewModelTest {
         assertEquals(Report.MAX_DETAILS_LENGTH, viewModel.details.length)
     }
 
-    private fun createViewModel(postId: String = POST_ID) = ReportViewModel(
-        reportedUid = REPORTED_UID,
+    @Test
+    fun send_twiceWhileSending_sendsOneReport() {
+        val sendCompletion = CompletableDeferred<Unit>()
+        reportRepository.sendCompletion = sendCompletion
+        val viewModel = createViewModel()
+        viewModel.chooseReason(ReportReason.SPAM)
+
+        viewModel.send()
+        viewModel.send()
+        sendCompletion.complete(Unit)
+
+        assertEquals(1, reportRepository.reports.size)
+    }
+
+    @Test
+    fun discardDraft_afterSent_opensEmptyForm() {
+        val viewModel = createViewModel()
+        viewModel.chooseReason(ReportReason.SPAM)
+        viewModel.changeDetails(DETAILS)
+        viewModel.send()
+
+        viewModel.discardDraft()
+
+        assertEquals(EMPTY_DRAFT, draftOf(viewModel))
+    }
+
+    @Test
+    fun discardDraft_unsentDraft_opensEmptyForm() {
+        val viewModel = createViewModel()
+        viewModel.chooseReason(ReportReason.SPAM)
+        viewModel.changeDetails(DETAILS)
+
+        viewModel.discardDraft()
+
+        assertEquals(EMPTY_DRAFT, draftOf(viewModel))
+    }
+
+    @Test
+    fun discardDraft_whileSending_keepsSendingAndConfirmsLater() {
+        val sendCompletion = CompletableDeferred<Unit>()
+        reportRepository.sendCompletion = sendCompletion
+        val viewModel = createViewModel()
+        viewModel.chooseReason(ReportReason.SPAM)
+        viewModel.send()
+
+        viewModel.discardDraft()
+        sendCompletion.complete(Unit)
+
+        assertEquals(ReportStatus.SENT, viewModel.status)
+    }
+
+    @Test
+    fun loggedInUserChange_clearsDraft() {
+        val viewModel = createViewModel()
+        viewModel.chooseReason(ReportReason.SPAM)
+        viewModel.changeDetails(DETAILS)
+
+        accountRepository.logInAs(OTHER_USER_UID)
+
+        assertEquals(EMPTY_DRAFT, draftOf(viewModel))
+    }
+
+    @Test
+    fun loggedInUserChange_afterSent_opensEmptyForm() {
+        val viewModel = createViewModel()
+        viewModel.chooseReason(ReportReason.SPAM)
+        viewModel.send()
+
+        accountRepository.logInAs(OTHER_USER_UID)
+
+        assertEquals(EMPTY_DRAFT, draftOf(viewModel))
+    }
+
+    @Test
+    fun loggedInUserChange_whileSending_neverConfirmsToNewUser() {
+        val sendCompletion = CompletableDeferred<Unit>()
+        reportRepository.sendCompletion = sendCompletion
+        val viewModel = createViewModel()
+        viewModel.chooseReason(ReportReason.SPAM)
+        viewModel.send()
+
+        accountRepository.logInAs(OTHER_USER_UID)
+        sendCompletion.complete(Unit)
+
+        assertEquals(EMPTY_DRAFT, draftOf(viewModel))
+    }
+
+    @Test
+    fun create_afterProcessDeath_restoresDraft() {
+        val viewModel = createViewModel()
+        viewModel.chooseReason(ReportReason.VIOLENCE)
+        viewModel.changeDetails(DETAILS)
+
+        val restored = createViewModel()
+
+        val expected = Draft(ReportReason.VIOLENCE, DETAILS, ReportStatus.EDITING)
+        assertEquals(expected, draftOf(restored))
+    }
+
+    @Test
+    fun create_afterProcessDeathOnceSent_confirmsSent() {
+        val viewModel = createViewModel()
+        viewModel.chooseReason(ReportReason.SPAM)
+        viewModel.send()
+
+        assertEquals(ReportStatus.SENT, createViewModel().status)
+    }
+
+    @Test
+    fun create_afterProcessDeathOnceDiscarded_opensEmptyForm() {
+        val viewModel = createViewModel()
+        viewModel.chooseReason(ReportReason.SPAM)
+        viewModel.changeDetails(DETAILS)
+        viewModel.send()
+        viewModel.discardDraft()
+
+        assertEquals(EMPTY_DRAFT, draftOf(createViewModel()))
+    }
+
+    private fun createViewModel(
+        reportedUid: String = REPORTED_UID,
+        postId: String = POST_ID,
+        accountRepository: AccountRepository = this.accountRepository
+    ) = ReportViewModel(
+        reportedUid = reportedUid,
         postId = postId,
         reportRepository = reportRepository,
-        accountRepository = accountRepository
+        accountRepository = accountRepository,
+        savedStateHandle = savedStateHandle
     )
+
+    private fun draftOf(viewModel: ReportViewModel) =
+        Draft(viewModel.reason, viewModel.details, viewModel.status)
 }
+
+// What the report dialog shows, compared as one value.
+private data class Draft(val reason: ReportReason?, val details: String, val status: ReportStatus)
+
+private val EMPTY_DRAFT = Draft(reason = null, details = "", status = ReportStatus.EDITING)

@@ -34,7 +34,7 @@ import edu.csuci.tweeter.data.ReportReason
  * @param reportedUid The user reported, or the reported post's author.
  * @param postId The reported post's ID, or [Report.NO_POST] for a profile.
  * @param title The dialog's title.
- * @param onDismiss Closes the dialog.
+ * @param onDismiss Closes the dialog, after the draft is discarded so the next one opens empty.
  * @param reportViewModel Holds the draft and sends it.
  */
 @Composable
@@ -48,13 +48,17 @@ fun ReportDialog(
         factory = ReportViewModel.createFactory(reportedUid, postId)
     )
 ) {
+    val dismiss = {
+        reportViewModel.discardDraft()
+        onDismiss()
+    }
     if (reportViewModel.status == ReportStatus.SENT) {
-        ReportSentDialog(onDismiss = onDismiss)
+        ReportSentDialog(onDismiss = dismiss)
         return
     }
     val isSending = reportViewModel.status == ReportStatus.SENDING
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = dismiss,
         title = { Text(title) },
         text = { ReportForm(reportViewModel) },
         confirmButton = {
@@ -66,7 +70,7 @@ fun ReportDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = dismiss) {
                 Text(stringResource(R.string.report_cancel))
             }
         }

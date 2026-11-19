@@ -14,7 +14,8 @@ private const val DETAILS = "details"
 private const val TIMESTAMP = "timestamp"
 
 /**
- * Reports stored in Firestore at reports/{reportId}, which only the Firebase console reads.
+ * Reports stored in Firestore at reports/{reportId}, which only the Firebase console reads. The
+ * ID is [Report.id], so reporting the same post or user again replaces the earlier report.
  *
  * @param firestore Stores the reports.
  */
@@ -29,7 +30,7 @@ class FirestoreReportRepository(private val firestore: FirebaseFirestore) : Repo
             TIMESTAMP to FieldValue.serverTimestamp()
         )
         try {
-            firestore.collection(REPORTS).add(fields).await()
+            firestore.collection(REPORTS).document(report.id).set(fields).await()
         } catch (error: FirebaseException) {
             throw ReportException(error)
         }
