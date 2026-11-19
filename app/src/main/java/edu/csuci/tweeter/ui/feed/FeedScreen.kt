@@ -19,6 +19,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.ui.CenteredMessage
 import edu.csuci.tweeter.ui.navigation.TweeterTopBar
+import edu.csuci.tweeter.ui.notification.NotificationSetup
 
 /**
  * The home feed, the screen the app opens to, under the app's top bar.
@@ -30,7 +31,9 @@ import edu.csuci.tweeter.ui.navigation.TweeterTopBar
  * opens its comments, which guests can read. A bookmark at the right end of that row saves the
  * post for the user to view later, or opens Log in for guests. When another screen asks the feed
  * to show a post, as Map's popup does, the feed scrolls to it. The logged-in user's own posts
- * have a delete button, which asks before deleting.
+ * have a delete button, which asks before deleting. The first time a user is logged in here, the
+ * app asks them, once, to let it notify them of rare animals posted near them (see
+ * [NotificationSetup]).
  *
  * @param onShowOnMap Opens Map, once the post the user chose is requested there.
  * @param onOpenProfile Opens the selected author's profile.
@@ -63,6 +66,8 @@ fun FeedScreen(
             feedViewModel.clearPostToShow()
         }
     }
+
+    NotificationSetup()
 
     // Takes the post's ID, so that it stays the same lambda as new tables arrive.
     val showPostOnMap = { postId: String ->

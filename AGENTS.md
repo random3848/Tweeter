@@ -29,7 +29,20 @@ Layout:
   an in-memory `PostRepository` for tests and for working offline.
 - `app/src/main/java/edu/csuci/tweeter/location/`: finding where a photo was taken
   (`PhotoLocator`, from its EXIF tags or the device) and removing its location tags before upload
-  (`LocationTagRemover`).
+  (`LocationTagRemover`). `DeviceLocationProvider` (one in `AppContainer`) saves each fix it gets
+  in `LastLocationStore` as where the device last was.
+- `app/src/main/java/edu/csuci/tweeter/notification/`: notifications about posts, with no server.
+  WorkManager runs each kind of check every 15 minutes, also while the app is closed: a check
+  (`RareAnimalCheck`, run by `RareAnimalCheckWorker`) looks up the posts the server received since
+  the time in its `LastCheckStore`, less a short settle window, with `PostLookup` (in `data/`),
+  skips those in its `NotifiedPostStore`, chooses which to notify of with plain logic
+  (`NearbyRareAnimalSelector`, with `AnimalRarity` in `data/`), and shows them through
+  `PostNotifier`, each kind in its own `PostChannel`. Times are the server's, never the device's.
+  Tapping one opens the post in Feed through `AppContainer.showInFeedRequest`. A new kind adds a
+  channel, a check with its own name, and a worker that `PostCheckWorkerFactory` creates and
+  `AppContainer.schedulePostChecks()` schedules. Feed asks a logged-in user once for permission to
+  notify them (`ui/notification/`). The `saved_numbers` file these remember things in is left out
+  of backups (`res/xml/`), since a restore doesn't bring back the permission.
 - `app/src/main/java/edu/csuci/tweeter/ui/camera/`: the photo the post and profile screens let the
   user choose, `ChosenPhoto`, and taking it with the camera app: `CameraCapture`, held by the
   screen's ViewModel, which exposes it as `CameraControls`, and `CameraOpener`, which the screen
@@ -457,7 +470,9 @@ Threads:
 Startup:
 - The first frame waits for everything its composition touches. A library whose first use is slow
   (Firebase, MapLibre) is started from `AppContainer.prepareFirstScreens()` on background threads,
-  and something not on screen at launch, like the map, isn't composed until it's needed.
+  which `MainActivity.onCreate` calls, not `Application.onCreate`, since WorkManager also starts
+  the process for checks that show no screen. Something not on screen at launch, like the map,
+  isn't composed until it's needed.
 
 Drawing:
 - Keep the GPU paths on: Compose draws with hardware acceleration, Coil decodes photos off the

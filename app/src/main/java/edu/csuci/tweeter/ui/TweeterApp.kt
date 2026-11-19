@@ -55,6 +55,8 @@ import edu.csuci.tweeter.ui.saved.SavedPostsRoute
 import edu.csuci.tweeter.ui.saved.addSavedPostsScreen
 import edu.csuci.tweeter.ui.search.SearchRoute
 import edu.csuci.tweeter.ui.search.addSearchScreen
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 /**
  * Bottom-bar items in display order.
@@ -122,10 +124,14 @@ internal val BOTTOM_BAR_ITEMS: List<BottomBarItem> = listOf(
  * counts as shown while the NavHost composes none of those screens, which follows what the
  * NavHost draws rather than the back stack, which changes a few frames earlier.
  *
+ * Each time [feedOpenings] emits, as when a notification about a post is tapped, the app opens
+ * the feed itself, as pressing Home does.
+ *
  * @param modifier Applied to the whole app
+ * @param feedOpenings Asks the app to open the feed, which then shows the post it was asked to.
  */
 @Composable
-fun TweeterApp(modifier: Modifier = Modifier) {
+fun TweeterApp(modifier: Modifier = Modifier, feedOpenings: Flow<Unit> = emptyFlow()) {
     val navController = rememberNavController()
     val mapCover = rememberSaveable(saver = MapCover.Saver) {
         MapCover(hidesMapUntilCounted = true)
@@ -139,6 +145,9 @@ fun TweeterApp(modifier: Modifier = Modifier) {
         if (isOnMap) {
             hasOpenedMap = true
         }
+    }
+    LaunchedEffect(feedOpenings) {
+        feedOpenings.collect { navController.navigateToFeed() }
     }
     val isOnEditProfile = destination?.hasRoute(EditProfileRoute::class) == true
     // Every navigation changes the top of the back stack, so it's found again only then.

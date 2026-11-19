@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What Android backs up and moves to a new device. saved_numbers stays behind: it records
+     whether the app asked for permission to notify, which a restore doesn't bring back, and where
+     the device last was and up to when checks looked, which would be stale. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="saved_numbers.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="saved_numbers.xml" />
+    </device-transfer>
+</data-extraction-rules>
