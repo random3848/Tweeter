@@ -21,12 +21,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.ui.navigation.BackTopBar
+import edu.csuci.tweeter.ui.report.ReportUserButton
 
 /**
  * A profile opened by selecting a user.
  *
  * The owner sees their existing profile screen and account controls.
- * Other viewers see the shared profile layout with following controls.
+ * Other viewers see the shared profile layout with following controls and a button that reports
+ * the user.
  *
  * @param userUid The user whose profile was opened.
  * @param onBack Returns to the previous screen.
@@ -101,6 +103,11 @@ fun UserProfileScreen(
                     rows = state.rows
                 ) {
                     ProfileFollowControls(
+                        userUid = userUid,
+                        isLoggedIn = state.isLoggedIn,
+                        onLogIn = onLogIn
+                    )
+                    ReportUserButton(
                         userUid = userUid,
                         isLoggedIn = state.isLoggedIn,
                         onLogIn = onLogIn

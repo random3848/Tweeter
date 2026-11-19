@@ -40,6 +40,7 @@ import edu.csuci.tweeter.data.PostRows
 import edu.csuci.tweeter.ui.CenteredMessage
 import edu.csuci.tweeter.ui.comments.PostComments
 import edu.csuci.tweeter.ui.postDetailsText
+import edu.csuci.tweeter.ui.report.ReportPostButton
 
 // Between a post's animal type and its confidence rating.
 private const val ANIMAL_DETAILS_SEPARATOR = " · "
@@ -51,7 +52,7 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
  * the logged-in user's own posts have a delete button, which asks before deleting. Each also has
  * a like button and its like count, a button that opens its comments under it, where logged-in
  * users can add one, and at the right end a bookmark that saves the post for the user to view
- * later.
+ * later. Other users' posts have a flag that reports them.
  *
  * @param listedPosts The posts to list.
  * @param isLoading Whether the posts are still being read.
@@ -61,7 +62,7 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
  *     capturing the table, so it stays the same as new tables arrive.
  * @param onDelete Deletes the post with the given ID. It takes the ID for the same reason.
  * @param onOpenProfile Opens the profile of the author with the given ID.
- * @param onLogIn Opens Log in, for a guest who wants to comment.
+ * @param onLogIn Opens Log in, for a guest who wants to comment or report a post.
  * @param likes Which posts the user liked and what pressing a like button does. It's required, so
  *     no screen listing posts leaves out their likes.
  * @param bookmarks Which posts the user saved and what pressing a bookmark does. It's required
@@ -168,6 +169,17 @@ private fun PostItems(
                     isOpen = showsComments,
                     onClick = { showsComments = !showsComments }
                 )
+                // Other users' posts only; one shared while logged out has nobody to report.
+                val authorUid = posts.authorUid(row)
+                if (authorUid.isNotBlank() && authorUid != loggedInUid) {
+                    ReportPostButton(
+                        postId = postId,
+                        authorUid = authorUid,
+                        isLoggedIn = loggedInUid != null,
+                        onLogIn = onLogIn,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
                 // Takes the leftover width, which puts the bookmark at the right end.
                 Spacer(modifier = Modifier.weight(1f))
                 BookmarkButton(

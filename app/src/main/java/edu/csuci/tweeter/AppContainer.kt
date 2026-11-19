@@ -18,6 +18,7 @@ import edu.csuci.tweeter.data.FirestoreFollowRepository
 import edu.csuci.tweeter.data.FirestoreLikeRepository
 import edu.csuci.tweeter.data.FirestorePostRepository
 import edu.csuci.tweeter.data.FirestoreProfileRepository
+import edu.csuci.tweeter.data.FirestoreReportRepository
 import edu.csuci.tweeter.data.FollowRepository
 import edu.csuci.tweeter.data.GuestSignIn
 import edu.csuci.tweeter.data.LikeRepository
@@ -26,6 +27,7 @@ import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.ProfileSaver
+import edu.csuci.tweeter.data.ReportRepository
 import edu.csuci.tweeter.location.LocationTagRemover
 import edu.csuci.tweeter.ui.map.startMapEngine
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
@@ -113,6 +115,11 @@ class AppContainer(private val context: Context) {
     /** Every comment on posts, stored in Firestore. */
     val commentRepository: CommentRepository by lazy {
         FirestoreCommentRepository(firestore = FirebaseFirestore.getInstance())
+    }
+
+    /** Reports of posts and users, stored in Firestore for the team to review. */
+    val reportRepository: ReportRepository by lazy {
+        FirestoreReportRepository(firestore = FirebaseFirestore.getInstance())
     }
 
     /**
