@@ -266,11 +266,6 @@ class AppContainer(private val context: Context) {
         FirestorePostLookup(FirebaseFirestore.getInstance(), dispatcher = Dispatchers.Default)
     }
 
-    // Looks posts up on the server for the checks for posts to notify the user of.
-    private val postLookup: PostLookup by lazy {
-        FirestorePostLookup(FirebaseFirestore.getInstance(), dispatcher = Dispatchers.Default)
-    }
-
     // Checks for rare animals posted near the logged-in user, judging rarity by the app's own
     // posts until the iNaturalist repository is built; that work replaces PostCountRarity here.
     private val rareAnimalCheck: RareAnimalCheck by lazy {
