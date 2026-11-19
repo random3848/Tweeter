@@ -15,7 +15,7 @@ object FeedRoute
  *
  * @param onShowOnMap Opens Map, where the post the user chose to show is requested.
  * @param onOpenProfile Opens the selected author's profile.
- * @param onLogIn Opens Log in, for a guest who tries to like a post or vote.
+ * @param onLogIn Opens Log in, for a guest who tries to like or save a post or vote.
  * @param onOpenAnimal Opens the page of the animal with the given name.
  * @param onOpenVoting Opens the voting page of the post with the given ID.
  * @param topBarActions Buttons on the right of the feed's top bar, such as the profile button.

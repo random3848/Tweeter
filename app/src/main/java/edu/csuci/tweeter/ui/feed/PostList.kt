@@ -36,9 +36,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.data.PostRows
+import edu.csuci.tweeter.data.countedVoteOn
 import edu.csuci.tweeter.ui.CenteredMessage
 import edu.csuci.tweeter.ui.comments.PostComments
 import edu.csuci.tweeter.ui.postDetailsText
+import edu.csuci.tweeter.ui.report.ReportPostButton
 import edu.csuci.tweeter.ui.voting.AnimalVoteControl
 import edu.csuci.tweeter.ui.voting.PostVotes
 import edu.csuci.tweeter.ui.voting.Voter
@@ -49,8 +51,9 @@ import edu.csuci.tweeter.ui.voting.Voter
  * divider between posts. Each has its author, photo, caption and the poster's confidence, as Feed
  * shows them, and the logged-in user's own posts have a delete button, which asks before deleting.
  * Each also has a like button and its like count, a button that opens its comments under it,
- * where logged-in users can add one, and its animal name control ([AnimalVoteControl]), which asks
- * what animal it is when the poster didn't know.
+ * where logged-in users can add one, its animal name control ([AnimalVoteControl]), which asks
+ * what animal it is when the poster didn't know, and at the right end a bookmark that saves the
+ * post for the user to view later. Other users' posts have a flag that reports them.
  *
  * @param listedPosts The posts to list.
  * @param isLoading Whether the posts are still being read.
@@ -60,11 +63,13 @@ import edu.csuci.tweeter.ui.voting.Voter
  *     capturing the table, so it stays the same as new tables arrive.
  * @param onDelete Deletes the post with the given ID. It takes the ID for the same reason.
  * @param onOpenProfile Opens the profile of the author with the given ID.
- * @param onLogIn Opens Log in, for a guest who wants to comment or vote.
+ * @param onLogIn Opens Log in, for a guest who wants to comment, vote or report a post.
  * @param likes Which posts the user liked and what pressing a like button does. It's required, so
  *     no screen listing posts leaves out their likes.
  * @param votes The user's votes on what animal posts show, and what the animal name controls do.
  *     It's required for the same reason.
+ * @param bookmarks Which posts the user saved and what pressing a bookmark does. It's required
+ *     for the same reason.
  * @param modifier Applied to the space the posts take.
  * @param listState The list's scroll position.
  */
@@ -80,6 +85,7 @@ internal fun PostList(
     onLogIn: () -> Unit,
     likes: PostLikes,
     votes: PostVotes,
+    bookmarks: PostBookmarks,
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState()
 ) {
@@ -103,6 +109,7 @@ internal fun PostList(
                 listState = listState,
                 likes = likes,
                 votes = votes,
+                bookmarks = bookmarks,
                 modifier = modifier
             )
         }
@@ -122,6 +129,7 @@ private fun PostItems(
     listState: LazyListState,
     likes: PostLikes,
     votes: PostVotes,
+    bookmarks: PostBookmarks,
     modifier: Modifier = Modifier
 ) {
     val posts = listedPosts.table
@@ -154,26 +162,55 @@ private fun PostItems(
                 imageUri = posts.imageUri(row),
                 onShowOnMap = onShowOnMap
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                LikeButton(
-                    likeCount = posts.likeCount(row),
-                    isLiked = postId in likes.likedPostIds,
-                    onClick = { likes.onLike(postId) }
-                )
-                CommentsButton(
-                    isOpen = showsComments,
-                    onClick = { showsComments = !showsComments }
-                )
-                AnimalVoteControl(
-                    postId = postId,
-                    posterAnimal = posts.animalType(row),
-                    shownAnimal = posts.shownAnimal(row),
-                    agreement = posts.agreement(row),
-                    round = posts.voteRound(row),
-                    voter = Voter.of(loggedInUid, posts.authorUid(row)),
-                    votes = votes,
-                    onLogIn = onLogIn,
-                    modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Takes the width the bookmark leaves, which puts the bookmark at the right end.
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    LikeButton(
+                        likeCount = posts.likeCount(row),
+                        isLiked = postId in likes.likedPostIds,
+                        onClick = { likes.onLike(postId) }
+                    )
+                    CommentsButton(
+                        isOpen = showsComments,
+                        onClick = { showsComments = !showsComments }
+                    )
+                    val authorUid = posts.authorUid(row)
+                    val round = posts.voteRound(row)
+                    AnimalVoteControl(
+                        postId = postId,
+                        posterAnimal = posts.animalType(row),
+                        shownAnimal = posts.shownAnimal(row),
+                        agreement = posts.agreement(row),
+                        round = round,
+                        voter = Voter.of(loggedInUid, authorUid),
+                        userVote = votes.userVotes.countedVoteOn(postId, round),
+                        actions = votes.actions,
+                        onLogIn = onLogIn,
+                        // Gives way to the flag, so a long name is cut short instead of it.
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .padding(start = 4.dp, top = 4.dp)
+                    )
+                    // Other users' posts only; one shared while logged out has nobody to report.
+                    if (authorUid.isNotBlank() && authorUid != loggedInUid) {
+                        ReportPostButton(
+                            postId = postId,
+                            authorUid = authorUid,
+                            isLoggedIn = loggedInUid != null,
+                            onLogIn = onLogIn,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
+                BookmarkButton(
+                    isBookmarked = postId in bookmarks.bookmarkedPostIds,
+                    onClick = { bookmarks.onBookmark(postId) }
                 )
             }
             PostCaption(caption = posts.caption(row))

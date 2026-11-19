@@ -25,7 +25,6 @@ import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.UserProfile
 import edu.csuci.tweeter.data.deleteUnusedPhoto
 import edu.csuci.tweeter.data.getLoggedInProfile
-import edu.csuci.tweeter.location.DeviceLocationProvider
 import edu.csuci.tweeter.location.ExifLocationReader
 import edu.csuci.tweeter.location.GeoPoint
 import edu.csuci.tweeter.location.LocationFix
@@ -344,7 +343,7 @@ class PostViewModel(
                     accountRepository = application.container.accountRepository,
                     photoLocator = PhotoLocator(
                         readExif = { ExifLocationReader(application).read(Uri.parse(it)) },
-                        currentDeviceFix = DeviceLocationProvider(application)::currentFix,
+                        currentDeviceFix = application.container.deviceLocationProvider::currentFix,
                         ioDispatcher = Dispatchers.IO
                     ),
                     photo = photo,

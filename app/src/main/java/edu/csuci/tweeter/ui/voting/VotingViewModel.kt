@@ -37,8 +37,8 @@ import kotlinx.coroutines.launch
  *     none.
  * @property isAnimalUnknown Whether the post shows no animal: its poster didn't know what it is,
  *     and no animal has a majority of the votes yet.
- * @property ballot The user's vote on the post, and the changes they can make to it; null while
- *     the post is read, or once it's gone.
+ * @property ballot The user's vote on the post, which a change to it is worked out from; null
+ *     while the post is read, or once it's gone.
  * @property voter Who the user is to the post: guests and the poster can't vote.
  */
 data class VotingUiState(
@@ -89,7 +89,8 @@ class VotingViewModel(
     /** The post and its votes, updated as they or the user's votes change, or the user logs in. */
     val uiState: StateFlow<VotingUiState> = combine(
         votedPost,
-        postVoter.voteCounts(postId),
+        // The post's listener reports every change to it, such as a like, with the same counts.
+        postVoter.voteCounts(postId).distinctUntilChanged(),
         postVoter.userVotes(),
         accountRepository.loggedInUid
     ) { post, voteCounts, userVotes, loggedInUid ->
@@ -108,7 +109,7 @@ class VotingViewModel(
      */
     fun toggleVote(animal: String) {
         val ballot = uiState.value.ballot ?: return
-        viewModelScope.launch { postVoter.changeVote(ballot.toggling(animal)) }
+        viewModelScope.launch { postVoter.toggleVote(ballot, animal) }
     }
 
     /**
@@ -116,8 +117,10 @@ class VotingViewModel(
      * vote, unless that already names it or a change to the post's votes is still being saved.
      */
     fun suggestAnimal(animal: String) {
-        val change = uiState.value.ballot?.changeTo(animal) ?: return
-        viewModelScope.launch { postVoter.changeVote(change) }
+        val ballot = uiState.value.ballot ?: return
+        // Toggling the animal the vote already names would take the vote back.
+        if (ballot.userVote == animal) return
+        viewModelScope.launch { postVoter.toggleVote(ballot, animal) }
     }
 
     private fun votedPostIn(posts: PostTable): VotedPost? {

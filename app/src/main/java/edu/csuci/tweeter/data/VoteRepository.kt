@@ -24,10 +24,12 @@ interface VoteRepository {
     fun getVoteCounts(postId: String): Flow<Map<String, Int>>
 
     /**
-     * Saves [change] to the logged-in user's vote, and moves the vote between the post's counts.
+     * Saves [change] to the logged-in user's vote, and moves the vote between the post's counts
+     * as [voteCountsAfter] does.
      *
-     * @throws VoteException If the change can't be saved, such as when nobody is logged in or the
-     *     user shared the post.
+     * @throws VoteException If the change can't be saved, such as when nobody is logged in, the
+     *     user shared the post, or it would add an animal to counts that already hold
+     *     [MAX_VOTED_ANIMALS] of them.
      */
     suspend fun changeVote(change: VoteChange)
 

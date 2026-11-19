@@ -19,7 +19,7 @@ data class AnimalPostsRoute(val animal: String)
  * @param onBack Returns to the screen it was opened from.
  * @param onShowOnMap Opens Map, once the post the user chose is requested there.
  * @param onOpenProfile Opens the profile of the user with the given ID.
- * @param onLogIn Opens Log in, for a guest who tries to like a post or vote.
+ * @param onLogIn Opens Log in, for a guest who tries to like or save a post or vote.
  * @param onOpenAnimal Opens the page of the animal with the given name.
  * @param onOpenVoting Opens the voting page of the post with the given ID.
  */

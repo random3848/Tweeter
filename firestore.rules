@@ -41,8 +41,8 @@ service cloud.firestore {
       return name is string && name.size() > 0 && name.size() <= 100;
     }
 
-    // Whether the request, which can be a batch, changes the vote counts of post [postId], which
-    // the rules of /posts/{postId} allow only by the logged-in user's vote on it.
+    // Whether the request, which can be a batch or transaction, changes the vote counts of post
+    // [postId], which the rules of /posts/{postId} allow only by the logged-in user's vote on it.
     function changesVoteCounts(postId) {
       return getAfter(postPath(postId)).data.get('voteCounts', {})
           != get(postPath(postId)).data.get('voteCounts', {});
@@ -55,18 +55,44 @@ service cloud.firestore {
           && vote.round == get(postPath(postId)).data.get('voteRound', 0);
     }
 
+    // The most animals a post's vote counts can hold, as MAX_VOTED_ANIMALS in the app. With it,
+    // and an animal taken out of them once its last vote goes, a voter can't grow them without
+    // bound by moving their vote through ever more names.
+    function maxVotedAnimals() {
+      return 50;
+    }
+
+    // Whether the vote counts [after] hold one more vote for [animal] than [before].
+    function givesVote(before, after, animal) {
+      return after.get(animal, 0) == before.get(animal, 0) + 1;
+    }
+
+    // Whether the vote counts [after] hold one vote less for [animal] than [before], leaving
+    // [animal] out once it has none, rather than at 0.
+    function takesVote(before, after, animal) {
+      return (before.get(animal, 0) == 1 && !(animal in after))
+          || (before.get(animal, 0) > 1 && after.get(animal, 0) == before.get(animal, 0) - 1);
+    }
+
+    // Whether the vote counts [after] hold at most maxVotedAnimals() animals, or at least no more
+    // than [before], whose animals can keep their votes.
+    function staysWithinAnimalCap(before, after) {
+      return after.size() <= maxVotedAnimals() || after.size() <= before.size();
+    }
+
     // Whether the vote counts [after] hold one more vote for [animal] than [before], and are
     // otherwise the same.
     function addsVote(before, after, animal) {
       return after.diff(before).affectedKeys().hasOnly([animal])
-          && after.get(animal, 0) == before.get(animal, 0) + 1;
+          && givesVote(before, after, animal)
+          && staysWithinAnimalCap(before, after);
     }
 
     // Whether the vote counts [after] hold one vote less for [animal] than [before], and are
     // otherwise the same.
     function removesVote(before, after, animal) {
       return after.diff(before).affectedKeys().hasOnly([animal])
-          && after.get(animal, 0) == before.get(animal, 0) - 1;
+          && takesVote(before, after, animal);
     }
 
     // Whether the vote counts [after] hold one vote moved from animal [from] to animal [to],
@@ -74,8 +100,9 @@ service cloud.firestore {
     function movesVote(before, after, from, to) {
       return from != to
           && after.diff(before).affectedKeys().hasOnly([from, to])
-          && after.get(from, 0) == before.get(from, 0) - 1
-          && after.get(to, 0) == before.get(to, 0) + 1;
+          && takesVote(before, after, from)
+          && givesVote(before, after, to)
+          && staysWithinAnimalCap(before, after);
     }
 
     // The fields and limits match ProfileDocument and UserProfile in the app.
@@ -137,9 +164,9 @@ service cloud.firestore {
 
       // The user's votes on what animal posts show: a document per post, named by its ID,
       // holding the animal they voted for and the post's voting round it was cast in, as
-      // VoteDocument describes. FirestoreVoteRepository saves it in one batch with the post's
-      // vote counts, whose rule (see /posts/{postId}) checks they change by just this vote. A
-      // vote from an earlier round no longer counts, so its voter can delete it alone. The
+      // VoteDocument describes. FirestoreVoteRepository saves it in one transaction with the
+      // post's vote counts, whose rule (see /posts/{postId}) checks they change by just this vote.
+      // A vote from an earlier round no longer counts, so its voter can delete it alone. The
       // poster's vote is the post's animal, so they can't add one.
       match /votes/{postId} {
         allow read: if isLoggedInAs(uid);
@@ -153,6 +180,17 @@ service cloud.firestore {
                               && changesVoteCounts(postId);
         allow delete: if isLoggedInAs(uid)
                       && (!countsInRound(resource.data, postId) || changesVoteCounts(postId));
+      }
+
+      // The posts the user saved to view later: an empty document per post, named by its ID,
+      // which FirestoreBookmarkRepository adds or deletes. Only the user sees or changes them, only
+      // posts that exist can be saved, and saving a post doesn't change it.
+      match /bookmarks/{postId} {
+        allow read: if isLoggedInAs(uid);
+        allow create: if isLoggedInAs(uid)
+                      && request.resource.data.keys().size() == 0
+                      && exists(/databases/$(database)/documents/posts/$(postId));
+        allow delete: if isLoggedInAs(uid);
       }
     }
 
@@ -168,8 +206,8 @@ service cloud.firestore {
                          .hasOnly(['likeCount'])
                     && (isLiking(postId) || isUnliking(postId));
 
-      // Voting on the post's animal: the logged-in user's vote, saved in the same batch (see
-      // /users/{uid}/votes), moves between its vote counts. The poster's vote is the post's
+      // Voting on the post's animal: the logged-in user's vote, saved in the same transaction
+      // (see /users/{uid}/votes), moves between its vote counts. The poster's vote is the post's
       // animal, so they can't vote.
       allow update: if isLoggedIn()
                     && resource.data.get('authorUid', '') != request.auth.uid
@@ -272,6 +310,58 @@ service cloud.firestore {
             || (hadVote && hasVote
                 && movesVote(before, after, get(votePath(postId)).data.animal,
                              getAfter(votePath(postId)).data.animal));
+      }
+    }
+
+    // Reports of posts and users, which the team reviews in the Firebase console. Logged-in users
+    // send them as themselves and not about themselves, and a post's report names its author. A
+    // report's ID names the reporter, the reported user and the post, or 'profile' when there's
+    // none (see Report.id), so each user keeps one report per post or user: reporting it again
+    // replaces the earlier one. Nobody can read or delete a report from the app. The fields and
+    // limits match Report and FirestoreReportRepository.
+    match /reports/{reportId} {
+      allow create: if isValidReport(reportId);
+
+      allow update: if resource.data.reporterUid == request.auth.uid
+                    && isValidReport(reportId);
+
+      function isValidReport(reportId) {
+        return isLoggedIn()
+            && request.resource.data.keys().hasOnly([
+                 'reporterUid', 'reportedUid', 'postId', 'reason', 'details', 'timestamp'
+               ])
+            && request.resource.data.keys().hasAll([
+                 'reporterUid', 'reportedUid', 'postId', 'reason', 'details', 'timestamp'
+               ])
+            && request.resource.data.reporterUid == request.auth.uid
+            && request.resource.data.reportedUid is string
+            && request.resource.data.reportedUid.size() > 0
+            && request.resource.data.reportedUid.size() <= 128
+            && request.resource.data.reportedUid != request.auth.uid
+            && request.resource.data.postId is string
+            && request.resource.data.postId.size() <= 128
+            && reportId == reportIdOf(request.resource.data)
+            && isByPostAuthor(request.resource.data)
+            && request.resource.data.reason in [
+                 'SPAM', 'HARASSMENT', 'SEXUAL_CONTENT', 'VIOLENCE', 'OTHER'
+               ]
+            && request.resource.data.details is string
+            && request.resource.data.details.size() <= 500
+            // Set by Firestore when it receives the report, not by the phone's clock.
+            && request.resource.data.timestamp == request.time;
+      }
+
+      // The ID Report.id gives [report].
+      function reportIdOf(report) {
+        return report.reporterUid + '_' + report.reportedUid + '_' +
+               (report.postId == '' ? 'profile' : report.postId);
+      }
+
+      // Whether the user [report] reports wrote its post, if it's about one.
+      function isByPostAuthor(report) {
+        return report.postId == ''
+            || get(/databases/$(database)/documents/posts/$(report.postId)).data.authorUid ==
+                 report.reportedUid;
       }
     }
   }

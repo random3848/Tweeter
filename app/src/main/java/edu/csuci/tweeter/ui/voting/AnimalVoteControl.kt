@@ -28,8 +28,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.data.PostBallot
-import edu.csuci.tweeter.data.VoteChange
-import edu.csuci.tweeter.data.countedVoteOn
 import edu.csuci.tweeter.ui.theme.AGREED_GREEN
 import edu.csuci.tweeter.ui.theme.DISPUTED_YELLOW
 
@@ -52,9 +50,10 @@ import edu.csuci.tweeter.ui.theme.DISPUTED_YELLOW
  * @param shownAnimal The animal the post shows ([edu.csuci.tweeter.data.shownAnimalOf]), blank for
  *     none.
  * @param agreement The share of the votes that name [shownAnimal].
- * @param round The post's current voting round, the one the user's vote counts in.
+ * @param round The post's current voting round, which a new vote is cast in.
  * @param voter Who the user is to the post.
- * @param votes The user's votes, and what the control's parts do.
+ * @param userVote The animal the user's vote of [round] names, or null if they have none in it.
+ * @param actions What the control's parts do.
  * @param onLogIn Opens Log in, for a guest who tries to vote.
  * @param modifier Applied to the control.
  */
@@ -66,7 +65,8 @@ internal fun AnimalVoteControl(
     agreement: Double,
     round: Int,
     voter: Voter,
-    votes: PostVotes,
+    userVote: String?,
+    actions: VoteActions,
     onLogIn: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -82,9 +82,9 @@ internal fun AnimalVoteControl(
             identification = identification,
             onClick = {
                 if (identification == Identification.AGREED) {
-                    votes.onOpenAnimal(shownAnimal)
+                    actions.onOpenAnimal(shownAnimal)
                 } else {
-                    votes.onOpenVoting(postId)
+                    actions.onOpenVoting(postId)
                 }
             },
             // Gives way to the arrows, so a long name is cut short instead of them.
@@ -104,15 +104,14 @@ internal fun AnimalVoteControl(
                 )
             }
 
-            Voter.POSTER -> ReclassifyArrow(postId, posterAnimal, votes.onReclassify)
+            Voter.POSTER -> ReclassifyArrow(postId, posterAnimal, actions.onReclassify)
 
             Voter.USER -> {
-                val userVote = votes.userVotes.countedVoteOn(postId, round)
                 UserVoteArrows(
                     ballot = PostBallot(postId, round, userVote),
                     shownAnimal = shownAnimal,
                     canAgree = identification.hasShownAnimal,
-                    onChangeVote = votes.onChangeVote
+                    onToggleVote = actions.onToggleVote
                 )
             }
         }
@@ -162,18 +161,20 @@ private fun UserVoteArrows(
     ballot: PostBallot,
     shownAnimal: String,
     canAgree: Boolean,
-    onChangeVote: (VoteChange) -> Unit
+    onToggleVote: (ballot: PostBallot, animal: String) -> Unit
 ) {
     var isPickingAnimal by rememberSaveable(ballot.postId) { mutableStateOf(false) }
-    val isDisagreeing = ballot.disagreesWith(shownAnimal)
-    val agree = { onChangeVote(ballot.toggling(shownAnimal)) }
+    val userVote = ballot.userVote
+    val otherAnimalVotedFor = userVote?.takeIf { animal -> animal != shownAnimal }
+    val agree = { onToggleVote(ballot, shownAnimal) }
     VoteArrows(
-        isAgreeing = ballot.agreesWith(shownAnimal),
-        isDisagreeing = isDisagreeing,
+        isAgreeing = userVote == shownAnimal,
+        isDisagreeing = otherAnimalVotedFor != null,
         onAgree = agree.takeIf { canAgree },
         onDisagree = {
-            if (isDisagreeing) {
-                ballot.withdrawal()?.let(onChangeVote)
+            if (otherAnimalVotedFor != null) {
+                // Toggling the animal the vote names takes the vote back.
+                onToggleVote(ballot, otherAnimalVotedFor)
             } else {
                 isPickingAnimal = true
             }
@@ -184,7 +185,10 @@ private fun UserVoteArrows(
             isOwnPost = false,
             onPick = { animal ->
                 isPickingAnimal = false
-                ballot.changeTo(animal)?.let(onChangeVote)
+                // Picking the animal the user already voted for keeps the vote.
+                if (animal != userVote) {
+                    onToggleVote(ballot, animal)
+                }
             },
             onDismiss = { isPickingAnimal = false }
         )

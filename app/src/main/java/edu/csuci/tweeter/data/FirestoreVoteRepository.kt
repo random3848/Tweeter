@@ -8,7 +8,7 @@ import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.QuerySnapshot
-import com.google.firebase.firestore.WriteBatch
+import com.google.firebase.firestore.Transaction
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -21,10 +21,11 @@ import kotlinx.coroutines.tasks.await
 /**
  * A [VoteRepository] that stores votes in Cloud Firestore, as the documents
  * `users/{uid}/votes/{postId}` that [VoteDocument] describes. A vote and the post's
- * [Post.voteCounts] change together, in one batch, and the Firestore rules refuse counts that
- * change otherwise than by the user's vote, so the two always agree. Reclassifying a post clears
- * its counts and starts its next [Post.voteRound], which leaves the votes of earlier rounds
- * uncounted where they are, since only their voters may delete them.
+ * [Post.voteCounts] change together, in one transaction that reads the counts first
+ * ([voteCountsAfter]), so that an animal whose last vote goes is taken out of them. The Firestore
+ * rules refuse counts that change otherwise than by the user's vote, so the two always agree.
+ * Reclassifying a post clears its counts and starts its next [Post.voteRound], which leaves the
+ * votes of earlier rounds uncounted where they are, since only their voters may delete them.
  *
  * The user's votes come from one listener on their votes, set up again whenever someone else logs
  * in, and again with [retryWithBackoff] when it fails, as for [FirestoreLikeRepository]'s likes.
@@ -60,7 +61,7 @@ class FirestoreVoteRepository(
             throw VoteException(IllegalStateException("Nobody is logged in"))
         val vote = votesCollectionOf(uid).document(change.postId)
         val post = posts.document(change.postId)
-        commit { writeVoteChange(vote, post, change) }
+        commitTransaction { writeVoteChange(vote, post, change) }
     }
 
     override suspend fun reclassify(postId: String, animal: String) {
@@ -95,43 +96,51 @@ class FirestoreVoteRepository(
         }
     }
 
-    // Saves what [writes] does, all or none of it.
-    private suspend fun commit(writes: WriteBatch.() -> Unit) {
+    // Saves what [writes] does in one transaction, all or none of it. Firestore runs [writes]
+    // again if a document it read changes before the transaction is saved.
+    private suspend fun commitTransaction(writes: Transaction.() -> Unit) {
         try {
-            firestore.batch().apply(writes).commit().await()
+            firestore.runTransaction { transaction -> transaction.writes() }.await()
         } catch (error: FirebaseException) {
             throw VoteException(error)
         }
     }
 
-    // Writes the user's new vote, or deletes it, and moves it between the post's counts.
-    private fun WriteBatch.writeVoteChange(
+    // Reads the post's counts, then writes the user's new vote, or deletes it, and the counts of
+    // the animals it moves between. The VoteException that voteCountsAfter throws for an animal
+    // past the cap comes before any write, and fails the transaction.
+    private fun Transaction.writeVoteChange(
         vote: DocumentReference,
         post: DocumentReference,
         change: VoteChange
     ) {
+        val voteCounts = PostDocument.voteCountsOf(get(post).get(voteCountsPath))
+        val countsAfter = voteCountsAfter(change, voteCounts)
         val newAnimal = change.newAnimal
         if (newAnimal == null) {
             delete(vote)
         } else {
             set(vote, VoteDocument.fieldsOf(AnimalVote(newAnimal, change.round)))
         }
-        addToCounts(post, change.countIncrements)
+        updateCounts(post, listOfNotNull(change.previousAnimal, newAnimal), countsAfter)
     }
 
-    // Adds each of [increments] to its animal's count. Field paths name the counts, since an
-    // animal's name can hold a dot, which a dotted path would split at.
-    private fun WriteBatch.addToCounts(post: DocumentReference, increments: Map<String, Int>) {
-        val (firstAnimal, firstIncrement) = increments.entries.first()
-        val otherFieldsAndValues = increments.entries.drop(1).flatMap { (animal, increment) ->
-            listOf(countPathOf(animal), FieldValue.increment(increment.toLong()))
+    // Sets the count of each of [animals] to its count in [countsAfter], or deletes it where it
+    // has none. Field paths name the counts, since an animal's name can hold a dot, which a dotted
+    // path would split at.
+    private fun Transaction.updateCounts(
+        post: DocumentReference,
+        animals: List<String>,
+        countsAfter: Map<String, Int>
+    ) {
+        val fieldsAndValues = animals.map { animal ->
+            countPathOf(animal) to (countsAfter[animal] ?: FieldValue.delete())
         }
-        update(
-            post,
-            countPathOf(firstAnimal),
-            FieldValue.increment(firstIncrement.toLong()),
-            *otherFieldsAndValues.toTypedArray()
-        )
+        val (firstField, firstValue) = fieldsAndValues.first()
+        val otherFieldsAndValues = fieldsAndValues.drop(1).flatMap { (field, value) ->
+            listOf(field, value)
+        }
+        update(post, firstField, firstValue, *otherFieldsAndValues.toTypedArray())
     }
 
     private fun countPathOf(animal: String): FieldPath =

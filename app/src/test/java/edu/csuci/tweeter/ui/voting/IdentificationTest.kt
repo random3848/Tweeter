@@ -67,9 +67,14 @@ class IdentificationTest {
 
     // How sure everyone is of a post of [posterAnimal] with [voteCounts], as its card works it out
     // from its table row.
-    private fun identificationOf(posterAnimal: String, voteCounts: Map<String, Int>) =
-        Identification.of(
-            shownAnimal = shownAnimalOf(posterAnimal, voteCounts),
-            agreement = agreementOf(posterAnimal, voteCounts)
+    private fun identificationOf(
+        posterAnimal: String,
+        voteCounts: Map<String, Int>
+    ): Identification {
+        val shownAnimal = shownAnimalOf(posterAnimal, voteCounts)
+        return Identification.of(
+            shownAnimal = shownAnimal,
+            agreement = agreementOf(shownAnimal, posterAnimal, voteCounts)
         )
+    }
 }

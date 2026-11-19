@@ -104,6 +104,12 @@ class PostTable private constructor(
     fun rowsBy(authorUids: Set<String>): IntArray = rowsWhere(this.authorUids, authorUids::contains)
 
     /**
+     * The rows of the posts with any of the IDs [postIds], in table order. An ID the table doesn't
+     * hold, such as a deleted post's, has no row.
+     */
+    fun rowsOf(postIds: Set<String>): IntArray = rowsWhere(ids, postIds::contains)
+
+    /**
      * The rows of the posts of [animal] ([Post.animalType]), in table order: the posts naming it
      * the same way, ignoring case and the spaces around it. A blank [animal] matches no post.
      */
@@ -229,6 +235,7 @@ class PostTable private constructor(
             check(size < capacity) { "Can't add a post past the capacity of $capacity" }
             addTexts(size, post)
             addNumbers(size, post)
+            addVotes(size, post)
             size++
         }
 
@@ -265,7 +272,6 @@ class PostTable private constructor(
             imageUris[row] = post.imageUri
             captions[row] = post.caption
             animalTypes[row] = post.animalType
-            shownAnimals[row] = shownAnimalOf(post.animalType, post.voteCounts)
         }
 
         private fun addNumbers(row: Int, post: Post) {
@@ -275,8 +281,14 @@ class PostTable private constructor(
             timestampsMillis[row] = post.timestamp.toEpochMilli()
             // Post keeps confidences from 1 to 5, which a Byte holds, and 0 means none.
             confidences[row] = post.confidence?.toByte() ?: NO_CONFIDENCE
-            agreements[row] = agreementOf(post.animalType, post.voteCounts)
             voteRounds[row] = post.voteRound
+        }
+
+        // The animal [post] shows and the agreement on it, which is worked out from that animal.
+        private fun addVotes(row: Int, post: Post) {
+            val shownAnimal = shownAnimalOf(post.animalType, post.voteCounts)
+            shownAnimals[row] = shownAnimal
+            agreements[row] = agreementOf(shownAnimal, post.animalType, post.voteCounts)
         }
     }
 

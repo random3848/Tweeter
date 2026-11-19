@@ -10,8 +10,9 @@ import kotlinx.coroutines.flow.update
 /**
  * A [VoteRepository] for tests, holding the logged-in user's votes in memory, starting with
  * [initialVotes], and each post's vote counts, starting with [initialVoteCounts], which the
- * user's vote changes move between as Firestore would. It leaves posts alone, which the post
- * repository holds, and records each reclassification in [reclassifiedAnimals] instead.
+ * user's vote changes move between as Firestore would ([voteCountsAfter]), refusing an animal
+ * past the cap. It leaves posts alone, which the post repository holds, and records each
+ * reclassification in [reclassifiedAnimals] instead.
  */
 class FakeVoteRepository(
     initialVotes: Map<String, AnimalVote> = emptyMap(),
@@ -30,11 +31,10 @@ class FakeVoteRepository(
         voteCounts.map { counts -> counts[postId].orEmpty() }
 
     override suspend fun changeVote(change: VoteChange) {
+        val postCounts = voteCounts.value[change.postId].orEmpty()
+        val countsAfter = voteCountsAfter(change, postCounts)
         votes.update { current -> current.withVoteOf(change) }
-        voteCounts.update { counts ->
-            val postCounts = counts[change.postId].orEmpty()
-            counts + (change.postId to postCounts.plusIncrements(change.countIncrements))
-        }
+        voteCounts.update { counts -> counts + (change.postId to countsAfter) }
     }
 
     override suspend fun reclassify(postId: String, animal: String) {
@@ -45,14 +45,5 @@ class FakeVoteRepository(
     private fun Map<String, AnimalVote>.withVoteOf(change: VoteChange): Map<String, AnimalVote> {
         val newAnimal = change.newAnimal ?: return this - change.postId
         return this + (change.postId to AnimalVote(newAnimal, change.round))
-    }
-
-    // These counts with [increments] added, leaving out animals no vote is left for.
-    private fun Map<String, Int>.plusIncrements(increments: Map<String, Int>): Map<String, Int> {
-        val counts = toMutableMap()
-        for ((animal, increment) in increments) {
-            counts[animal] = counts.getOrDefault(animal, 0) + increment
-        }
-        return counts.filterValues { count -> count > 0 }
     }
 }

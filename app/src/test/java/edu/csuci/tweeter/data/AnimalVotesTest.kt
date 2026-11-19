@@ -98,36 +98,40 @@ class AnimalVotesTest {
 
     @Test
     fun agreementOf_onlyPostersVote_isFull() {
-        assertEquals(FULL_AGREEMENT, agreementOf(RACCOON, emptyMap()), EXACT)
+        assertEquals(FULL_AGREEMENT, agreementOf(RACCOON, RACCOON, emptyMap()), EXACT)
     }
 
     @Test
     fun agreementOf_everyVoteForPostersAnimal_isFull() {
-        assertEquals(FULL_AGREEMENT, agreementOf(RACCOON, mapOf(RACCOON to 3)), EXACT)
+        assertEquals(FULL_AGREEMENT, agreementOf(RACCOON, RACCOON, mapOf(RACCOON to 3)), EXACT)
     }
 
     @Test
     fun agreementOf_someVotesForOtherAnimal_isShareOfPostersAnimal() {
-        assertEquals(0.75, agreementOf(RACCOON, mapOf(RACCOON to 2, POSSUM to 1)), EXACT)
+        val voteCounts = mapOf(RACCOON to 2, POSSUM to 1)
+
+        assertEquals(0.75, agreementOf(RACCOON, RACCOON, voteCounts), EXACT)
     }
 
     @Test
     fun agreementOf_exactlyHalfForOtherAnimal_isHalf() {
-        assertEquals(0.5, agreementOf(RACCOON, mapOf(POSSUM to 1)), EXACT)
+        assertEquals(0.5, agreementOf(RACCOON, RACCOON, mapOf(POSSUM to 1)), EXACT)
     }
 
     @Test
     fun agreementOf_majorityForOtherAnimal_isShareOfThatAnimal() {
-        assertEquals(0.75, agreementOf(RACCOON, mapOf(POSSUM to 3)), EXACT)
+        assertEquals(0.75, agreementOf(POSSUM, RACCOON, mapOf(POSSUM to 3)), EXACT)
     }
 
     @Test
     fun agreementOf_blankPosterAnimalWithoutVotes_isZero() {
-        assertEquals(0.0, agreementOf(NO_ANIMAL, emptyMap()), EXACT)
+        assertEquals(0.0, agreementOf(NO_ANIMAL, NO_ANIMAL, emptyMap()), EXACT)
     }
 
     @Test
     fun agreementOf_blankPosterAnimalWithoutMajority_isZero() {
-        assertEquals(0.0, agreementOf(NO_ANIMAL, mapOf(POSSUM to 1, COYOTE to 1)), EXACT)
+        val voteCounts = mapOf(POSSUM to 1, COYOTE to 1)
+
+        assertEquals(0.0, agreementOf(NO_ANIMAL, NO_ANIMAL, voteCounts), EXACT)
     }
 }
