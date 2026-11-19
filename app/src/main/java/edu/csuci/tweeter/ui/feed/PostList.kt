@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -49,8 +50,9 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
  * otherwise the posts of [listedPosts] as a scrolling list, in the order of its rows, with a
  * divider between posts. Each has its author, photo, caption and animal, as Feed shows them, and
  * the logged-in user's own posts have a delete button, which asks before deleting. Each also has
- * a like button and its like count, and a button that opens its comments under it, where
- * logged-in users can add one. Other users' posts have a flag that reports them.
+ * a like button and its like count, a button that opens its comments under it, where logged-in
+ * users can add one, and at the right end a bookmark that saves the post for the user to view
+ * later. Other users' posts have a flag that reports them.
  *
  * @param listedPosts The posts to list.
  * @param isLoading Whether the posts are still being read.
@@ -63,6 +65,8 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
  * @param onLogIn Opens Log in, for a guest who wants to comment or report a post.
  * @param likes Which posts the user liked and what pressing a like button does. It's required, so
  *     no screen listing posts leaves out their likes.
+ * @param bookmarks Which posts the user saved and what pressing a bookmark does. It's required
+ *     for the same reason.
  * @param modifier Applied to the space the posts take.
  * @param listState The list's scroll position.
  */
@@ -77,6 +81,7 @@ internal fun PostList(
     onOpenProfile: (String) -> Unit,
     onLogIn: () -> Unit,
     likes: PostLikes,
+    bookmarks: PostBookmarks,
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState()
 ) {
@@ -99,6 +104,7 @@ internal fun PostList(
                 onLogIn = onLogIn,
                 listState = listState,
                 likes = likes,
+                bookmarks = bookmarks,
                 modifier = modifier
             )
         }
@@ -117,6 +123,7 @@ private fun PostItems(
     onLogIn: () -> Unit,
     listState: LazyListState,
     likes: PostLikes,
+    bookmarks: PostBookmarks,
     modifier: Modifier = Modifier
 ) {
     val posts = listedPosts.table
@@ -149,7 +156,10 @@ private fun PostItems(
                 imageUri = posts.imageUri(row),
                 onShowOnMap = onShowOnMap
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 LikeButton(
                     likeCount = posts.likeCount(row),
                     isLiked = postId in likes.likedPostIds,
@@ -170,6 +180,12 @@ private fun PostItems(
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }
+                // Takes the leftover width, which puts the bookmark at the right end.
+                Spacer(modifier = Modifier.weight(1f))
+                BookmarkButton(
+                    isBookmarked = postId in bookmarks.bookmarkedPostIds,
+                    onClick = { bookmarks.onBookmark(postId) }
+                )
             }
             PostCaption(caption = posts.caption(row))
             AnimalDetails(text = animalDetailsOf(posts.animalType(row), posts.confidence(row)))
