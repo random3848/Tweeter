@@ -32,8 +32,8 @@ import edu.csuci.tweeter.ui.notification.NotificationSetup
  * post for the user to view later, or opens Log in for guests. When another screen asks the feed
  * to show a post, as Map's popup does, the feed scrolls to it. The logged-in user's own posts
  * have a delete button, which asks before deleting. The first time a user is logged in here, the
- * app asks them, once, to let it notify them of rare animals posted near them (see
- * [NotificationSetup]).
+ * app asks them, once, to let it notify them about posts, such as rare animals posted near them
+ * and popular posts (see [NotificationSetup]).
  *
  * @param onShowOnMap Opens Map, once the post the user chose is requested there.
  * @param onOpenProfile Opens the selected author's profile.

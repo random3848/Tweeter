@@ -10,7 +10,7 @@
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
     <!-- The map downloads its tiles. -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Notifications of rare animals posted near the user. -->
+    <!-- Notifications about posts: rare animals near the user, and popular posts. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application

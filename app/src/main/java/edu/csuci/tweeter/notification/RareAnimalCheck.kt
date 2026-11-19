@@ -47,14 +47,14 @@ class RareAnimalCheck(
     private val notifiedPostStores: (uid: String) -> NotifiedPostStore,
     private val postLookup: PostLookup,
     private val selector: NearbyRareAnimalSelector
-) {
+) : PostCheck {
     /**
      * Notifies the user of each rare animal posted near them since the last check.
      *
      * @throws edu.csuci.tweeter.data.PostLookupException If the posts can't be looked up; the next
      *     check then looks at them again.
      */
-    suspend fun run() {
+    override suspend fun run() {
         val recipient = recipient()
         val lastCheckMillis = lastCheckStore.lastCheckMillis()
         when {

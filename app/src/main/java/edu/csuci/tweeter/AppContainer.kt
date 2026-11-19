@@ -29,6 +29,7 @@ import edu.csuci.tweeter.data.NumberStore
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PostCountRarity
 import edu.csuci.tweeter.data.PostDeleter
+import edu.csuci.tweeter.data.PostLookup
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.ProfileSaver
@@ -41,6 +42,9 @@ import edu.csuci.tweeter.notification.LastCheckStore
 import edu.csuci.tweeter.notification.NearbyRareAnimalSelector
 import edu.csuci.tweeter.notification.NotificationPermissionRecord
 import edu.csuci.tweeter.notification.NotifiedPostStore
+import edu.csuci.tweeter.notification.PopularPostCheck
+import edu.csuci.tweeter.notification.PopularPostCheckWorker
+import edu.csuci.tweeter.notification.PopularPostSelector
 import edu.csuci.tweeter.notification.PostCheckWorkerFactory
 import edu.csuci.tweeter.notification.PostNotifier
 import edu.csuci.tweeter.notification.RareAnimalCheck
@@ -242,31 +246,50 @@ class AppContainer(private val context: Context) {
         DeviceLocationProvider(context, lastLocationStore)
     }
 
+    // Shows notifications about posts in the system's notification shade, and creates their
+    // channels when the app starts.
+    private val systemPostNotifier: SystemPostNotifier by lazy { SystemPostNotifier(context) }
+
     /** Shows notifications about posts in the system's notification shade. */
-    val postNotifier: PostNotifier by lazy { SystemPostNotifier(context) }
+    val postNotifier: PostNotifier
+        get() = systemPostNotifier
 
     /** Whether the app has asked the user for permission to show notifications. */
     val notificationPermissionRecord: NotificationPermissionRecord by lazy {
         NotificationPermissionRecord(savedNumbers, Clock.systemUTC())
     }
 
+    // Looks posts up on the server for the checks for posts to notify the user of.
+    private val postLookup: PostLookup by lazy {
+        FirestorePostLookup(FirebaseFirestore.getInstance(), dispatcher = Dispatchers.Default)
+    }
+
     // Checks for rare animals posted near the logged-in user, judging rarity by the app's own
     // posts until the iNaturalist repository is built; that work replaces PostCountRarity here.
     private val rareAnimalCheck: RareAnimalCheck by lazy {
-        val postLookup = FirestorePostLookup(
-            FirebaseFirestore.getInstance(),
-            dispatcher = Dispatchers.Default
-        )
         RareAnimalCheck(
             accountRepository = accountRepository,
             notifier = postNotifier,
             lastLocationStore = lastLocationStore,
             lastCheckStore = LastCheckStore(savedNumbers, checkName = RareAnimalCheckWorker.NAME),
-            notifiedPostStores = { uid ->
-                NotifiedPostStore(savedNumbers, checkName = RareAnimalCheckWorker.NAME, uid = uid)
-            },
+            notifiedPostStores = notifiedPostStoresOf(RareAnimalCheckWorker.NAME),
             postLookup = postLookup,
             selector = NearbyRareAnimalSelector(PostCountRarity(postLookup))
+        )
+    }
+
+    // Gets the posts the check named [checkName] notified each user of the device of.
+    private fun notifiedPostStoresOf(checkName: String): (uid: String) -> NotifiedPostStore =
+        { uid -> NotifiedPostStore(savedNumbers, checkName, uid) }
+
+    // Checks for recent posts by others that became popular.
+    private val popularPostCheck: PopularPostCheck by lazy {
+        PopularPostCheck(
+            accountRepository = accountRepository,
+            notifier = postNotifier,
+            notifiedPostStores = notifiedPostStoresOf(PopularPostCheckWorker.NAME),
+            postLookup = postLookup,
+            selector = PopularPostSelector()
         )
     }
 
@@ -275,7 +298,10 @@ class AppContainer(private val context: Context) {
      * configuration in [TweeterApplication].
      */
     val workerFactory: WorkerFactory by lazy {
-        PostCheckWorkerFactory(rareAnimalCheck = { rareAnimalCheck })
+        PostCheckWorkerFactory(
+            rareAnimalCheck = { rareAnimalCheck },
+            popularPostCheck = { popularPostCheck }
+        )
     }
 
     /** The post Feed asks Map to show. Map opens the post's popup, then clears the request. */
@@ -319,8 +345,25 @@ class AppContainer(private val context: Context) {
      */
     fun schedulePostChecks() {
         applicationScope.launch {
-            WorkManager.getInstance(context)
-                .schedulePostCheck(RareAnimalCheckWorker.NAME, RareAnimalCheckWorker::class.java)
+            val workManager = WorkManager.getInstance(context)
+            workManager.schedulePostCheck(
+                RareAnimalCheckWorker.NAME,
+                RareAnimalCheckWorker::class.java
+            )
+            workManager.schedulePostCheck(
+                PopularPostCheckWorker.NAME,
+                PopularPostCheckWorker::class.java,
+                intervalMinutes = PopularPostCheckWorker.INTERVAL_MINUTES
+            )
         }
+    }
+
+    /**
+     * Creates the channels of the notifications about posts, so that users can turn each kind off
+     * in the system's settings for the app before its first notification. Started from
+     * `Application.onCreate`, it runs on a background thread, since it calls the system.
+     */
+    fun createPostNotificationChannels() {
+        applicationScope.launch { systemPostNotifier.createChannels() }
     }
 }

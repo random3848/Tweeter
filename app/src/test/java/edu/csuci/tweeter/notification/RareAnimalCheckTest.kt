@@ -25,6 +25,7 @@ private const val PLACE = "Library, oak tree"
 private const val CHECK_NAME = "rareAnimals"
 private const val MAX_POSTS_OF_RARE_ANIMAL = 2
 private const val RADIUS_METERS = 10_000.0
+private const val POSTS_PER_PAGE = 2
 
 private const val SECOND_MILLIS = 1_000L
 private const val MINUTE_MILLIS = 60_000L
@@ -171,6 +172,21 @@ class RareAnimalCheckTest {
 
         val expected = listOf(rareAnimalNotification("later"), rareAnimalNotification("earlier"))
         assertEquals(expected, notifier.notifications)
+    }
+
+    @Test
+    fun run_moreNewPostsThanOnePage_notifiesOfOldestToo() = runTest {
+        startChecking()
+        postLookup.pageSize = POSTS_PER_PAGE
+        share(sighting(id = "oldest"))
+        repeat(POSTS_PER_PAGE) { index ->
+            val sharedMillis = SHARED_MILLIS + (index + 1) * MINUTE_MILLIS
+            share(sighting(id = "new-$index", animal = COMMON_ANIMAL, sharedMillis = sharedMillis))
+        }
+
+        check.run()
+
+        assertEquals(listOf(rareAnimalNotification("oldest")), notifier.notifications)
     }
 
     @Test
