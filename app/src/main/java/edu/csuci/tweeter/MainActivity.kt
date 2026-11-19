@@ -9,8 +9,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.DisposableEffect
 import edu.csuci.tweeter.ui.TweeterApp
-import edu.csuci.tweeter.ui.theme.TweeterTheme
 import edu.csuci.tweeter.ui.theme.ThemeSettings
+import edu.csuci.tweeter.ui.theme.TweeterTheme
 
 /** The app's only activity. It opens to an empty screen; the app has no screens yet. */
 class MainActivity : ComponentActivity() {

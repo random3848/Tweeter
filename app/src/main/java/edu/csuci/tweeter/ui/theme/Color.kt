@@ -35,8 +35,8 @@ val ACCENT_RED = Color(0xFFE2412D)
 /** Destructive actions such as "Log out", and errors. */
 val ERROR_RED = Color(0xFFC42F1D)
 
-
 // Dark theme counterparts of the colors above, used by Theme.kt when dark mode is on.
+
 /** Screens and the bars at the top and bottom. */
 val DARK_SURFACE = Color(0xFF0E1A1F)
 

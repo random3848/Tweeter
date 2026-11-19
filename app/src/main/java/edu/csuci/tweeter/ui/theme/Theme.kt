@@ -20,9 +20,9 @@ import androidx.compose.runtime.Composable
 fun TweeterTheme(
     darkTheme: Boolean = ThemeSettings.darkMode ?: isSystemInDarkTheme(),
     content: @Composable () -> Unit
-)   {
+) {
     MaterialTheme(
-        colorScheme = if(darkTheme) darkColors else lightColors,
+        colorScheme = if (darkTheme) darkColors else lightColors,
         typography = TYPOGRAPHY,
         content = content
     )
