@@ -40,6 +40,7 @@
     <string name="feed_confidence_rating">Confidence: %1$d of 5</string>
     <string name="feed_show_on_map">Show on map</string>
     <string name="feed_like">Like</string>
+    <string name="feed_bookmark">Save post</string>
     <string name="feed_order_best">Best</string>
     <string name="feed_order_newest">Newest</string>
     <string name="feed_order_top">Top</string>
@@ -70,6 +71,10 @@
     <string name="profile_empty_message">Photos you share show up here.</string>
     <string name="profile_log_in_title">Log in to see your profile</string>
     <string name="profile_edit">Edit profile</string>
+    <string name="profile_saved_posts">Saved posts</string>
+
+    <string name="saved_posts_title">Saved posts</string>
+    <string name="saved_posts_empty">No saved posts yet. Tap the bookmark under a post to save it here.</string>
 
     <string name="edit_profile_cancel">Cancel</string>
     <string name="edit_profile_save">Save</string>
@@ -158,6 +163,24 @@
     <string name="profile_load_failed">Could not load this profile. Go back and try again.</string>
     <string name="profile_follow_retry">Retry</string>
 
+    <string name="report_post">Report post</string>
+    <string name="report_post_title">Report post</string>
+    <string name="report_user">Report user</string>
+    <string name="report_user_title">Report user</string>
+    <string name="report_reason_spam">Spam</string>
+    <string name="report_reason_harassment">Harassment or hate</string>
+    <string name="report_reason_sexual_content">Nudity or sexual content</string>
+    <string name="report_reason_violence">Violence</string>
+    <string name="report_reason_other">Other</string>
+    <string name="report_details">Details (optional)</string>
+    <string name="report_details_count">%1$d/%2$d</string>
+    <string name="report_send">Send</string>
+    <string name="report_cancel">Cancel</string>
+    <string name="report_failed">Could not send the report. Please try again.</string>
+    <string name="report_sent_title">Report sent</string>
+    <string name="report_sent_message">Thanks. Our team will review it.</string>
+    <string name="report_sent_done">Done</string>
+
     <string name="feed_open_author_profile">View profile</string>
     <string name="feed_open_comments">Comments</string>
     <string name="comments_empty">No comments yet.</string>
@@ -176,5 +199,19 @@
         <item quantity="one">%d follower</item>
         <item quantity="other">%d followers</item>
     </plurals>
+
+    <string name="notification_channel_animals_near_you">Rare animals near you</string>
+    <string name="notification_channel_animals_near_you_description">When someone posts a rare animal near where you last used the app.</string>
+    <string name="notification_rare_animal_title">Rare animal nearby: %1$s</string>
+    <string name="notification_rare_animal_text">Spotted at %1$s</string>
+    <string name="notification_rare_animal_text_no_place">Spotted near you</string>
+
+    <string name="notification_channel_popular_posts">Popular posts</string>
+    <string name="notification_channel_popular_posts_description">When someone\'s post from the last few days gets many likes, wherever it was shared.</string>
+    <string name="notification_popular_post_title_animal">Popular post: %1$s</string>
+    <string name="notification_popular_post_title">Popular post</string>
+    <!-- A popular post has many likes, so the count (%1$s) is never one. -->
+    <string name="notification_popular_post_text">%1$s likes · %2$s</string>
+    <string name="notification_popular_post_text_no_place">%1$s likes</string>
 
 </resources>

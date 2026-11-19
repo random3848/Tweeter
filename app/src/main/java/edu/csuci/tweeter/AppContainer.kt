@@ -1,32 +1,59 @@
 package edu.csuci.tweeter
 
 import android.content.Context
+import androidx.work.WorkManager
+import androidx.work.WorkerFactory
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import edu.csuci.tweeter.data.AccountRepository
 import edu.csuci.tweeter.data.AnimalRepository
+import edu.csuci.tweeter.data.BookmarkRepository
 import edu.csuci.tweeter.data.CameraFileStore
 import edu.csuci.tweeter.data.CommentRepository
 import edu.csuci.tweeter.data.FakeAnimalRepository
 import edu.csuci.tweeter.data.FirebaseAccountRepository
 import edu.csuci.tweeter.data.FirebasePhotoRepository
+import edu.csuci.tweeter.data.FirestoreBookmarkRepository
 import edu.csuci.tweeter.data.FirestoreCommentRepository
 import edu.csuci.tweeter.data.FirestoreFollowRepository
 import edu.csuci.tweeter.data.FirestoreLikeRepository
+import edu.csuci.tweeter.data.FirestorePostLookup
 import edu.csuci.tweeter.data.FirestorePostRepository
 import edu.csuci.tweeter.data.FirestoreProfileRepository
+import edu.csuci.tweeter.data.FirestoreReportRepository
 import edu.csuci.tweeter.data.FollowRepository
 import edu.csuci.tweeter.data.GuestSignIn
 import edu.csuci.tweeter.data.LikeRepository
+import edu.csuci.tweeter.data.NumberStore
 import edu.csuci.tweeter.data.PhotoRepository
+import edu.csuci.tweeter.data.PostCountRarity
 import edu.csuci.tweeter.data.PostDeleter
+import edu.csuci.tweeter.data.PostLookup
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.ProfileSaver
+import edu.csuci.tweeter.data.ReportRepository
+import edu.csuci.tweeter.data.SharedPreferencesNumberStore
+import edu.csuci.tweeter.location.DeviceLocationProvider
+import edu.csuci.tweeter.location.LastLocationStore
 import edu.csuci.tweeter.location.LocationTagRemover
+import edu.csuci.tweeter.notification.LastCheckStore
+import edu.csuci.tweeter.notification.NearbyRareAnimalSelector
+import edu.csuci.tweeter.notification.NotificationPermissionRecord
+import edu.csuci.tweeter.notification.NotifiedPostStore
+import edu.csuci.tweeter.notification.PopularPostCheck
+import edu.csuci.tweeter.notification.PopularPostCheckWorker
+import edu.csuci.tweeter.notification.PopularPostSelector
+import edu.csuci.tweeter.notification.PostCheckWorkerFactory
+import edu.csuci.tweeter.notification.PostNotifier
+import edu.csuci.tweeter.notification.RareAnimalCheck
+import edu.csuci.tweeter.notification.RareAnimalCheckWorker
+import edu.csuci.tweeter.notification.SystemPostNotifier
+import edu.csuci.tweeter.notification.schedulePostCheck
 import edu.csuci.tweeter.ui.map.startMapEngine
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
+import java.time.Clock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -36,6 +63,9 @@ import kotlinx.coroutines.launch
 // How long a ViewModel keeps sharing after its screen stops collecting: longer than an activity
 // takes to be recreated for a rotation.
 private const val SHARING_STOP_TIMEOUT_MILLIS = 5_000L
+
+// The shared preferences file of what the app remembers on the device between runs.
+private const val SAVED_NUMBERS_FILE = "saved_numbers"
 
 /**
  * The objects the whole app shares, created once by [TweeterApplication].
@@ -113,6 +143,11 @@ class AppContainer(private val context: Context) {
         FirestoreCommentRepository(firestore = FirebaseFirestore.getInstance())
     }
 
+    /** Reports of posts and users, stored in Firestore for the team to review. */
+    val reportRepository: ReportRepository by lazy {
+        FirestoreReportRepository(firestore = FirebaseFirestore.getInstance())
+    }
+
     /**
      * Shared authentication operations and the registered user's identity.
      */
@@ -126,6 +161,19 @@ class AppContainer(private val context: Context) {
      */
     val likeRepository: LikeRepository by lazy {
         FirestoreLikeRepository(
+            accountRepository = accountRepository,
+            guestSignIn = guestSignIn,
+            firestore = FirebaseFirestore.getInstance(),
+            dispatcher = Dispatchers.Default
+        )
+    }
+
+    /**
+     * The logged-in user's saved posts, stored in Firestore under their profile, and read on
+     * [Dispatchers.Default].
+     */
+    val bookmarkRepository: BookmarkRepository by lazy {
+        FirestoreBookmarkRepository(
             accountRepository = accountRepository,
             guestSignIn = guestSignIn,
             firestore = FirebaseFirestore.getInstance(),
@@ -181,10 +229,88 @@ class AppContainer(private val context: Context) {
         CameraFileStore.inCacheOf(context, scope = applicationScope, ioDispatcher = Dispatchers.IO)
     }
 
+    // What the app remembers on the device between runs, such as where the device last was.
+    private val savedNumbers: NumberStore by lazy {
+        SharedPreferencesNumberStore(
+            context,
+            name = SAVED_NUMBERS_FILE,
+            ioDispatcher = Dispatchers.IO
+        )
+    }
+
+    // Where the device last was, which notifications of posts near the user measure from.
+    private val lastLocationStore: LastLocationStore by lazy { LastLocationStore(savedNumbers) }
+
+    /** Live location fixes, each saved as where the device last was. */
+    val deviceLocationProvider: DeviceLocationProvider by lazy {
+        DeviceLocationProvider(context, lastLocationStore)
+    }
+
+    // Shows notifications about posts in the system's notification shade, and creates their
+    // channels when the app starts.
+    private val systemPostNotifier: SystemPostNotifier by lazy { SystemPostNotifier(context) }
+
+    /** Shows notifications about posts in the system's notification shade. */
+    val postNotifier: PostNotifier
+        get() = systemPostNotifier
+
+    /** Whether the app has asked the user for permission to show notifications. */
+    val notificationPermissionRecord: NotificationPermissionRecord by lazy {
+        NotificationPermissionRecord(savedNumbers, Clock.systemUTC())
+    }
+
+    // Looks posts up on the server for the checks for posts to notify the user of.
+    private val postLookup: PostLookup by lazy {
+        FirestorePostLookup(FirebaseFirestore.getInstance(), dispatcher = Dispatchers.Default)
+    }
+
+    // Checks for rare animals posted near the logged-in user, judging rarity by the app's own
+    // posts until the iNaturalist repository is built; that work replaces PostCountRarity here.
+    private val rareAnimalCheck: RareAnimalCheck by lazy {
+        RareAnimalCheck(
+            accountRepository = accountRepository,
+            notifier = postNotifier,
+            lastLocationStore = lastLocationStore,
+            lastCheckStore = LastCheckStore(savedNumbers, checkName = RareAnimalCheckWorker.NAME),
+            notifiedPostStores = notifiedPostStoresOf(RareAnimalCheckWorker.NAME),
+            postLookup = postLookup,
+            selector = NearbyRareAnimalSelector(PostCountRarity(postLookup))
+        )
+    }
+
+    // Gets the posts the check named [checkName] notified each user of the device of.
+    private fun notifiedPostStoresOf(checkName: String): (uid: String) -> NotifiedPostStore =
+        { uid -> NotifiedPostStore(savedNumbers, checkName, uid) }
+
+    // Checks for recent posts by others that became popular.
+    private val popularPostCheck: PopularPostCheck by lazy {
+        PopularPostCheck(
+            accountRepository = accountRepository,
+            notifier = postNotifier,
+            notifiedPostStores = notifiedPostStoresOf(PopularPostCheckWorker.NAME),
+            postLookup = postLookup,
+            selector = PopularPostSelector()
+        )
+    }
+
+    /**
+     * Creates the workers of the checks for posts to notify the user of, for WorkManager's
+     * configuration in [TweeterApplication].
+     */
+    val workerFactory: WorkerFactory by lazy {
+        PostCheckWorkerFactory(
+            rareAnimalCheck = { rareAnimalCheck },
+            popularPostCheck = { popularPostCheck }
+        )
+    }
+
     /** The post Feed asks Map to show. Map opens the post's popup, then clears the request. */
     val showOnMapRequest: ShowPostRequest = ShowPostRequest()
 
-    /** The post Map's popup asks Feed to show. Feed scrolls to it, then clears the request. */
+    /**
+     * The post Map's popup, or a tapped notification, asks Feed to show. Feed scrolls to it, then
+     * clears the request.
+     */
     val showInFeedRequest: ShowPostRequest = ShowPostRequest()
 
     /**
@@ -199,9 +325,9 @@ class AppContainer(private val context: Context) {
     /**
      * Gets ready, on background threads, what the first screens use: the repositories they read,
      * and the map engine, so that opening Map doesn't load it on the main thread. Their first use
-     * loads classes, settings and native libraries. Started from `Application.onCreate`, that
+     * loads classes, settings and native libraries. Started from `MainActivity.onCreate`, that
      * work runs on other cores while the activity starts, instead of on the main thread while the
-     * first frames wait.
+     * first frames wait; a process WorkManager starts for a check, which shows nothing, skips it.
      */
     fun prepareFirstScreens() {
         applicationScope.launch {
@@ -210,5 +336,34 @@ class AppContainer(private val context: Context) {
             accountRepository
         }
         applicationScope.launch { startMapEngine() }
+    }
+
+    /**
+     * Schedules the checks for posts to notify the user of, which then run every so often, also
+     * while the app is closed. Started from `Application.onCreate`, it runs on a background
+     * thread, since WorkManager's first use opens its database.
+     */
+    fun schedulePostChecks() {
+        applicationScope.launch {
+            val workManager = WorkManager.getInstance(context)
+            workManager.schedulePostCheck(
+                RareAnimalCheckWorker.NAME,
+                RareAnimalCheckWorker::class.java
+            )
+            workManager.schedulePostCheck(
+                PopularPostCheckWorker.NAME,
+                PopularPostCheckWorker::class.java,
+                intervalMinutes = PopularPostCheckWorker.INTERVAL_MINUTES
+            )
+        }
+    }
+
+    /**
+     * Creates the channels of the notifications about posts, so that users can turn each kind off
+     * in the system's settings for the app before its first notification. Started from
+     * `Application.onCreate`, it runs on a background thread, since it calls the system.
+     */
+    fun createPostNotificationChannels() {
+        applicationScope.launch { systemPostNotifier.createChannels() }
     }
 }

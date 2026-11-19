@@ -1,8 +1,5 @@
 package edu.csuci.tweeter.data
 
-import android.util.Log
-import com.google.firebase.firestore.DocumentSnapshot
-import com.google.firebase.firestore.DocumentSnapshot.ServerTimestampBehavior
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
@@ -41,7 +38,7 @@ class FirestorePostRepository(
         posts.orderBy(PostDocument.Field.TIMESTAMP.key, Query.Direction.DESCENDING)
     private val postTable = newestFirst.signedInSnapshots(guestSignIn, dispatcher)
         .retryWithBackoff(TAG, resetsBackoff = QuerySnapshot::isFromServer)
-        .map(::tableOf)
+        .map(QuerySnapshot::toPostTable)
         .flowOn(dispatcher)
         .distinctUntilChanged(PostTable::holdsSamePosts)
         .sharedWhileCollected(scope)
@@ -59,34 +56,7 @@ class FirestorePostRepository(
         posts.document(postId).delete().await()
     }
 
-    // The well-formed posts of [snapshot], in order; the others are logged and left out.
-    private fun tableOf(snapshot: QuerySnapshot): PostTable {
-        val builder = PostTable.Builder(capacity = snapshot.size())
-        val fields = arrayOfNulls<Any>(fieldPaths.size)
-        for (document in snapshot.documents) {
-            fields.fillFrom(document)
-            val post = PostDocument.toPost(document.id, fields)
-            if (post == null) {
-                Log.w(TAG, "Skipping malformed post ${document.id}")
-            } else {
-                builder.add(post)
-            }
-        }
-        return builder.build()
-    }
-
     private companion object {
         const val TAG = "FirestorePostRepo"
-
-        val fieldPaths = fieldPathsOf(PostDocument.Field.entries)
-
-        // Overwrites this array with [document]'s fields, in PostDocument.Field order. A post this
-        // phone just added has no server time yet; until Firestore sets it, use Firestore's
-        // estimate so the post shows up right away.
-        fun Array<Any?>.fillFrom(document: DocumentSnapshot) {
-            for (index in fieldPaths.indices) {
-                this[index] = document.get(fieldPaths[index], ServerTimestampBehavior.ESTIMATE)
-            }
-        }
     }
 }

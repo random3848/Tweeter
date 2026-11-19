@@ -5,15 +5,12 @@ import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.WriteBatch
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 
 // The subcollection of a user's profile document that holds one empty document per post they
@@ -66,10 +63,7 @@ class FirestoreLikeRepository(
     }
 
     private fun likedPostIdsOf(uid: String): Flow<Set<String>> =
-        likesOf(uid).signedInSnapshots(guestSignIn, dispatcher)
-            .retryWithBackoff(TAG, resetsBackoff = QuerySnapshot::isFromServer)
-            .map { snapshot -> snapshot.documents.mapTo(HashSet()) { it.id } }
-            .flowOn(dispatcher)
+        likesOf(uid).documentIds(guestSignIn, dispatcher, TAG)
 
     // Saves what [write] does to the logged-in user's like of the post with [postId] and to the
     // post itself, both or neither.
