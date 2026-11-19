@@ -6,8 +6,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.DisposableEffect
 import edu.csuci.tweeter.ui.TweeterApp
 import edu.csuci.tweeter.ui.theme.TweeterTheme
+import edu.csuci.tweeter.ui.theme.ThemeSettings
 
 /** The app's only activity. It opens to an empty screen; the app has no screens yet. */
 class MainActivity : ComponentActivity() {
@@ -23,10 +26,31 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
         )
+        ThemeSettings.load(this)
         setContent {
             TweeterTheme {
-                // Screens go here.
-                TweeterApp()
+                val darkTheme = ThemeSettings.darkMode ?: isSystemInDarkTheme()
+                // The system bars' icons follow the app's theme: light icons in dark mode, dark
+                // icons in light mode.
+                DisposableEffect(darkTheme) {
+                    enableEdgeToEdge(
+                        statusBarStyle = if (darkTheme) {
+                            SystemBarStyle.dark(Color.TRANSPARENT)
+                        } else {
+                            SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+                        },
+                        navigationBarStyle = if (darkTheme) {
+                            SystemBarStyle.dark(Color.TRANSPARENT)
+                        } else {
+                            SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+                        }
+                    )
+                    onDispose {}
+                }
+                TweeterTheme {
+                    // Screens go here.
+                    TweeterApp()
+                }
             }
         }
     }

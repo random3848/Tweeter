@@ -39,7 +39,7 @@ internal fun PostPins(uiState: MapUiState, onPinClick: (String) -> Unit) {
     CircleLayer(
         id = "post-pins",
         source = rememberGeoJsonSource(uiState.pinnedPosts.pins),
-        color = const(MaterialTheme.colorScheme.primary),
+        color = const(MaterialTheme.colorScheme.onSurface),
         radius = const(PIN_RADIUS),
         strokeColor = const(MaterialTheme.colorScheme.surface),
         strokeWidth = const(PIN_OUTLINE_WIDTH),
@@ -57,7 +57,7 @@ internal fun PostPins(uiState: MapUiState, onPinClick: (String) -> Unit) {
     CircleLayer(
         id = "selected-post-pin",
         source = rememberGeoJsonSource(uiState.selectedPin),
-        color = const(MaterialTheme.colorScheme.primary),
+        color = const(MaterialTheme.colorScheme.onSurface),
         radius = const(SELECTED_PIN_RADIUS),
         strokeColor = const(MaterialTheme.colorScheme.surface),
         strokeWidth = const(SELECTED_PIN_OUTLINE_WIDTH)

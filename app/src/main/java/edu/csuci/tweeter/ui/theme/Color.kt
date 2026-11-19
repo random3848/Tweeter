@@ -46,8 +46,8 @@ val DARK_TEXT = Color(0xFFF4F6F5)
 /** Lighter BLUE for buttons and accents; the original is too dark on a dark screen. */
 val DARK_BLUE = Color(0xFF6FB3CC)
 
-/** Secondary text. */
-val DARK_MUTED_TEXT = Color(0xFFA3AEB2)
+/** Secondary text. Same as DARK_TEXT, so all dark mode text is one color. */
+val DARK_MUTED_TEXT = DARK_TEXT
 
 /** Tonal buttons. */
 val DARK_PALE_GRAY = Color(0xFF182830)

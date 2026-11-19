@@ -17,7 +17,10 @@ import androidx.compose.runtime.Composable
  * @param content The UI to theme.
  */
 @Composable
-fun TweeterTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
+fun TweeterTheme(
+    darkTheme: Boolean = ThemeSettings.darkMode ?: isSystemInDarkTheme(),
+    content: @Composable () -> Unit
+)   {
     MaterialTheme(
         colorScheme = if(darkTheme) darkColors else lightColors,
         typography = TYPOGRAPHY,
@@ -67,7 +70,7 @@ private val lightColors = lightColorScheme(
 )
 
 private val darkColors = darkColorScheme(
-    primary = DARK_BLUE,
+    primary = DARK_TEXT,
     onPrimary = INK,
     primaryContainer = DARK_LIGHT_GRAY,
     onPrimaryContainer = DARK_TEXT,
@@ -99,7 +102,7 @@ private val darkColors = darkColorScheme(
     surfaceDim = DARK_SURFACE,
     surfaceContainerLowest = DARK_SURFACE,
     surfaceContainerLow = DARK_SURFACE,
-    surfaceContainer = DARK_BAR,
+    surfaceContainer = DARK_SURFACE,
     surfaceContainerHigh = DARK_PALE_GRAY,
     surfaceContainerHighest = DARK_LIGHT_GRAY
 )

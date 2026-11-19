@@ -34,9 +34,9 @@ internal fun FeedChoiceChips(
                 onClick = { onSelect(choice) },
                 label = { Text(stringResource(choice.labelRes)) },
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                    selectedContainerColor = MaterialTheme.colorScheme.onSurface,
                     selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                    labelColor = MaterialTheme.colorScheme.primary
+                    labelColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         }
