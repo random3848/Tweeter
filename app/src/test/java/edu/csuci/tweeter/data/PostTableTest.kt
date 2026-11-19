@@ -16,6 +16,9 @@ private const val SAM = "sam"
 
 private const val MOST_CONFIDENT = 5
 private const val LIKE_COUNT = 12
+private const val RACCOON = "Raccoon"
+private const val POSSUM = "Possum"
+private const val VOTE_ROUND = 2
 
 class PostTableTest {
     // The table keeps a post's time to the millisecond.
@@ -62,6 +65,34 @@ class PostTableTest {
         val table = PostTable.of(listOf(SAMPLE_POSTS.first().copy(likeCount = LIKE_COUNT)))
 
         assertEquals(LIKE_COUNT, table.likeCount(0))
+    }
+
+    @Test
+    fun shownAnimal_noOtherAnimalHasMajority_isPostersAnimal() {
+        val table = tableOfVotes(RACCOON, mapOf(POSSUM to 1))
+
+        assertEquals(RACCOON, table.shownAnimal(0))
+    }
+
+    @Test
+    fun shownAnimal_otherAnimalHasMajority_isThatAnimal() {
+        val table = tableOfVotes(RACCOON, mapOf(POSSUM to 2))
+
+        assertEquals(POSSUM, table.shownAnimal(0))
+    }
+
+    @Test
+    fun agreement_isShareOfVotesForShownAnimal() {
+        val table = tableOfVotes(RACCOON, mapOf(RACCOON to 2, POSSUM to 1))
+
+        assertEquals(0.75, table.agreement(0), 0.0)
+    }
+
+    @Test
+    fun voteRound_isPostsVoteRound() {
+        val table = PostTable.of(listOf(SAMPLE_POSTS.first().copy(voteRound = VOTE_ROUND)))
+
+        assertEquals(VOTE_ROUND, table.voteRound(0))
     }
 
     @Test
@@ -222,6 +253,34 @@ class PostTableTest {
     }
 
     @Test
+    fun holdsSamePosts_majoritySwitchesShownAnimal_false() {
+        val switched = tableOfVotes(RACCOON, mapOf(POSSUM to 2))
+
+        assertFalse(tableOfVotes(RACCOON, emptyMap()).holdsSamePosts(switched))
+    }
+
+    @Test
+    fun holdsSamePosts_voteChangesAgreement_false() {
+        val disputed = tableOfVotes(RACCOON, mapOf(POSSUM to 1))
+
+        assertFalse(tableOfVotes(RACCOON, emptyMap()).holdsSamePosts(disputed))
+    }
+
+    @Test
+    fun holdsSamePosts_agreeingVoteOnUndisputedPost_true() {
+        val agreed = tableOfVotes(RACCOON, mapOf(RACCOON to 1))
+
+        assertTrue(tableOfVotes(RACCOON, emptyMap()).holdsSamePosts(agreed))
+    }
+
+    @Test
+    fun holdsSamePosts_postReclassified_false() {
+        val reclassified = SAMPLE_POSTS.map { it.copy(voteRound = it.voteRound + 1) }
+
+        assertFalse(PostTable.of(SAMPLE_POSTS).holdsSamePosts(PostTable.of(reclassified)))
+    }
+
+    @Test
     fun holdsSamePosts_postRemoved_false() {
         val fewer = PostTable.of(SAMPLE_POSTS.drop(1))
 
@@ -260,6 +319,12 @@ class PostTableTest {
         }
     )
 
+    // A table of one post of [posterAnimal] with [voteCounts].
+    private fun tableOfVotes(posterAnimal: String, voteCounts: Map<String, Int>): PostTable =
+        PostTable.of(
+            listOf(SAMPLE_POSTS[0].copy(animalType = posterAnimal, voteCounts = voteCounts))
+        )
+
     // A builder holding [post], with room for one more.
     private fun builderWithRoomAfter(post: Post): PostTable.Builder {
         val builder = PostTable.Builder(capacity = 2)
@@ -285,16 +350,19 @@ class PostTableTest {
         isBookmarked = false,
         timestamp = Instant.ofEpochMilli(timestampMillis(row)),
         animalType = animalType(row),
-        confidence = confidence(row)
+        confidence = confidence(row),
+        voteRound = voteRound(row)
     )
 
     // No screen shows comments or bookmarks yet, and whether the user liked a post depends on who
     // is looking, so the table doesn't keep them. It keeps authors only to find their rows with
-    // rowsBy, which the tests of rowsBy cover.
+    // rowsBy, which the tests of rowsBy cover, and what the vote counts mean rather than the
+    // counts, which the tests of shownAnimal and agreement cover.
     private fun Post.withFieldsNotReadBackCleared(): Post = copy(
         authorUid = "",
         commentCount = 0,
         isLiked = false,
-        isBookmarked = false
+        isBookmarked = false,
+        voteCounts = emptyMap()
     )
 }

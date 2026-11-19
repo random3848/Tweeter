@@ -3,10 +3,12 @@
 package edu.csuci.tweeter.ui.feed
 
 import edu.csuci.tweeter.data.AccountRepository
+import edu.csuci.tweeter.data.AnimalVote
 import edu.csuci.tweeter.data.FakeAccountRepository
 import edu.csuci.tweeter.data.FakeFollowRepository
 import edu.csuci.tweeter.data.FakeLikeRepository
 import edu.csuci.tweeter.data.FakePostRepository
+import edu.csuci.tweeter.data.FakeVoteRepository
 import edu.csuci.tweeter.data.FollowRepository
 import edu.csuci.tweeter.data.LikeRepository
 import edu.csuci.tweeter.data.PhotoRepository
@@ -16,8 +18,11 @@ import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.SAMPLE_POSTS
 import edu.csuci.tweeter.data.UnsavableLikeRepository
+import edu.csuci.tweeter.data.VoteChange
+import edu.csuci.tweeter.data.VoteRepository
 import edu.csuci.tweeter.data.assertSamePosts
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
+import edu.csuci.tweeter.ui.voting.PostVoter
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -60,6 +65,8 @@ private const val FOLLOWED_UID = "sam"
 private const val FRIENDS_NEWER_POST_ID = "friends-newer"
 private const val FRIENDS_OLDER_POST_ID = "friends-older"
 private const val FOLLOWED_POST_ID = "followed"
+private const val POSSUM = "Possum"
+private const val VOTE_ROUND = 0
 
 class FeedViewModelTest {
     private val showInFeedRequest = ShowPostRequest()
@@ -474,15 +481,48 @@ class FeedViewModelTest {
         assertSamePosts(PostTable.of(SAMPLE_POSTS), viewModel.uiState.value.posts)
     }
 
+    @Test
+    fun userVotes_holdsUsersVotes() = runTest {
+        val vote = AnimalVote(POSSUM, VOTE_ROUND)
+        val votes = FakeVoteRepository(initialVotes = mapOf(likedPostId to vote))
+
+        val viewModel = feedViewModelFollowingVotes(votes)
+
+        assertEquals(mapOf(likedPostId to vote), viewModel.userVotes.value)
+    }
+
+    @Test
+    fun changeVote_savesUsersVote() = runTest {
+        val viewModel = feedViewModelFollowingVotes(FakeVoteRepository())
+        val change = VoteChange(likedPostId, VOTE_ROUND, previousAnimal = null, newAnimal = POSSUM)
+
+        viewModel.changeVote(change)
+
+        val expected = mapOf(likedPostId to AnimalVote(POSSUM, VOTE_ROUND))
+        assertEquals(expected, viewModel.userVotes.value)
+    }
+
+    @Test
+    fun reclassify_reclassifiesPost() = runTest {
+        val votes = FakeVoteRepository()
+        val viewModel = feedViewModelFollowingVotes(votes)
+
+        viewModel.reclassify(likedPostId, POSSUM)
+
+        assertEquals(mapOf(likedPostId to POSSUM), votes.reclassifiedAnimals.value)
+    }
+
     private fun feedViewModel(
         repository: PostRepository = FakePostRepository(),
         likes: LikeRepository = FakeLikeRepository(),
         account: AccountRepository = FakeAccountRepository(USER_UID),
         follows: FollowRepository = FakeFollowRepository(),
-        postsDispatcher: CoroutineDispatcher = UnconfinedTestDispatcher()
+        postsDispatcher: CoroutineDispatcher = UnconfinedTestDispatcher(),
+        votes: VoteRepository = FakeVoteRepository()
     ): FeedViewModel = FeedViewModel(
         postRepository = repository,
         postLiker = PostLiker(likes),
+        postVoter = PostVoter(votes),
         postDeleter = PostDeleter(
             postRepository = repository,
             photoRepository = FakePhotoRepository(),
@@ -515,6 +555,19 @@ class FeedViewModelTest {
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect()
+        }
+        return viewModel
+    }
+
+    // The user's votes follow [votes] while the test collects them, as they do in the app while
+    // Feed collects them.
+    private fun TestScope.feedViewModelFollowingVotes(votes: VoteRepository): FeedViewModel {
+        val viewModel = feedViewModel(
+            postsDispatcher = UnconfinedTestDispatcher(testScheduler),
+            votes = votes
+        )
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.userVotes.collect()
         }
         return viewModel
     }

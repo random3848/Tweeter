@@ -34,7 +34,10 @@ class PostTable private constructor(
     private val likeCounts: IntArray,
     private val timestampsMillis: LongArray,
     private val animalTypes: Array<String>,
-    private val confidences: ByteArray
+    private val confidences: ByteArray,
+    private val shownAnimals: Array<String>,
+    private val agreements: DoubleArray,
+    private val voteRounds: IntArray
 ) {
     /** The [Post.id] of the post in [row]. */
     fun id(row: Int): String = ids[row]
@@ -74,6 +77,15 @@ class PostTable private constructor(
 
     /** The [Post.confidence] of the post in [row]. */
     fun confidence(row: Int): Int? = confidences[row].takeIf { it != NO_CONFIDENCE }?.toInt()
+
+    /** The animal the post in [row] shows, as [shownAnimalOf] finds it from its votes. */
+    fun shownAnimal(row: Int): String = shownAnimals[row]
+
+    /** The share of the votes on the post in [row] that name its [shownAnimal] ([agreementOf]). */
+    fun agreement(row: Int): Double = agreements[row]
+
+    /** The [Post.voteRound] of the post in [row]. */
+    fun voteRound(row: Int): Int = voteRounds[row]
 
     /** The row of the post with [postId], or null if the table doesn't hold it. */
     fun rowOf(postId: String): Int? {
@@ -158,13 +170,15 @@ class PostTable private constructor(
             haveSameRows(avatarInitials, other.avatarInitials) &&
             haveSameRows(locationNames, other.locationNames) &&
             haveSameRows(imageUris, other.imageUris) && haveSameRows(captions, other.captions) &&
-            haveSameRows(animalTypes, other.animalTypes)
+            haveSameRows(animalTypes, other.animalTypes) &&
+            haveSameRows(shownAnimals, other.shownAnimals)
 
     private fun hasSameNumbers(other: PostTable): Boolean =
         haveSameRows(latitudes, other.latitudes) && haveSameRows(longitudes, other.longitudes) &&
             haveSameRows(likeCounts, other.likeCounts) &&
             haveSameRows(timestampsMillis, other.timestampsMillis) &&
-            haveSameRows(confidences, other.confidences)
+            haveSameRows(confidences, other.confidences) &&
+            haveSameRows(agreements, other.agreements) && haveSameRows(voteRounds, other.voteRounds)
 
     // Each compares the rows 0 until size alone, past which a column can hold anything.
     private fun haveSameRows(column: Array<String>, otherColumn: Array<String>): Boolean =
@@ -202,6 +216,9 @@ class PostTable private constructor(
         private val timestampsMillis = LongArray(capacity)
         private val animalTypes = Array(capacity) { "" }
         private val confidences = ByteArray(capacity)
+        private val shownAnimals = Array(capacity) { "" }
+        private val agreements = DoubleArray(capacity)
+        private val voteRounds = IntArray(capacity)
 
         /**
          * Adds [post] in the next row.
@@ -233,7 +250,10 @@ class PostTable private constructor(
             likeCounts = likeCounts,
             timestampsMillis = timestampsMillis,
             animalTypes = animalTypes,
-            confidences = confidences
+            confidences = confidences,
+            shownAnimals = shownAnimals,
+            agreements = agreements,
+            voteRounds = voteRounds
         )
 
         private fun addTexts(row: Int, post: Post) {
@@ -245,6 +265,7 @@ class PostTable private constructor(
             imageUris[row] = post.imageUri
             captions[row] = post.caption
             animalTypes[row] = post.animalType
+            shownAnimals[row] = shownAnimalOf(post.animalType, post.voteCounts)
         }
 
         private fun addNumbers(row: Int, post: Post) {
@@ -254,6 +275,8 @@ class PostTable private constructor(
             timestampsMillis[row] = post.timestamp.toEpochMilli()
             // Post keeps confidences from 1 to 5, which a Byte holds, and 0 means none.
             confidences[row] = post.confidence?.toByte() ?: NO_CONFIDENCE
+            agreements[row] = agreementOf(post.animalType, post.voteCounts)
+            voteRounds[row] = post.voteRound
         }
     }
 

@@ -1,7 +1,12 @@
 package edu.csuci.tweeter.data
 
+import com.google.firebase.firestore.DocumentReference
+import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.EventListener
+import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.QuerySnapshot
+import java.util.concurrent.Executor
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -19,21 +24,17 @@ import kotlinx.coroutines.flow.conflate
 internal fun Query.signedInSnapshots(
     guestSignIn: GuestSignIn,
     dispatcher: CoroutineDispatcher
-): Flow<QuerySnapshot> = callbackFlow {
-    guestSignIn.signInIfSignedOut()
+): Flow<QuerySnapshot> = signedInSnapshotsOf(guestSignIn, dispatcher) { executor, listener ->
+    addSnapshotListener(executor, listener)
+}
 
-    val registration = addSnapshotListener(dispatcher.serialExecutor()) { snapshot, error ->
-        if (error != null) {
-            close(error)
-            return@addSnapshotListener
-        }
-        if (snapshot != null) {
-            trySend(snapshot)
-        }
-    }
-
-    awaitClose { registration.remove() }
-}.conflate()
+/** Each snapshot of this document, from a listener set up as for [Query.signedInSnapshots]. */
+internal fun DocumentReference.signedInSnapshots(
+    guestSignIn: GuestSignIn,
+    dispatcher: CoroutineDispatcher
+): Flow<DocumentSnapshot> = signedInSnapshotsOf(guestSignIn, dispatcher) { executor, listener ->
+    addSnapshotListener(executor, listener)
+}
 
 /**
  * Whether this snapshot came from the server. One from the phone's cache can come first even
@@ -41,3 +42,29 @@ internal fun Query.signedInSnapshots(
  */
 internal val QuerySnapshot.isFromServer: Boolean
     get() = !metadata.isFromCache
+
+/** Whether this snapshot came from the server, as for [QuerySnapshot.isFromServer]. */
+internal val DocumentSnapshot.isFromServer: Boolean
+    get() = !metadata.isFromCache
+
+// The snapshots of the listener that [addListener] sets up, as Query.signedInSnapshots describes.
+private fun <T> signedInSnapshotsOf(
+    guestSignIn: GuestSignIn,
+    dispatcher: CoroutineDispatcher,
+    addListener: (Executor, EventListener<T>) -> ListenerRegistration
+): Flow<T> = callbackFlow {
+    guestSignIn.signInIfSignedOut()
+
+    val listener = EventListener<T> { snapshot, error ->
+        if (error != null) {
+            close(error)
+            return@EventListener
+        }
+        if (snapshot != null) {
+            trySend(snapshot)
+        }
+    }
+    val registration = addListener(dispatcher.serialExecutor(), listener)
+
+    awaitClose { registration.remove() }
+}.conflate()

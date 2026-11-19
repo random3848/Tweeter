@@ -20,6 +20,10 @@ import kotlinx.coroutines.launch
  * A post names its animal with one of the suggestions or leaves it empty, so the field is
  * [isComplete] only then; text the user typed without choosing a suggestion isn't posted.
  *
+ * The dialog that votes for another animal on a post's animal
+ * ([edu.csuci.tweeter.ui.voting.AnimalVoteDialog]) searches with it too, and only reads
+ * [query] and [suggestions].
+ *
  * @param animalRepository Where the suggestions come from.
  */
 class AnimalPickerViewModel(private val animalRepository: AnimalRepository) : ViewModel() {

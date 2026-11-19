@@ -34,3 +34,12 @@ val ACCENT_RED = Color(0xFFE2412D)
 
 /** Destructive actions such as "Log out", and errors. */
 val ERROR_RED = Color(0xFFC42F1D)
+
+// No Material color role stands for how far votes agree, so screens use these directly. Both are
+// dark enough to read as text on white.
+
+/** An animal name every vote on a post agrees with. */
+val AGREED_GREEN = Color(0xFF2E7D32)
+
+/** An animal name some votes on a post disagree with. */
+val DISPUTED_YELLOW = Color(0xFF8C6D00)

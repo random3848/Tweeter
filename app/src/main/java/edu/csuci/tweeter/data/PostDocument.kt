@@ -56,7 +56,13 @@ object PostDocument {
         ANIMAL_TYPE("animalType"),
 
         /** How sure the poster is of [ANIMAL_TYPE], 1 to 5. */
-        CONFIDENCE("confidence")
+        CONFIDENCE("confidence"),
+
+        /** How many users voted for each animal, a map from its name to the count. */
+        VOTE_COUNTS("voteCounts"),
+
+        /** How many times the poster reclassified the post. */
+        VOTE_ROUND("voteRound")
     }
 
     /**
@@ -77,6 +83,8 @@ object PostDocument {
         put(Field.TIMESTAMP.key, FieldValue.serverTimestamp())
         if (post.authorUid.isNotEmpty()) put(Field.AUTHOR_UID.key, post.authorUid)
         post.confidence?.let { put(Field.CONFIDENCE.key, it) }
+        put(Field.VOTE_COUNTS.key, post.voteCounts)
+        put(Field.VOTE_ROUND.key, post.voteRound)
     }
 
     /**
@@ -86,7 +94,7 @@ object PostDocument {
      * The text fields that may be empty ([Field.AUTHOR_UID] among them) and the counts default
      * when missing, so a post added by hand in the Firebase console only needs [Field.USERNAME],
      * [Field.LATITUDE], [Field.LONGITUDE], [Field.IMAGE_URI] and [Field.TIMESTAMP]. A confidence
-     * outside 1 to 5 is dropped.
+     * outside 1 to 5 is dropped, and so are vote counts that aren't positive whole numbers.
      */
     fun toPost(id: String, fields: Array<Any?>): Post? {
         val username = fields[Field.USERNAME.ordinal] as? String ?: return null
@@ -116,9 +124,42 @@ object PostDocument {
             timestamp = timestamp.toInstant(),
             animalType = textIn(fields, Field.ANIMAL_TYPE),
             confidence = (fields[Field.CONFIDENCE.ordinal] as? Number)?.toInt()
-                ?.takeIf { it in Post.MIN_CONFIDENCE..Post.MAX_CONFIDENCE }
+                ?.takeIf { it in Post.MIN_CONFIDENCE..Post.MAX_CONFIDENCE },
+            voteCounts = voteCountsOf(fields[Field.VOTE_COUNTS.ordinal]),
+            voteRound = countIn(fields, Field.VOTE_ROUND)
         )
     }
+
+    /**
+     * Returns the vote counts stored as [value], the [Field.VOTE_COUNTS] of a document: each
+     * animal's count, leaving out those that aren't positive whole numbers. None when [value] is
+     * missing or not a map.
+     */
+    fun voteCountsOf(value: Any?): Map<String, Int> {
+        val stored = (value as? Map<*, *>)?.takeIf { it.isNotEmpty() } ?: return emptyMap()
+        val voteCounts = HashMap<String, Int>(stored.size)
+        for ((animal, count) in stored) {
+            // Firestore returns whole numbers as Longs, and a count typed in the console may be
+            // anything.
+            val voteCount = (count as? Number)?.toInt() ?: continue
+            if (animal is String && voteCount > 0) {
+                voteCounts[animal] = voteCount
+            }
+        }
+        return voteCounts
+    }
+
+    /**
+     * Returns the changes to a post's fields that reclassify it as [animal]: the animal it names,
+     * then no votes and no confidence, which were about the animal it named before, and the next
+     * voting round, which Firestore counts up from the one it holds.
+     */
+    fun reclassifiedFields(animal: String): Map<String, Any> = mapOf(
+        Field.ANIMAL_TYPE.key to animal,
+        Field.VOTE_COUNTS.key to emptyMap<String, Int>(),
+        Field.VOTE_ROUND.key to FieldValue.increment(1),
+        Field.CONFIDENCE.key to FieldValue.delete()
+    )
 
     private fun textIn(fields: Array<Any?>, field: Field): String =
         fields[field.ordinal] as? String ?: ""

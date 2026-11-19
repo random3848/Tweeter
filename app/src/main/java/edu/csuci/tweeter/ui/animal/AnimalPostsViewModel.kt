@@ -8,12 +8,15 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
+import edu.csuci.tweeter.data.AnimalVote
 import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostRows
 import edu.csuci.tweeter.data.PostTable
+import edu.csuci.tweeter.data.VoteChange
 import edu.csuci.tweeter.ui.feed.PostLiker
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
+import edu.csuci.tweeter.ui.voting.PostVoter
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -41,8 +44,8 @@ data class AnimalPostsUiState(
 )
 
 /**
- * Holds the posts that name one animal, for [AnimalPostsScreen], and the user's likes of them,
- * and deletes the logged-in user's own posts, as Feed does.
+ * Holds the posts that name one animal, for [AnimalPostsScreen], and the user's likes of them and
+ * votes on their animals, and deletes the logged-in user's own posts, as Feed does.
  *
  * @param animal The animal's name, as [PostTable.rowsOfAnimal] matches it.
  * @param postRepository Where the posts come from.
@@ -50,6 +53,8 @@ data class AnimalPostsUiState(
  * @param accountRepository Who is logged in: guests can't like posts, and only the user's own posts
  *     show a delete button.
  * @param postLiker Which posts the user liked, and saves the likes [toggleLike] makes.
+ * @param postVoter The user's votes on what animal posts show, and saves the changes
+ *     [changeVote] and [reclassify] make.
  * @param showOnMapRequest Where [showOnMap] asks Map to show a post.
  * @param rowsDispatcher Where the animal's rows are found: off the main thread, since finding
  *     them is a pass over every post.
@@ -61,6 +66,7 @@ class AnimalPostsViewModel(
     private val postDeleter: PostDeleter,
     accountRepository: AccountRepository,
     private val postLiker: PostLiker,
+    private val postVoter: PostVoter,
     private val showOnMapRequest: ShowPostRequest,
     rowsDispatcher: CoroutineDispatcher,
     sharing: SharingStarted
@@ -88,6 +94,10 @@ class AnimalPostsViewModel(
     /** The logged-in user's ID, or null for guests, who can't delete posts. */
     val loggedInUid: StateFlow<String?> = accountRepository.loggedInUid
 
+    /** The user's votes on what animal posts show, by post ID; none for guests. */
+    val userVotes: StateFlow<Map<String, AnimalVote>> =
+        postVoter.userVotes().stateIn(viewModelScope, sharing, emptyMap())
+
     /**
      * Likes the post with [postId], or takes the like back if the user liked it, unless a change
      * to its like is still being saved.
@@ -97,6 +107,22 @@ class AnimalPostsViewModel(
         viewModelScope.launch {
             if (isLiked) postLiker.unlike(postId) else postLiker.like(postId)
         }
+    }
+
+    /**
+     * Saves [change] to the user's vote on a post's animal, unless a change to the post's votes is
+     * still being saved.
+     */
+    fun changeVote(change: VoteChange) {
+        viewModelScope.launch { postVoter.changeVote(change) }
+    }
+
+    /**
+     * Has the user's post with [postId] name [animal] instead, which clears its votes, unless a
+     * change to its votes is still being saved.
+     */
+    fun reclassify(postId: String, animal: String) {
+        viewModelScope.launch { postVoter.reclassify(postId, animal) }
     }
 
     /** Asks Map to show the post with [postId], which opens its popup when Map opens. */
@@ -127,6 +153,7 @@ class AnimalPostsViewModel(
                     postDeleter = application.container.postDeleter,
                     accountRepository = application.container.accountRepository,
                     postLiker = PostLiker(application.container.likeRepository),
+                    postVoter = PostVoter(application.container.voteRepository),
                     showOnMapRequest = application.container.showOnMapRequest,
                     rowsDispatcher = Dispatchers.Default,
                     sharing = application.container.whileScreenCollects

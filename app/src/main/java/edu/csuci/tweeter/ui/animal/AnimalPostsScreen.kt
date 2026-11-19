@@ -13,17 +13,21 @@ import edu.csuci.tweeter.R
 import edu.csuci.tweeter.ui.feed.PostLikes
 import edu.csuci.tweeter.ui.feed.PostList
 import edu.csuci.tweeter.ui.navigation.BackTopBar
+import edu.csuci.tweeter.ui.voting.PostVotes
 
 /**
  * The posts that name one animal, newest first, as Feed shows posts, under a top bar with the
  * animal's name. Search opens it. As in Feed, a heart under each post likes it, or opens Log in for
- * guests, who can't, and the logged-in user's own posts have a delete button.
+ * guests, who can't, its animal name control votes on its animal, and the logged-in user's own
+ * posts have a delete button.
  *
  * @param animal The animal's name, as posts name it.
  * @param onBack Returns to the screen it was opened from.
  * @param onShowOnMap Opens Map, once the post the user chose is requested there.
  * @param onOpenProfile Opens the profile of the user with the given ID.
- * @param onLogIn Opens Log in, for a guest who tries to like a post or wants to comment.
+ * @param onLogIn Opens Log in, for a guest who tries to like a post, vote, or comment.
+ * @param onOpenAnimal Opens the page of the animal with the given name.
+ * @param onOpenVoting Opens the voting page of the post with the given ID.
  * @param modifier Applied to the whole screen.
  * @param viewModel Supplies the animal's posts.
  */
@@ -34,6 +38,8 @@ fun AnimalPostsScreen(
     onShowOnMap: () -> Unit,
     onOpenProfile: (String) -> Unit,
     onLogIn: () -> Unit,
+    onOpenAnimal: (String) -> Unit,
+    onOpenVoting: (String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: AnimalPostsViewModel = viewModel(
         factory = AnimalPostsViewModel.createFactory(animal)
@@ -41,6 +47,7 @@ fun AnimalPostsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val loggedInUid by viewModel.loggedInUid.collectAsStateWithLifecycle()
+    val userVotes by viewModel.userVotes.collectAsStateWithLifecycle()
     // Takes the post's ID, so that it stays the same lambda as new tables arrive.
     val showPostOnMap = { postId: String ->
         viewModel.showOnMap(postId)
@@ -60,6 +67,13 @@ fun AnimalPostsScreen(
             onOpenProfile = onOpenProfile,
             onLogIn = onLogIn,
             likes = PostLikes(likedPostIds = uiState.likedPostIds, onLike = likePost),
+            votes = PostVotes(
+                userVotes = userVotes,
+                onChangeVote = viewModel::changeVote,
+                onReclassify = viewModel::reclassify,
+                onOpenAnimal = onOpenAnimal,
+                onOpenVoting = onOpenVoting
+            ),
             modifier = Modifier.weight(1f).fillMaxWidth()
         )
     }

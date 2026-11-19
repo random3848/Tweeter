@@ -19,13 +19,17 @@ data class AnimalPostsRoute(val animal: String)
  * @param onBack Returns to the screen it was opened from.
  * @param onShowOnMap Opens Map, once the post the user chose is requested there.
  * @param onOpenProfile Opens the profile of the user with the given ID.
- * @param onLogIn Opens Log in, for a guest who tries to like a post.
+ * @param onLogIn Opens Log in, for a guest who tries to like a post or vote.
+ * @param onOpenAnimal Opens the page of the animal with the given name.
+ * @param onOpenVoting Opens the voting page of the post with the given ID.
  */
 fun NavGraphBuilder.addAnimalPostsScreen(
     onBack: () -> Unit,
     onShowOnMap: () -> Unit,
     onOpenProfile: (String) -> Unit,
-    onLogIn: () -> Unit
+    onLogIn: () -> Unit,
+    onOpenAnimal: (String) -> Unit,
+    onOpenVoting: (String) -> Unit
 ) {
     opaqueComposable<AnimalPostsRoute> { backStackEntry ->
         AnimalPostsScreen(
@@ -33,7 +37,9 @@ fun NavGraphBuilder.addAnimalPostsScreen(
             onBack = onBack,
             onShowOnMap = onShowOnMap,
             onOpenProfile = onOpenProfile,
-            onLogIn = onLogIn
+            onLogIn = onLogIn,
+            onOpenAnimal = onOpenAnimal,
+            onOpenVoting = onOpenVoting
         )
     }
 }

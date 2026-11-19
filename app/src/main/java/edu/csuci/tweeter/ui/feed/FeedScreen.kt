@@ -19,6 +19,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.ui.CenteredMessage
 import edu.csuci.tweeter.ui.navigation.TweeterTopBar
+import edu.csuci.tweeter.ui.voting.PostVotes
 
 /**
  * The home feed, the screen the app opens to, under the app's top bar.
@@ -27,13 +28,16 @@ import edu.csuci.tweeter.ui.navigation.TweeterTopBar
  * above them: everyone's by Best, Newest or Top, or, for users who are logged in, their friends'.
  * Picking one shows its first post. A label on each post's photo shows the post on Map, and a
  * heart under it likes the post, or opens Log in for guests, who can't, and a button beside it
- * opens its comments, which guests can read. When another screen asks the feed to show a post, as
- * Map's popup does, the feed scrolls to it. The logged-in user's own posts have a delete button,
- * which asks before deleting.
+ * opens its comments, which guests can read. Its animal name control votes on the animal and opens
+ * its page, or its voting page while votes disagree. When another screen asks the feed to show a
+ * post, as Map's popup does, the feed scrolls to it. The logged-in user's own posts have a delete
+ * button, which asks before deleting.
  *
  * @param onShowOnMap Opens Map, once the post the user chose is requested there.
  * @param onOpenProfile Opens the selected author's profile.
- * @param onLogIn Opens Log in, for a guest who tries to like a post or wants to comment.
+ * @param onLogIn Opens Log in, for a guest who tries to like a post, vote, or comment.
+ * @param onOpenAnimal Opens the page of the animal with the given name.
+ * @param onOpenVoting Opens the voting page of the post with the given ID.
  * @param modifier Applied to the whole screen.
  * @param topBarActions Buttons on the right of the top bar, such as the profile button.
  * @param feedViewModel Supplies posts and UI state for the feed.
@@ -43,12 +47,15 @@ fun FeedScreen(
     onShowOnMap: () -> Unit,
     onOpenProfile: (String) -> Unit,
     onLogIn: () -> Unit,
+    onOpenAnimal: (String) -> Unit,
+    onOpenVoting: (String) -> Unit,
     modifier: Modifier = Modifier,
     topBarActions: @Composable RowScope.() -> Unit = {},
     feedViewModel: FeedViewModel = viewModel(factory = FeedViewModel.factory)
 ) {
     val uiState by feedViewModel.uiState.collectAsStateWithLifecycle()
     val loggedInUid by feedViewModel.loggedInUid.collectAsStateWithLifecycle()
+    val userVotes by feedViewModel.userVotes.collectAsStateWithLifecycle()
     // A new list state for each choice, which starts at its first post. One list state kept across
     // choices would keep the post at the top in view, wherever the new choice puts it.
     val listState = rememberSaveable(uiState.choice, saver = LazyListState.Saver) {
@@ -69,6 +76,13 @@ fun FeedScreen(
         onShowOnMap()
     }
     val likePost = if (uiState.canLike) feedViewModel::toggleLike else { _: String -> onLogIn() }
+    val votes = PostVotes(
+        userVotes = userVotes,
+        onChangeVote = feedViewModel::changeVote,
+        onReclassify = feedViewModel::reclassify,
+        onOpenAnimal = onOpenAnimal,
+        onOpenVoting = onOpenVoting
+    )
     Column(modifier = modifier.fillMaxSize()) {
         TweeterTopBar(actions = topBarActions)
         FeedChoiceChips(
@@ -92,7 +106,8 @@ fun FeedScreen(
                 onLogIn = onLogIn,
                 modifier = bodyModifier,
                 listState = listState,
-                likes = PostLikes(likedPostIds = uiState.likedPostIds, onLike = likePost)
+                likes = PostLikes(likedPostIds = uiState.likedPostIds, onLike = likePost),
+                votes = votes
             )
         }
         when (uiState.authors) {

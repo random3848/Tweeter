@@ -114,11 +114,74 @@ class PostDocumentTest {
         assertNull(PostDocument.toPost(post.id, Field.entries.readFrom(fields)))
     }
 
+    @Test
+    fun toPost_fieldsOfPostWithVotes_returnsSamePost() {
+        val postWithVotes = post.copy(voteCounts = mapOf(RACCOON to 2), voteRound = VOTE_ROUND)
+        val fields = storedFieldsOf(postWithVotes)
+
+        assertEquals(postWithVotes, PostDocument.toPost(post.id, Field.entries.readFrom(fields)))
+    }
+
+    @Test
+    fun toPost_voteCountsStoredAsLongs_readsThem() {
+        val fields = storedFieldsOf(post) + ("voteCounts" to mapOf(RACCOON to 2L))
+
+        val result = PostDocument.toPost(post.id, Field.entries.readFrom(fields))
+
+        assertEquals(mapOf(RACCOON to 2), result?.voteCounts)
+    }
+
+    @Test
+    fun toPost_voteCountsNotWholePositiveNumbers_dropsThem() {
+        val voteCounts = mapOf(RACCOON to 0L, POSSUM to "2", COYOTE to -1L)
+        val fields = storedFieldsOf(post) + ("voteCounts" to voteCounts)
+
+        val result = PostDocument.toPost(post.id, Field.entries.readFrom(fields))
+
+        assertEquals(emptyMap<String, Int>(), result?.voteCounts)
+    }
+
+    @Test
+    fun toPost_voteCountsNotMap_readsNoVotes() {
+        val fields = storedFieldsOf(post) + ("voteCounts" to "Raccoon")
+
+        val result = PostDocument.toPost(post.id, Field.entries.readFrom(fields))
+
+        assertEquals(emptyMap<String, Int>(), result?.voteCounts)
+    }
+
+    @Test
+    fun reclassifiedFields_namesAnimalAndClearsVotes() {
+        val fields = PostDocument.reclassifiedFields(POSSUM)
+
+        assertEquals(POSSUM, fields["animalType"])
+        assertEquals(emptyMap<String, Int>(), fields["voteCounts"])
+    }
+
+    @Test
+    fun reclassifiedFields_removesConfidence() {
+        val fields = PostDocument.reclassifiedFields(POSSUM)
+
+        assertEquals(FieldValue.delete(), fields["confidence"])
+    }
+
+    @Test
+    fun reclassifiedFields_leavesNextRoundForFirestore() {
+        val fields = PostDocument.reclassifiedFields(POSSUM)
+
+        // Firestore adds one to the round it holds; FieldValue can't tell which change it makes.
+        assertTrue(fields["voteRound"] is FieldValue)
+    }
+
     // The fields as Firestore stores them, once it has set the timestamp to post.timestamp.
     private fun storedFieldsOf(post: Post): Map<String, Any> =
         PostDocument.fieldsOf(post) + ("timestamp" to Timestamp(post.timestamp))
 
     private companion object {
         const val OUT_OF_RANGE_CONFIDENCE = 6L
+        const val VOTE_ROUND = 3
+        const val RACCOON = "Raccoon"
+        const val POSSUM = "Possum"
+        const val COYOTE = "Coyote"
     }
 }

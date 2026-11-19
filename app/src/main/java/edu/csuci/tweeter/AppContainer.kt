@@ -16,6 +16,7 @@ import edu.csuci.tweeter.data.FirestoreFollowRepository
 import edu.csuci.tweeter.data.FirestoreLikeRepository
 import edu.csuci.tweeter.data.FirestorePostRepository
 import edu.csuci.tweeter.data.FirestoreProfileRepository
+import edu.csuci.tweeter.data.FirestoreVoteRepository
 import edu.csuci.tweeter.data.FollowRepository
 import edu.csuci.tweeter.data.GuestSignIn
 import edu.csuci.tweeter.data.LikeRepository
@@ -24,6 +25,7 @@ import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.ProfileSaver
+import edu.csuci.tweeter.data.VoteRepository
 import edu.csuci.tweeter.location.LocationTagRemover
 import edu.csuci.tweeter.ui.map.startMapEngine
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
@@ -126,6 +128,19 @@ class AppContainer(private val context: Context) {
      */
     val likeRepository: LikeRepository by lazy {
         FirestoreLikeRepository(
+            accountRepository = accountRepository,
+            guestSignIn = guestSignIn,
+            firestore = FirebaseFirestore.getInstance(),
+            dispatcher = Dispatchers.Default
+        )
+    }
+
+    /**
+     * The logged-in user's votes on what animal posts show, stored in Firestore with the posts'
+     * vote counts, and read on [Dispatchers.Default].
+     */
+    val voteRepository: VoteRepository by lazy {
+        FirestoreVoteRepository(
             accountRepository = accountRepository,
             guestSignIn = guestSignIn,
             firestore = FirebaseFirestore.getInstance(),

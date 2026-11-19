@@ -2,14 +2,18 @@
 
 package edu.csuci.tweeter.ui.animal
 
+import edu.csuci.tweeter.data.AnimalVote
 import edu.csuci.tweeter.data.FakeAccountRepository
 import edu.csuci.tweeter.data.FakeLikeRepository
 import edu.csuci.tweeter.data.FakePhotoRepository
 import edu.csuci.tweeter.data.FakePostRepository
+import edu.csuci.tweeter.data.FakeVoteRepository
 import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.SAMPLE_POSTS
+import edu.csuci.tweeter.data.VoteChange
 import edu.csuci.tweeter.ui.feed.PostLiker
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
+import edu.csuci.tweeter.ui.voting.PostVoter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -33,6 +37,8 @@ private const val ISLAND_FOX = "Island fox"
 private const val USER = "user"
 private const val NEWER_FOX = "newer fox"
 private const val OLDER_FOX = "older fox"
+private const val POSSUM = "Possum"
+private const val VOTE_ROUND = 0
 
 class AnimalPostsViewModelTest {
     private val showOnMapRequest = ShowPostRequest()
@@ -45,6 +51,8 @@ class AnimalPostsViewModelTest {
             SAMPLE_POSTS[2].copy(id = OLDER_FOX, animalType = "island fox")
         )
     )
+    private val olderFoxVote = AnimalVote(POSSUM, VOTE_ROUND)
+    private val voteRepository = FakeVoteRepository(initialVotes = mapOf(OLDER_FOX to olderFoxVote))
 
     @Before
     fun useTestMainDispatcher() {
@@ -133,6 +141,32 @@ class AnimalPostsViewModelTest {
         assertEquals(emptySet<String>(), viewModel.uiState.value.likedPostIds)
     }
 
+    @Test
+    fun userVotes_holdsUsersVotes() = runTest {
+        val viewModel = collectedAnimalPostsViewModel()
+
+        assertEquals(mapOf(OLDER_FOX to olderFoxVote), viewModel.userVotes.value)
+    }
+
+    @Test
+    fun changeVote_savesUsersVote() = runTest {
+        val viewModel = collectedAnimalPostsViewModel()
+        val change = VoteChange(OLDER_FOX, VOTE_ROUND, previousAnimal = POSSUM, newAnimal = null)
+
+        viewModel.changeVote(change)
+
+        assertEquals(emptyMap<String, AnimalVote>(), viewModel.userVotes.value)
+    }
+
+    @Test
+    fun reclassify_reclassifiesPost() = runTest {
+        val viewModel = collectedAnimalPostsViewModel()
+
+        viewModel.reclassify(NEWER_FOX, POSSUM)
+
+        assertEquals(mapOf(NEWER_FOX to POSSUM), voteRepository.reclassifiedAnimals.value)
+    }
+
     private fun TestScope.collectedAnimalPostsViewModel(): AnimalPostsViewModel {
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
         val viewModel = AnimalPostsViewModel(
@@ -146,12 +180,16 @@ class AnimalPostsViewModelTest {
             ),
             accountRepository = accountRepository,
             postLiker = PostLiker(likeRepository),
+            postVoter = PostVoter(voteRepository),
             showOnMapRequest = showOnMapRequest,
             rowsDispatcher = dispatcher,
             sharing = SharingStarted.WhileSubscribed()
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect()
+        }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            viewModel.userVotes.collect()
         }
         return viewModel
     }

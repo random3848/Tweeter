@@ -27,6 +27,57 @@ service cloud.firestore {
       return getAfter(/databases/$(database)/documents/posts/$(postId)).data.get('likeCount', 0);
     }
 
+    // The path of the logged-in user's vote on the animal of post [postId].
+    function votePath(postId) {
+      return /databases/$(database)/documents/users/$(request.auth.uid)/votes/$(postId);
+    }
+
+    function postPath(postId) {
+      return /databases/$(database)/documents/posts/$(postId);
+    }
+
+    // Whether [name] can name an animal: text of 1 to 100 characters.
+    function isAnimalName(name) {
+      return name is string && name.size() > 0 && name.size() <= 100;
+    }
+
+    // Whether the request, which can be a batch, changes the vote counts of post [postId], which
+    // the rules of /posts/{postId} allow only by the logged-in user's vote on it.
+    function changesVoteCounts(postId) {
+      return getAfter(postPath(postId)).data.get('voteCounts', {})
+          != get(postPath(postId)).data.get('voteCounts', {});
+    }
+
+    // Whether [vote], a vote on post [postId], counts: the post still exists, in the voting round
+    // the vote was cast in.
+    function countsInRound(vote, postId) {
+      return exists(postPath(postId))
+          && vote.round == get(postPath(postId)).data.get('voteRound', 0);
+    }
+
+    // Whether the vote counts [after] hold one more vote for [animal] than [before], and are
+    // otherwise the same.
+    function addsVote(before, after, animal) {
+      return after.diff(before).affectedKeys().hasOnly([animal])
+          && after.get(animal, 0) == before.get(animal, 0) + 1;
+    }
+
+    // Whether the vote counts [after] hold one vote less for [animal] than [before], and are
+    // otherwise the same.
+    function removesVote(before, after, animal) {
+      return after.diff(before).affectedKeys().hasOnly([animal])
+          && after.get(animal, 0) == before.get(animal, 0) - 1;
+    }
+
+    // Whether the vote counts [after] hold one vote moved from animal [from] to animal [to],
+    // compared with [before], and are otherwise the same.
+    function movesVote(before, after, from, to) {
+      return from != to
+          && after.diff(before).affectedKeys().hasOnly([from, to])
+          && after.get(from, 0) == before.get(from, 0) - 1
+          && after.get(to, 0) == before.get(to, 0) + 1;
+    }
+
     // The fields and limits match ProfileDocument and UserProfile in the app.
     // Allows reading follower relationships across users for following counts.
     match /{path=**}/followers/{followerUid} {
@@ -83,6 +134,26 @@ service cloud.firestore {
         allow delete: if isLoggedInAs(uid)
                       && likeCountAfter(postId) == likeCountBefore(postId) - 1;
       }
+
+      // The user's votes on what animal posts show: a document per post, named by its ID,
+      // holding the animal they voted for and the post's voting round it was cast in, as
+      // VoteDocument describes. FirestoreVoteRepository saves it in one batch with the post's
+      // vote counts, whose rule (see /posts/{postId}) checks they change by just this vote. A
+      // vote from an earlier round no longer counts, so its voter can delete it alone. The
+      // poster's vote is the post's animal, so they can't add one.
+      match /votes/{postId} {
+        allow read: if isLoggedInAs(uid);
+        allow create, update: if isLoggedInAs(uid)
+                              && request.resource.data.keys().hasOnly(['animal', 'round'])
+                              && request.resource.data.keys().hasAll(['animal', 'round'])
+                              && isAnimalName(request.resource.data.animal)
+                              && get(postPath(postId)).data.get('authorUid', '') != uid
+                              && request.resource.data.round
+                                   == get(postPath(postId)).data.get('voteRound', 0)
+                              && changesVoteCounts(postId);
+        allow delete: if isLoggedInAs(uid)
+                      && (!countsInRound(resource.data, postId) || changesVoteCounts(postId));
+      }
     }
 
     // The fields match PostDocument in the app.
@@ -90,19 +161,40 @@ service cloud.firestore {
       // Guests (anonymous sessions) can read posts but not share them.
       allow read: if request.auth != null;
 
-      // Posts can't be edited yet; liking one is the only change, which adds or takes
-      // one from its like count, in the same batch as the user's like (see /users/{uid}/likes).
+      // Liking a post adds or takes one from its like count, in the same batch as the user's
+      // like (see /users/{uid}/likes).
       allow update: if isLoggedIn()
                     && request.resource.data.diff(resource.data).affectedKeys()
                          .hasOnly(['likeCount'])
                     && (isLiking(postId) || isUnliking(postId));
+
+      // Voting on the post's animal: the logged-in user's vote, saved in the same batch (see
+      // /users/{uid}/votes), moves between its vote counts. The poster's vote is the post's
+      // animal, so they can't vote.
+      allow update: if isLoggedIn()
+                    && resource.data.get('authorUid', '') != request.auth.uid
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['voteCounts'])
+                    && isTallyingVote(postId);
+
+      // Reclassifying: the author names another animal, which starts the next voting round with
+      // no votes and no confidence, both of which were about the animal it named before.
+      allow update: if isLoggedIn()
+                    && resource.data.get('authorUid', '') == request.auth.uid
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['animalType', 'confidence', 'voteCounts', 'voteRound'])
+                    && isAnimalName(request.resource.data.animalType)
+                    && request.resource.data.animalType != resource.data.get('animalType', '')
+                    && request.resource.data.voteCounts == {}
+                    && request.resource.data.voteRound == resource.data.get('voteRound', 0) + 1
+                    && !request.resource.data.keys().hasAny(['confidence']);
 
       allow create: if request.auth != null
                     && request.auth.token.firebase.sign_in_provider != 'anonymous'
                     && request.resource.data.keys().hasOnly([
                          'authorUid', 'username', 'avatarInitials', 'locationName', 'latitude',
                          'longitude', 'imageUri', 'caption', 'likeCount', 'commentCount',
-                         'timestamp', 'animalType', 'confidence'
+                         'timestamp', 'animalType', 'confidence', 'voteCounts', 'voteRound'
                        ])
                     && request.resource.data.keys().hasAll([
                          'authorUid', 'username', 'latitude', 'longitude', 'imageUri', 'timestamp'
@@ -120,6 +212,8 @@ service cloud.firestore {
                     && request.resource.data.imageUri.matches('https://.*')
                     && request.resource.data.get('likeCount', 0) == 0
                     && request.resource.data.get('commentCount', 0) == 0
+                    && request.resource.data.get('voteCounts', {}) == {}
+                    && request.resource.data.get('voteRound', 0) == 0
                     // Set by Firestore when it receives the post, not by the phone's clock.
                     && request.resource.data.timestamp == request.time;
                     // Only the post's author (not a guest) can delete it.
@@ -159,6 +253,25 @@ service cloud.firestore {
         return request.resource.data.likeCount == resource.data.get('likeCount', 0) - 1
             && exists(likePath(postId))
             && !existsAfter(likePath(postId));
+      }
+
+      // Whether the vote counts change by just the logged-in user's vote: the animal that their
+      // vote of the post's current round named before the request, if any, loses one, and the
+      // animal it names after the request, if any, gains one.
+      function isTallyingVote(postId) {
+        let round = resource.data.get('voteRound', 0);
+        let before = resource.data.get('voteCounts', {});
+        let after = request.resource.data.get('voteCounts', {});
+        let hadVote = exists(votePath(postId)) && get(votePath(postId)).data.round == round;
+        let hasVote = existsAfter(votePath(postId))
+            && getAfter(votePath(postId)).data.round == round;
+        return (!hadVote && hasVote
+                && addsVote(before, after, getAfter(votePath(postId)).data.animal))
+            || (hadVote && !hasVote
+                && removesVote(before, after, get(votePath(postId)).data.animal))
+            || (hadVote && hasVote
+                && movesVote(before, after, get(votePath(postId)).data.animal,
+                             getAfter(votePath(postId)).data.animal));
       }
     }
   }

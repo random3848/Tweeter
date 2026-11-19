@@ -29,6 +29,10 @@ import java.time.Instant
  * @property animalType The animal identified by the poster; empty when unspecified.
  * @property confidence Identification confidence from [MIN_CONFIDENCE] to [MAX_CONFIDENCE], or
  *     null when unspecified.
+ * @property voteCounts How many users voted for each animal, by its name, on what animal the post
+ *     shows, in the current [voteRound]. The poster's own vote, for [animalType], isn't counted.
+ * @property voteRound How many times the poster reclassified the post: naming another animal
+ *     starts a new round of votes, and votes from earlier rounds no longer count.
  * @throws IllegalArgumentException If [confidence] is outside that range, so that no screen, table
  *     or repository gets a post with one.
  */
@@ -48,7 +52,9 @@ data class Post(
     val isBookmarked: Boolean,
     val timestamp: Instant,
     val animalType: String = "",
-    val confidence: Int? = null
+    val confidence: Int? = null,
+    val voteCounts: Map<String, Int> = emptyMap(),
+    val voteRound: Int = 0
 ) {
     init {
         require(confidence == null || confidence in MIN_CONFIDENCE..MAX_CONFIDENCE) {

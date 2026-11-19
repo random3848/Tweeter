@@ -8,16 +8,19 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
+import edu.csuci.tweeter.data.AnimalVote
 import edu.csuci.tweeter.data.FollowRepository
 import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostRows
 import edu.csuci.tweeter.data.PostTable
+import edu.csuci.tweeter.data.VoteChange
 import edu.csuci.tweeter.ui.ChoicePerUser
 import edu.csuci.tweeter.ui.UserChoice
 import edu.csuci.tweeter.ui.friends.FriendsReader
 import edu.csuci.tweeter.ui.friends.UserFriends
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
+import edu.csuci.tweeter.ui.voting.PostVoter
 import java.time.Clock
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -72,11 +75,13 @@ data class FeedUiState(
 }
 
 /**
- * Holds posts for [FeedScreen], as the user chooses to see them, the user's likes of them, and
- * deletes the logged-in user's own posts.
+ * Holds posts for [FeedScreen], as the user chooses to see them, the user's likes of them and
+ * votes on their animals, and deletes the logged-in user's own posts.
  *
  * @param postRepository Where posts are read from.
  * @param postLiker Which posts the user liked, and saves the likes [toggleLike] makes.
+ * @param postVoter The user's votes on what animal posts show, and saves the changes
+ *     [changeVote] and [reclassify] make.
  * @param postDeleter Deletes the logged-in user's posts and their photos.
  * @param accountRepository Who is logged in: guests can't like posts, and only the user's own posts
  *     show a delete button.
@@ -91,6 +96,7 @@ data class FeedUiState(
 class FeedViewModel(
     postRepository: PostRepository,
     private val postLiker: PostLiker,
+    private val postVoter: PostVoter,
     private val postDeleter: PostDeleter,
     accountRepository: AccountRepository,
     followRepository: FollowRepository,
@@ -165,6 +171,10 @@ class FeedViewModel(
     /** The logged-in user's ID, or null for guests, who can't delete posts. */
     val loggedInUid: StateFlow<String?> = accountRepository.loggedInUid
 
+    /** The user's votes on what animal posts show, by post ID; none for guests. */
+    val userVotes: StateFlow<Map<String, AnimalVote>> =
+        postVoter.userVotes().stateIn(viewModelScope, sharing, emptyMap())
+
     /** Shows the posts as [choice] picks them from now on, ranked again in its order. */
     fun choose(choice: FeedChoice) {
         this.choice.choose(choice)
@@ -218,6 +228,23 @@ class FeedViewModel(
         }
     }
 
+    /**
+     * Saves [change] to the user's vote on a post's animal, unless a change to the post's votes is
+     * still being saved. A change that can't be saved is logged; the post then shows the vote as
+     * it was.
+     */
+    fun changeVote(change: VoteChange) {
+        viewModelScope.launch { postVoter.changeVote(change) }
+    }
+
+    /**
+     * Has the user's post with [postId] name [animal] instead, which clears its votes, unless a
+     * change to its votes is still being saved.
+     */
+    fun reclassify(postId: String, animal: String) {
+        viewModelScope.launch { postVoter.reclassify(postId, animal) }
+    }
+
     /** Asks Map to show the post with [postId], which opens its popup when Map opens. */
     fun showOnMap(postId: String) {
         showOnMapRequest.send(postId)
@@ -239,6 +266,7 @@ class FeedViewModel(
                 FeedViewModel(
                     postRepository = application.container.postRepository,
                     postLiker = PostLiker(application.container.likeRepository),
+                    postVoter = PostVoter(application.container.voteRepository),
                     postDeleter = application.container.postDeleter,
                     accountRepository = application.container.accountRepository,
                     followRepository = application.container.followRepository,

@@ -39,17 +39,18 @@ import edu.csuci.tweeter.data.PostRows
 import edu.csuci.tweeter.ui.CenteredMessage
 import edu.csuci.tweeter.ui.comments.PostComments
 import edu.csuci.tweeter.ui.postDetailsText
-
-// Between a post's animal type and its confidence rating.
-private const val ANIMAL_DETAILS_SEPARATOR = " · "
+import edu.csuci.tweeter.ui.voting.AnimalVoteControl
+import edu.csuci.tweeter.ui.voting.PostVotes
+import edu.csuci.tweeter.ui.voting.Voter
 
 /**
  * A screen's posts: a spinner while they are read, [emptyMessage] when there are none, and
  * otherwise the posts of [listedPosts] as a scrolling list, in the order of its rows, with a
- * divider between posts. Each has its author, photo, caption and animal, as Feed shows them, and
- * the logged-in user's own posts have a delete button, which asks before deleting. Each also has
- * a like button and its like count, and a button that opens its comments under it, where
- * logged-in users can add one.
+ * divider between posts. Each has its author, photo, caption and the poster's confidence, as Feed
+ * shows them, and the logged-in user's own posts have a delete button, which asks before deleting.
+ * Each also has a like button and its like count, a button that opens its comments under it,
+ * where logged-in users can add one, and, when the poster named an animal, its animal name
+ * control ([AnimalVoteControl]).
  *
  * @param listedPosts The posts to list.
  * @param isLoading Whether the posts are still being read.
@@ -59,9 +60,11 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
  *     capturing the table, so it stays the same as new tables arrive.
  * @param onDelete Deletes the post with the given ID. It takes the ID for the same reason.
  * @param onOpenProfile Opens the profile of the author with the given ID.
- * @param onLogIn Opens Log in, for a guest who wants to comment.
+ * @param onLogIn Opens Log in, for a guest who wants to comment or vote.
  * @param likes Which posts the user liked and what pressing a like button does. It's required, so
  *     no screen listing posts leaves out their likes.
+ * @param votes The user's votes on what animal posts show, and what the animal name controls do.
+ *     It's required for the same reason.
  * @param modifier Applied to the space the posts take.
  * @param listState The list's scroll position.
  */
@@ -76,6 +79,7 @@ internal fun PostList(
     onOpenProfile: (String) -> Unit,
     onLogIn: () -> Unit,
     likes: PostLikes,
+    votes: PostVotes,
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState()
 ) {
@@ -98,6 +102,7 @@ internal fun PostList(
                 onLogIn = onLogIn,
                 listState = listState,
                 likes = likes,
+                votes = votes,
                 modifier = modifier
             )
         }
@@ -116,6 +121,7 @@ private fun PostItems(
     onLogIn: () -> Unit,
     listState: LazyListState,
     likes: PostLikes,
+    votes: PostVotes,
     modifier: Modifier = Modifier
 ) {
     val posts = listedPosts.table
@@ -158,9 +164,24 @@ private fun PostItems(
                     isOpen = showsComments,
                     onClick = { showsComments = !showsComments }
                 )
+                val posterAnimal = posts.animalType(row)
+                // A post whose poster named no animal has none to vote on.
+                if (posterAnimal.isNotBlank()) {
+                    AnimalVoteControl(
+                        postId = postId,
+                        posterAnimal = posterAnimal,
+                        shownAnimal = posts.shownAnimal(row),
+                        agreement = posts.agreement(row),
+                        round = posts.voteRound(row),
+                        voter = Voter.of(loggedInUid, posts.authorUid(row)),
+                        votes = votes,
+                        onLogIn = onLogIn,
+                        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                    )
+                }
             }
             PostCaption(caption = posts.caption(row))
-            AnimalDetails(text = animalDetailsOf(posts.animalType(row), posts.confidence(row)))
+            ConfidenceRating(confidence = posts.confidence(row))
             if (showsComments) {
                 PostComments(postId = postId, onLogIn = onLogIn)
             }
@@ -323,38 +344,19 @@ private fun PostCaption(caption: String) {
 }
 
 /**
- * A post's animal type and confidence rating, or nothing if it has neither.
+ * The poster's confidence in the animal they named, or nothing if they gave none.
  *
- * @param text The animal type and rating, as [animalDetailsOf] puts them, or null.
+ * @param confidence The poster's confidence, from 1 to 5, or null when unspecified.
  */
 @Composable
-private fun AnimalDetails(text: String?) {
-    if (text != null) {
+private fun ConfidenceRating(confidence: Int?) {
+    if (confidence != null) {
         Text(
-            text = text,
+            text = stringResource(R.string.feed_confidence_rating, confidence),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 12.dp, top = 4.dp, end = 12.dp, bottom = 8.dp)
         )
-    }
-}
-
-/**
- * The animal type and confidence rating of a post, joined by [ANIMAL_DETAILS_SEPARATOR] when it
- * has both, or null when it has neither.
- *
- * @param animalType The animal the poster identified; blank when unspecified.
- * @param confidence The poster's confidence in [animalType], from 1 to 5, or null when unspecified.
- */
-@Composable
-private fun animalDetailsOf(animalType: String, confidence: Int?): String? {
-    val confidenceRating = confidence?.let {
-        stringResource(R.string.feed_confidence_rating, it)
-    }
-    return when {
-        animalType.isBlank() -> confidenceRating
-        confidenceRating == null -> animalType
-        else -> animalType + ANIMAL_DETAILS_SEPARATOR + confidenceRating
     }
 }
 

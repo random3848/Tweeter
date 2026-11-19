@@ -53,6 +53,8 @@ import edu.csuci.tweeter.ui.profile.addProfileScreen
 import edu.csuci.tweeter.ui.profile.addUserProfileScreen
 import edu.csuci.tweeter.ui.search.SearchRoute
 import edu.csuci.tweeter.ui.search.addSearchScreen
+import edu.csuci.tweeter.ui.voting.VotingRoute
+import edu.csuci.tweeter.ui.voting.addVotingScreen
 
 /**
  * Bottom-bar items in display order.
@@ -226,10 +228,22 @@ private fun TweeterNavHost(
                 launchSingleTop = true
             }
         }
+        val openAnimalPosts = { animal: String ->
+            navController.navigate(AnimalPostsRoute(animal)) {
+                launchSingleTop = true
+            }
+        }
+        val openVoting = { postId: String ->
+            navController.navigate(VotingRoute(postId)) {
+                launchSingleTop = true
+            }
+        }
         addFeedScreen(
             onShowOnMap = { navController.navigateToTopLevel(MapRoute) },
             onLogIn = openLogIn,
             onOpenProfile = openUserProfile,
+            onOpenAnimal = openAnimalPosts,
+            onOpenVoting = openVoting,
             topBarActions = {
                 ProfileButton(
                     onClick = {
@@ -242,16 +256,19 @@ private fun TweeterNavHost(
         )
         addSearchScreen(
             onOpenProfile = openUserProfile,
-            onOpenAnimal = { animal ->
-                navController.navigate(AnimalPostsRoute(animal)) {
-                    launchSingleTop = true
-                }
-            }
+            onOpenAnimal = openAnimalPosts
         )
         addAnimalPostsScreen(
             onBack = { navController.navigateUp() },
             onShowOnMap = { navController.navigateToTopLevel(MapRoute) },
             onOpenProfile = openUserProfile,
+            onLogIn = openLogIn,
+            onOpenAnimal = openAnimalPosts,
+            onOpenVoting = openVoting
+        )
+        addVotingScreen(
+            onBack = { navController.navigateUp() },
+            onOpenAnimal = openAnimalPosts,
             onLogIn = openLogIn
         )
         addPostScreen(
