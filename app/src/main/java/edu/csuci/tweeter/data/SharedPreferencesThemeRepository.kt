@@ -38,7 +38,7 @@ class SharedPreferencesThemeRepository(private val preferences: SharedPreference
     }
 
     companion object {
-        // Same file and key as the old ThemeSettings, so saved choices carry over.
+        /** The SharedPreferences file name where the dark mode choice is saved. */
         const val PREFS_NAME = "theme_settings"
         private const val KEY_DARK_MODE = "dark_mode"
     }

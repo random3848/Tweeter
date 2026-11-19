@@ -29,7 +29,7 @@ fun useDarkTheme(repository: ThemeRepository): Boolean {
  *
  * @param darkTheme Whether to use the dark colors.
  * @param content The UI to theme.
- **/
+ */
 @Composable
 fun TweeterTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
     MaterialTheme(
