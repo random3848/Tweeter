@@ -83,6 +83,16 @@ service cloud.firestore {
         allow delete: if isLoggedInAs(uid)
                       && likeCountAfter(postId) == likeCountBefore(postId) - 1;
       }
+
+      // The posts the user saved to view later: an empty document per post, named by its ID,
+      // which FirestoreBookmarkRepository adds or deletes. Only the user sees or changes them, and
+      // saving a post doesn't change it.
+      match /bookmarks/{postId} {
+        allow read: if isLoggedInAs(uid);
+        allow create: if isLoggedInAs(uid)
+                      && request.resource.data.keys().size() == 0;
+        allow delete: if isLoggedInAs(uid);
+      }
     }
 
     // The fields match PostDocument in the app.

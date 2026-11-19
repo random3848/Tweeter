@@ -3,7 +3,9 @@
 package edu.csuci.tweeter.ui.feed
 
 import edu.csuci.tweeter.data.AccountRepository
+import edu.csuci.tweeter.data.BookmarkRepository
 import edu.csuci.tweeter.data.FakeAccountRepository
+import edu.csuci.tweeter.data.FakeBookmarkRepository
 import edu.csuci.tweeter.data.FakeFollowRepository
 import edu.csuci.tweeter.data.FakeLikeRepository
 import edu.csuci.tweeter.data.FakePostRepository
@@ -15,6 +17,7 @@ import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.SAMPLE_POSTS
+import edu.csuci.tweeter.data.UnsavableBookmarkRepository
 import edu.csuci.tweeter.data.UnsavableLikeRepository
 import edu.csuci.tweeter.data.assertSamePosts
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
@@ -443,6 +446,42 @@ class FeedViewModelTest {
     }
 
     @Test
+    fun uiState_holdsPostsUserSaved() = runTest {
+        val viewModel =
+            collectedFeedViewModel(bookmarks = FakeBookmarkRepository(setOf(likedPostId)))
+
+        assertEquals(setOf(likedPostId), viewModel.uiState.value.bookmarkedPostIds)
+    }
+
+    @Test
+    fun toggleBookmark_postNotSaved_savesIt() = runTest {
+        val viewModel = collectedFeedViewModel()
+
+        viewModel.toggleBookmark(unlikedPostId)
+
+        assertEquals(setOf(unlikedPostId), viewModel.uiState.value.bookmarkedPostIds)
+    }
+
+    @Test
+    fun toggleBookmark_savedPost_unsavesIt() = runTest {
+        val viewModel =
+            collectedFeedViewModel(bookmarks = FakeBookmarkRepository(setOf(likedPostId)))
+
+        viewModel.toggleBookmark(likedPostId)
+
+        assertEquals(emptySet<String>(), viewModel.uiState.value.bookmarkedPostIds)
+    }
+
+    @Test
+    fun toggleBookmark_bookmarkNotSaved_keepsPostUnsaved() = runTest {
+        val viewModel = collectedFeedViewModel(bookmarks = UnsavableBookmarkRepository())
+
+        viewModel.toggleBookmark(unlikedPostId)
+
+        assertEquals(emptySet<String>(), viewModel.uiState.value.bookmarkedPostIds)
+    }
+
+    @Test
     fun showOnMap_asksMapToShowPost() {
         val viewModel = feedViewModel()
         val post = SAMPLE_POSTS[1]
@@ -479,10 +518,12 @@ class FeedViewModelTest {
         likes: LikeRepository = FakeLikeRepository(),
         account: AccountRepository = FakeAccountRepository(USER_UID),
         follows: FollowRepository = FakeFollowRepository(),
-        postsDispatcher: CoroutineDispatcher = UnconfinedTestDispatcher()
+        postsDispatcher: CoroutineDispatcher = UnconfinedTestDispatcher(),
+        bookmarks: BookmarkRepository = FakeBookmarkRepository()
     ): FeedViewModel = FeedViewModel(
         postRepository = repository,
         postLiker = PostLiker(likes),
+        postBookmarker = PostBookmarker(bookmarks),
         postDeleter = PostDeleter(
             postRepository = repository,
             photoRepository = FakePhotoRepository(),
@@ -504,14 +545,16 @@ class FeedViewModelTest {
         repository: PostRepository = FakePostRepository(),
         likes: LikeRepository = FakeLikeRepository(),
         account: AccountRepository = FakeAccountRepository(USER_UID),
-        follows: FollowRepository = FakeFollowRepository()
+        follows: FollowRepository = FakeFollowRepository(),
+        bookmarks: BookmarkRepository = FakeBookmarkRepository()
     ): FeedViewModel {
         val viewModel = feedViewModel(
             repository,
             likes,
             account,
             follows,
-            postsDispatcher = UnconfinedTestDispatcher(testScheduler)
+            postsDispatcher = UnconfinedTestDispatcher(testScheduler),
+            bookmarks = bookmarks
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect()

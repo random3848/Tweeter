@@ -6,11 +6,13 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import edu.csuci.tweeter.data.AccountRepository
 import edu.csuci.tweeter.data.AnimalRepository
+import edu.csuci.tweeter.data.BookmarkRepository
 import edu.csuci.tweeter.data.CameraFileStore
 import edu.csuci.tweeter.data.CommentRepository
 import edu.csuci.tweeter.data.FakeAnimalRepository
 import edu.csuci.tweeter.data.FirebaseAccountRepository
 import edu.csuci.tweeter.data.FirebasePhotoRepository
+import edu.csuci.tweeter.data.FirestoreBookmarkRepository
 import edu.csuci.tweeter.data.FirestoreCommentRepository
 import edu.csuci.tweeter.data.FirestoreFollowRepository
 import edu.csuci.tweeter.data.FirestoreLikeRepository
@@ -126,6 +128,19 @@ class AppContainer(private val context: Context) {
      */
     val likeRepository: LikeRepository by lazy {
         FirestoreLikeRepository(
+            accountRepository = accountRepository,
+            guestSignIn = guestSignIn,
+            firestore = FirebaseFirestore.getInstance(),
+            dispatcher = Dispatchers.Default
+        )
+    }
+
+    /**
+     * The logged-in user's saved posts, stored in Firestore under their profile, and read on
+     * [Dispatchers.Default].
+     */
+    val bookmarkRepository: BookmarkRepository by lazy {
+        FirestoreBookmarkRepository(
             accountRepository = accountRepository,
             guestSignIn = guestSignIn,
             firestore = FirebaseFirestore.getInstance(),
