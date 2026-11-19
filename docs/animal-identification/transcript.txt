@@ -1,0 +1,53 @@
+Speech-to-text transcript of the team meeting of 2026-11-18, unedited apart from a line break
+at each pause. The decisions are summarized in README.md.
+
+All right, I'm recording now. Okay, so we have we have an upload download. You have the name.
+Uh, if you click on the name, it takes you to the name, uh, it takes you to the animal, but if you click on down vote, it opens a pop-up, that. Oh, I thought we were going to do the name, don't pop-up. No, name does the pop-up if there's disagreement.
+I feel like it's just always just bring it here. I mean, if you, if everyone agrees that it's the same animal, doesn't make sense to do that pop up. It would just be a bar of, like, top.
+Yeah, but isn't that just a bunch of useless detail? Yeah, I mean, I guess we could remove it. I think...
+I think if there's no disagreement, when you click on the name, it should take you off to the end. If there's disagree, if we should talk about something, like, more important. Because, like, the general layout what this page should be.
+I still think we can add this in too. Right? The detail.
+If there's no disagreement. No, I agree. Okay, so on their disagreement, this is not here.
+So. Okay, so if you if there's no disagreement clicking on the button. should take you to the page of the animal. If there is this agreement, clicking on, it should take you to this page where the people can vote on what animal they think it is.
+Okay, seriously. what you saying, yeah. So I can go eat it to... this whole... I think it should still have, like, a photo of the animal and, like, maybe a name.
+Yeah, photo of the animal, I'm like, and that will go to the details page. Yeah that could do it. Yeah.
+But you'd have to have like a, you'd have to differentiate between what goes to, what, what's a vote and what goes to the page. Well, so clicking on the actual, this is the voting over here. Okay.
+And clicking on the actual animal name or the species name here as well. We'll take you to the animal page. I think that's a good room, right?
+Yeah, I think so. And that's all coming from name or from down boat? From name and downward just starts the process like this is what the animal is.
+All right. So is it sword? Yeah, I think that's good.
+Okay. So let's just say I post a picture and I put raccoon on the name. I click name.
+Where does it go? If you put the raccoon, you click on the name, it takes you to the page of the raccoon. Yeah.
+But if I disagree with you that it's a raccoon. Regardless of whether you disagree with me or not, it'll go to raccoon, right? Okay, so if you if you put a raccoon and I click on this, it takes you to the raccoon page.
+If I disagree with you and I click on the down vote... Okay, but regardless, I'm saying regardless of whether you disagree with me or not, if you click the name, you'll still go, right? If there's no disagreement about it.
+If you did, if I do disagree about it, and I click on down vote, I then get this option. He's talking about name in general. No, if there's any disagreement about it, It doesn't take you to this page.
+It takes you to an upper page. So it's not regardless. It is optional based on if there's agreement.
+I don't know what the animal is. And then, so I, there's the picture, this is raccoon. I don't know whether it's true or not.
+I can click on the name. If you, if you, if there's, I can click on the name, you know, send me to the raccoon page, raccoon page, I can see, oh, that's not it. But how would I know whether it is or is it?
+Like, this is based on the fact that I know that that's not a raccoon. Okay, so if you click on the name. So I think for the reason whether I know that it's a raccoon or not, it should take me to a raccoon page.
+So I can see what a raccoon looks like. Okay. But look, here, I go to this page.
+Let's say there's no disagreement about it, right? I click on the name. It takes me to the raccoon page.
+I see that it's not a raccoon very clearly. So I go back, I click on the down vote, and it tells me, what animal do you think it is, and it gives me a list that's pulled from I naturalist. It thinks eye naturalist thinks it's one of these animals.
+And then I can go through the eye naturalist list, and I think it's, I don't know, what's an animal that looks like a raccoon that's not under good. Possum. Possum.
+I think it's a... I put your own phone in. Wait, wait, you should be able to put...
+So I then click on the animal. think it is. So now there's disagreement and this can change color. The name can change color. right?
+Go from green to... That's what their name was going to take us up to the animal page. Yeah, that's what he's going to say.
+Yeah, yeah. So if this turns from green to let's say yellow. Now, clicking on the name takes you to this page where it says one person, the creator of the post.
+Yeah. Yeah. So the creator of the photo thinks it's a this, I thinks it's a raccoon, but one person disagrees and thinks it's a possum.
+The author... The name only changed colors after you will. The name's representative of...
+I know, but he's saying there's going to be a color, so will it only... Yeah, well, have a color. When someone submits their disagreement, it'll change color.
+Yes, under the hood, right? if this is green, if this is green, it means it takes you to the page of the animal. If it's not green, it takes you to this page where you can still click on the animal to see the different animals that people are voting on.
+But it shows you what people are voting on. I see it now. I think that's a good thing.
+I see it. And the authors will always be the 1st one that'll show up. Yeah.
+What they like their initials. Yeah. And let's say there's, let's say, let's say a 100 people vote, right?
+And the only person that thinks, this is uh, what animal that we pick again? Raccoon was the offer. And 99 people, 199% of people agree that it's not a raccoon.
+It's a possum. Oh, possum. Right?
+Oh, possum. So in that case, it would switch over to the possum with a high degree of confidence. Yeah.
+Okay. Yeah, so it would show it would show possum here instead with... Yeah, that's good.
+I like that. Cool, that's cool. another code. So we can add some sort of threshold so if it goes over, guys. it's okay.
+I feel like it won't be that bad. I can do this if you want. guys, yeah. I just did it.
+I want to go look at it. Yeah, I think it's more working out the logic is the hard part. Yeah, yeah. implementing is not gonna be super bad.
+But I think this layout will work. Yeah. I can add this, I think.
+But yeah, I think the species page is will be a big one too, having a species page for everything. Huh? It's stupid.
+What's China build? Oh, I changed the colors. colors of certain things? So the top bar is blue now.
+The like button is blue and then if you go and upload a post, these buttons are blue. Did you okay, did you take a picture? Can you send that in?
+Yes. All right.
