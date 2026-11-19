@@ -21,21 +21,18 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.ui.navigation.BackTopBar
-import edu.csuci.tweeter.ui.report.ReportUserButton
 
 /**
  * A profile opened by selecting a user.
  *
  * The owner sees their existing profile screen and account controls.
- * Other viewers see the shared profile layout with following controls and a button that reports
- * the user.
+ * Other viewers see the shared profile layout with following controls.
  *
  * @param userUid The user whose profile was opened.
  * @param onBack Returns to the previous screen.
  * @param onLogIn Opens the login form.
  * @param onCreateAccount Opens registration when the owner screen needs it.
  * @param onEditProfile Opens the viewer's own profile editor.
- * @param onOpenSavedPosts Opens the posts the viewer saved, from their own profile.
  * @param modifier Applied to the whole screen.
  * @param userProfileViewModel Supplies the requested profile and ownership status.
  */
@@ -46,7 +43,6 @@ fun UserProfileScreen(
     onLogIn: () -> Unit,
     onCreateAccount: () -> Unit,
     onEditProfile: () -> Unit,
-    onOpenSavedPosts: () -> Unit,
     modifier: Modifier = Modifier,
     userProfileViewModel: UserProfileViewModel = viewModel(
         factory = UserProfileViewModel.createFactory(userUid)
@@ -61,7 +57,6 @@ fun UserProfileScreen(
             onLogIn = onLogIn,
             onCreateAccount = onCreateAccount,
             onEditProfile = onEditProfile,
-            onOpenSavedPosts = onOpenSavedPosts,
             modifier = modifier
         )
         return
@@ -103,11 +98,6 @@ fun UserProfileScreen(
                     rows = state.rows
                 ) {
                     ProfileFollowControls(
-                        userUid = userUid,
-                        isLoggedIn = state.isLoggedIn,
-                        onLogIn = onLogIn
-                    )
-                    ReportUserButton(
                         userUid = userUid,
                         isLoggedIn = state.isLoggedIn,
                         onLogIn = onLogIn

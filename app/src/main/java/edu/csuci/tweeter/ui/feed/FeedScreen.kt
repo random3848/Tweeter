@@ -19,7 +19,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.ui.CenteredMessage
 import edu.csuci.tweeter.ui.navigation.TweeterTopBar
-import edu.csuci.tweeter.ui.notification.NotificationSetup
 
 /**
  * The home feed, the screen the app opens to, under the app's top bar.
@@ -28,16 +27,13 @@ import edu.csuci.tweeter.ui.notification.NotificationSetup
  * above them: everyone's by Best, Newest or Top, or, for users who are logged in, their friends'.
  * Picking one shows its first post. A label on each post's photo shows the post on Map, and a
  * heart under it likes the post, or opens Log in for guests, who can't, and a button beside it
- * opens its comments, which guests can read. A bookmark at the right end of that row saves the
- * post for the user to view later, or opens Log in for guests. When another screen asks the feed
- * to show a post, as Map's popup does, the feed scrolls to it. The logged-in user's own posts
- * have a delete button, which asks before deleting. The first time a user is logged in here, the
- * app asks them, once, to let it notify them about posts, such as rare animals posted near them
- * and popular posts (see [NotificationSetup]).
+ * opens its comments, which guests can read. When another screen asks the feed to show a post, as
+ * Map's popup does, the feed scrolls to it. The logged-in user's own posts have a delete button,
+ * which asks before deleting.
  *
  * @param onShowOnMap Opens Map, once the post the user chose is requested there.
  * @param onOpenProfile Opens the selected author's profile.
- * @param onLogIn Opens Log in, for a guest who tries to like or save a post or wants to comment.
+ * @param onLogIn Opens Log in, for a guest who tries to like a post or wants to comment.
  * @param modifier Applied to the whole screen.
  * @param topBarActions Buttons on the right of the top bar, such as the profile button.
  * @param feedViewModel Supplies posts and UI state for the feed.
@@ -67,16 +63,12 @@ fun FeedScreen(
         }
     }
 
-    NotificationSetup()
-
     // Takes the post's ID, so that it stays the same lambda as new tables arrive.
     val showPostOnMap = { postId: String ->
         feedViewModel.showOnMap(postId)
         onShowOnMap()
     }
     val likePost = if (uiState.canLike) feedViewModel::toggleLike else { _: String -> onLogIn() }
-    val bookmarkPost =
-        if (uiState.canLike) feedViewModel::toggleBookmark else { _: String -> onLogIn() }
     Column(modifier = modifier.fillMaxSize()) {
         TweeterTopBar(actions = topBarActions)
         FeedChoiceChips(
@@ -100,11 +92,7 @@ fun FeedScreen(
                 onLogIn = onLogIn,
                 modifier = bodyModifier,
                 listState = listState,
-                likes = PostLikes(likedPostIds = uiState.likedPostIds, onLike = likePost),
-                bookmarks = PostBookmarks(
-                    bookmarkedPostIds = uiState.bookmarkedPostIds,
-                    onBookmark = bookmarkPost
-                )
+                likes = PostLikes(likedPostIds = uiState.likedPostIds, onLike = likePost)
             )
         }
         when (uiState.authors) {
