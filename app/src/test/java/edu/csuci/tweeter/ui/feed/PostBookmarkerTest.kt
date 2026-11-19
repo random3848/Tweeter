@@ -18,39 +18,39 @@ class PostBookmarkerTest {
     }
 
     @Test
-    fun bookmark_savesIt() = runTest {
+    fun toggle_postNotSaved_savesIt() = runTest {
         val bookmarks = FakeBookmarkRepository()
 
-        PostBookmarker(bookmarks).bookmark(POST_ID)
+        PostBookmarker(bookmarks).toggle(POST_ID, bookmarkedPostIds = emptySet())
 
         assertEquals(setOf(POST_ID), bookmarks.getBookmarkedPostIds().first())
     }
 
     @Test
-    fun unbookmark_removesIt() = runTest {
+    fun toggle_savedPost_unsavesIt() = runTest {
         val bookmarks = FakeBookmarkRepository(initialBookmarkedPostIds = setOf(POST_ID))
 
-        PostBookmarker(bookmarks).unbookmark(POST_ID)
+        PostBookmarker(bookmarks).toggle(POST_ID, bookmarkedPostIds = setOf(POST_ID))
 
         assertEquals(emptySet<String>(), bookmarks.getBookmarkedPostIds().first())
     }
 
     @Test
-    fun bookmark_notSaved_doesNotThrow() = runTest {
+    fun toggle_bookmarkNotSaved_doesNotThrow() = runTest {
         val bookmarks = UnsavableBookmarkRepository()
 
-        PostBookmarker(bookmarks).bookmark(POST_ID)
+        PostBookmarker(bookmarks).toggle(POST_ID, bookmarkedPostIds = emptySet())
 
         assertEquals(1, bookmarks.attemptCount)
     }
 
     @Test
-    fun bookmark_afterBookmarkNotSaved_triesAgain() = runTest {
+    fun toggle_afterBookmarkNotSaved_triesAgain() = runTest {
         val bookmarks = UnsavableBookmarkRepository()
         val bookmarker = PostBookmarker(bookmarks)
-        bookmarker.bookmark(POST_ID)
+        bookmarker.toggle(POST_ID, bookmarkedPostIds = emptySet())
 
-        bookmarker.bookmark(POST_ID)
+        bookmarker.toggle(POST_ID, bookmarkedPostIds = emptySet())
 
         assertEquals(2, bookmarks.attemptCount)
     }

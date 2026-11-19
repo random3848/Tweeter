@@ -56,7 +56,8 @@ private data class ShownChoice(val choice: FeedChoice, val authors: FeedAuthors)
  * @property likedPostIds The IDs of the posts the user liked, whose hearts are filled.
  * @property bookmarkedPostIds The IDs of the posts the user saved, whose bookmarks are filled: none
  *     until they're read, since the posts don't wait for them.
- * @property canLike Whether the user can like and save posts: they're logged in, not a guest.
+ * @property isLoggedIn Whether a user is logged in, not a guest: the feed lets them like and save
+ *     posts, and opens Log in for guests who try.
  */
 data class FeedUiState(
     val listedPosts: PostRows = PostRows.EMPTY,
@@ -67,7 +68,7 @@ data class FeedUiState(
     val positionToShow: Int? = null,
     val likedPostIds: Set<String> = emptySet(),
     val bookmarkedPostIds: Set<String> = emptySet(),
-    val canLike: Boolean = false
+    val isLoggedIn: Boolean = false
 ) {
     /** Every post, newest first, of which the feed shows [listedPosts]. */
     val posts: PostTable
@@ -157,7 +158,7 @@ class FeedViewModel(
                 isLoading = false,
                 positionToShow = postToShow?.let { postId -> listedPosts.positionOf(postId) },
                 likedPostIds = likedPostIds,
-                canLike = loggedInUid != null
+                isLoggedIn = loggedInUid != null
             )
         }
             .combine(postBookmarker.bookmarkedPostIdsStartingEmpty()) { state, bookmarkedPostIds ->
@@ -220,10 +221,8 @@ class FeedViewModel(
      * shows the like as it was.
      */
     fun toggleLike(postId: String) {
-        val isLiked = postId in uiState.value.likedPostIds
-        viewModelScope.launch {
-            if (isLiked) postLiker.unlike(postId) else postLiker.like(postId)
-        }
+        val likedPostIds = uiState.value.likedPostIds
+        viewModelScope.launch { postLiker.toggle(postId, likedPostIds) }
     }
 
     /**
@@ -232,10 +231,8 @@ class FeedViewModel(
      * shows the post as it was.
      */
     fun toggleBookmark(postId: String) {
-        val isBookmarked = postId in uiState.value.bookmarkedPostIds
-        viewModelScope.launch {
-            if (isBookmarked) postBookmarker.unbookmark(postId) else postBookmarker.bookmark(postId)
-        }
+        val bookmarkedPostIds = uiState.value.bookmarkedPostIds
+        viewModelScope.launch { postBookmarker.toggle(postId, bookmarkedPostIds) }
     }
 
     /** Asks Map to show the post with [postId], which opens its popup when Map opens. */

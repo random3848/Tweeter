@@ -86,12 +86,13 @@ service cloud.firestore {
 
       // The posts the user saved to view later: an empty document per post, named by its ID,
       // which FirestoreBookmarkRepository adds or deletes. Only the user sees or changes them, only
-      // posts that exist can be saved, and saving a post doesn't change it.
+      // posts that exist can be saved, and saving a post doesn't change it. Saving a post already
+      // saved sets its document again, which Firestore checks as an update.
       match /bookmarks/{postId} {
         allow read: if isLoggedInAs(uid);
-        allow create: if isLoggedInAs(uid)
-                      && request.resource.data.keys().size() == 0
-                      && exists(/databases/$(database)/documents/posts/$(postId));
+        allow create, update: if isLoggedInAs(uid)
+                              && request.resource.data.keys().size() == 0
+                              && exists(/databases/$(database)/documents/posts/$(postId));
         allow delete: if isLoggedInAs(uid);
       }
     }

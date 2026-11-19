@@ -105,19 +105,19 @@ class AnimalPostsViewModelTest {
     }
 
     @Test
-    fun uiState_userLoggedIn_canLike() = runTest {
+    fun uiState_userLoggedIn_isLoggedIn() = runTest {
         val viewModel = collectedAnimalPostsViewModel()
 
-        assertTrue(viewModel.uiState.value.canLike)
+        assertTrue(viewModel.uiState.value.isLoggedIn)
     }
 
     @Test
-    fun uiState_guest_cannotLike() = runTest {
+    fun uiState_guest_isNotLoggedIn() = runTest {
         val viewModel = collectedAnimalPostsViewModel()
 
         accountRepository.logOut()
 
-        assertFalse(viewModel.uiState.value.canLike)
+        assertFalse(viewModel.uiState.value.isLoggedIn)
     }
 
     @Test

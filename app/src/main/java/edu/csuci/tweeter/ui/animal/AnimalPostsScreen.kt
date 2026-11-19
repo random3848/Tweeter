@@ -48,9 +48,9 @@ fun AnimalPostsScreen(
         viewModel.showOnMap(postId)
         onShowOnMap()
     }
-    val likePost = if (uiState.canLike) viewModel::toggleLike else { _: String -> onLogIn() }
+    val likePost = if (uiState.isLoggedIn) viewModel::toggleLike else { _: String -> onLogIn() }
     val bookmarkPost =
-        if (uiState.canLike) viewModel::toggleBookmark else { _: String -> onLogIn() }
+        if (uiState.isLoggedIn) viewModel::toggleBookmark else { _: String -> onLogIn() }
     Column(modifier = modifier.fillMaxSize()) {
         BackTopBar(title = animal, onBack = onBack)
         PostList(

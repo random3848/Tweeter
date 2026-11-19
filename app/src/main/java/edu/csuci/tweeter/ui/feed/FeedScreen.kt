@@ -69,9 +69,10 @@ fun FeedScreen(
         feedViewModel.showOnMap(postId)
         onShowOnMap()
     }
-    val likePost = if (uiState.canLike) feedViewModel::toggleLike else { _: String -> onLogIn() }
+    val likePost =
+        if (uiState.isLoggedIn) feedViewModel::toggleLike else { _: String -> onLogIn() }
     val bookmarkPost =
-        if (uiState.canLike) feedViewModel::toggleBookmark else { _: String -> onLogIn() }
+        if (uiState.isLoggedIn) feedViewModel::toggleBookmark else { _: String -> onLogIn() }
     Column(modifier = modifier.fillMaxSize()) {
         TweeterTopBar(actions = topBarActions)
         FeedChoiceChips(
