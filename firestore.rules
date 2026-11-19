@@ -181,6 +181,17 @@ service cloud.firestore {
         allow delete: if isLoggedInAs(uid)
                       && (!countsInRound(resource.data, postId) || changesVoteCounts(postId));
       }
+
+      // The posts the user saved to view later: an empty document per post, named by its ID,
+      // which FirestoreBookmarkRepository adds or deletes. Only the user sees or changes them, only
+      // posts that exist can be saved, and saving a post doesn't change it.
+      match /bookmarks/{postId} {
+        allow read: if isLoggedInAs(uid);
+        allow create: if isLoggedInAs(uid)
+                      && request.resource.data.keys().size() == 0
+                      && exists(/databases/$(database)/documents/posts/$(postId));
+        allow delete: if isLoggedInAs(uid);
+      }
     }
 
     // The fields match PostDocument in the app.
@@ -299,6 +310,58 @@ service cloud.firestore {
             || (hadVote && hasVote
                 && movesVote(before, after, get(votePath(postId)).data.animal,
                              getAfter(votePath(postId)).data.animal));
+      }
+    }
+
+    // Reports of posts and users, which the team reviews in the Firebase console. Logged-in users
+    // send them as themselves and not about themselves, and a post's report names its author. A
+    // report's ID names the reporter, the reported user and the post, or 'profile' when there's
+    // none (see Report.id), so each user keeps one report per post or user: reporting it again
+    // replaces the earlier one. Nobody can read or delete a report from the app. The fields and
+    // limits match Report and FirestoreReportRepository.
+    match /reports/{reportId} {
+      allow create: if isValidReport(reportId);
+
+      allow update: if resource.data.reporterUid == request.auth.uid
+                    && isValidReport(reportId);
+
+      function isValidReport(reportId) {
+        return isLoggedIn()
+            && request.resource.data.keys().hasOnly([
+                 'reporterUid', 'reportedUid', 'postId', 'reason', 'details', 'timestamp'
+               ])
+            && request.resource.data.keys().hasAll([
+                 'reporterUid', 'reportedUid', 'postId', 'reason', 'details', 'timestamp'
+               ])
+            && request.resource.data.reporterUid == request.auth.uid
+            && request.resource.data.reportedUid is string
+            && request.resource.data.reportedUid.size() > 0
+            && request.resource.data.reportedUid.size() <= 128
+            && request.resource.data.reportedUid != request.auth.uid
+            && request.resource.data.postId is string
+            && request.resource.data.postId.size() <= 128
+            && reportId == reportIdOf(request.resource.data)
+            && isByPostAuthor(request.resource.data)
+            && request.resource.data.reason in [
+                 'SPAM', 'HARASSMENT', 'SEXUAL_CONTENT', 'VIOLENCE', 'OTHER'
+               ]
+            && request.resource.data.details is string
+            && request.resource.data.details.size() <= 500
+            // Set by Firestore when it receives the report, not by the phone's clock.
+            && request.resource.data.timestamp == request.time;
+      }
+
+      // The ID Report.id gives [report].
+      function reportIdOf(report) {
+        return report.reporterUid + '_' + report.reportedUid + '_' +
+               (report.postId == '' ? 'profile' : report.postId);
+      }
+
+      // Whether the user [report] reports wrote its post, if it's about one.
+      function isByPostAuthor(report) {
+        return report.postId == ''
+            || get(/databases/$(database)/documents/posts/$(report.postId)).data.authorUid ==
+                 report.reportedUid;
       }
     }
   }

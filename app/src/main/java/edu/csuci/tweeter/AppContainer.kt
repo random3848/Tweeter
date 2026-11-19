@@ -6,16 +6,19 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
 import edu.csuci.tweeter.data.AccountRepository
 import edu.csuci.tweeter.data.AnimalRepository
+import edu.csuci.tweeter.data.BookmarkRepository
 import edu.csuci.tweeter.data.CameraFileStore
 import edu.csuci.tweeter.data.CommentRepository
 import edu.csuci.tweeter.data.FakeAnimalRepository
 import edu.csuci.tweeter.data.FirebaseAccountRepository
 import edu.csuci.tweeter.data.FirebasePhotoRepository
+import edu.csuci.tweeter.data.FirestoreBookmarkRepository
 import edu.csuci.tweeter.data.FirestoreCommentRepository
 import edu.csuci.tweeter.data.FirestoreFollowRepository
 import edu.csuci.tweeter.data.FirestoreLikeRepository
 import edu.csuci.tweeter.data.FirestorePostRepository
 import edu.csuci.tweeter.data.FirestoreProfileRepository
+import edu.csuci.tweeter.data.FirestoreReportRepository
 import edu.csuci.tweeter.data.FirestoreVoteRepository
 import edu.csuci.tweeter.data.FollowRepository
 import edu.csuci.tweeter.data.GuestSignIn
@@ -25,6 +28,7 @@ import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.ProfileSaver
+import edu.csuci.tweeter.data.ReportRepository
 import edu.csuci.tweeter.data.VoteRepository
 import edu.csuci.tweeter.location.LocationTagRemover
 import edu.csuci.tweeter.ui.map.startMapEngine
@@ -115,6 +119,11 @@ class AppContainer(private val context: Context) {
         FirestoreCommentRepository(firestore = FirebaseFirestore.getInstance())
     }
 
+    /** Reports of posts and users, stored in Firestore for the team to review. */
+    val reportRepository: ReportRepository by lazy {
+        FirestoreReportRepository(firestore = FirebaseFirestore.getInstance())
+    }
+
     /**
      * Shared authentication operations and the registered user's identity.
      */
@@ -141,6 +150,19 @@ class AppContainer(private val context: Context) {
      */
     val voteRepository: VoteRepository by lazy {
         FirestoreVoteRepository(
+            accountRepository = accountRepository,
+            guestSignIn = guestSignIn,
+            firestore = FirebaseFirestore.getInstance(),
+            dispatcher = Dispatchers.Default
+        )
+    }
+
+    /**
+     * The logged-in user's saved posts, stored in Firestore under their profile, and read on
+     * [Dispatchers.Default].
+     */
+    val bookmarkRepository: BookmarkRepository by lazy {
+        FirestoreBookmarkRepository(
             accountRepository = accountRepository,
             guestSignIn = guestSignIn,
             firestore = FirebaseFirestore.getInstance(),

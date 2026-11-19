@@ -30,13 +30,14 @@ import edu.csuci.tweeter.ui.voting.VoteActions
  * Picking one shows its first post. A label on each post's photo shows the post on Map, and a
  * heart under it likes the post, or opens Log in for guests, who can't, and a button beside it
  * opens its comments, which guests can read. Its animal name control votes on the animal and opens
- * its page, or its voting page while votes disagree. When another screen asks the feed to show a
- * post, as Map's popup does, the feed scrolls to it. The logged-in user's own posts have a delete
- * button, which asks before deleting.
+ * its page, or its voting page while votes disagree. A bookmark at the right end of that row saves
+ * the post for the user to view later, or opens Log in for guests. When another screen asks the
+ * feed to show a post, as Map's popup does, the feed scrolls to it. The logged-in user's own posts
+ * have a delete button, which asks before deleting.
  *
  * @param onShowOnMap Opens Map, once the post the user chose is requested there.
  * @param onOpenProfile Opens the selected author's profile.
- * @param onLogIn Opens Log in, for a guest who tries to like a post, vote, or comment.
+ * @param onLogIn Opens Log in, for a guest who tries to like or save a post, vote, or comment.
  * @param onOpenAnimal Opens the page of the animal with the given name.
  * @param onOpenVoting Opens the voting page of the post with the given ID.
  * @param modifier Applied to the whole screen.
@@ -86,6 +87,8 @@ fun FeedScreen(
             onOpenVoting = onOpenVoting
         )
     )
+    val bookmarkPost =
+        if (uiState.canLike) feedViewModel::toggleBookmark else { _: String -> onLogIn() }
     Column(modifier = modifier.fillMaxSize()) {
         TweeterTopBar(actions = topBarActions)
         FeedChoiceChips(
@@ -110,7 +113,11 @@ fun FeedScreen(
                 modifier = bodyModifier,
                 listState = listState,
                 likes = PostLikes(likedPostIds = uiState.likedPostIds, onLike = likePost),
-                votes = votes
+                votes = votes,
+                bookmarks = PostBookmarks(
+                    bookmarkedPostIds = uiState.bookmarkedPostIds,
+                    onBookmark = bookmarkPost
+                )
             )
         }
         when (uiState.authors) {

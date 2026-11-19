@@ -51,6 +51,8 @@ import edu.csuci.tweeter.ui.profile.UserProfileRoute
 import edu.csuci.tweeter.ui.profile.addEditProfileScreen
 import edu.csuci.tweeter.ui.profile.addProfileScreen
 import edu.csuci.tweeter.ui.profile.addUserProfileScreen
+import edu.csuci.tweeter.ui.saved.SavedPostsRoute
+import edu.csuci.tweeter.ui.saved.addSavedPostsScreen
 import edu.csuci.tweeter.ui.search.SearchRoute
 import edu.csuci.tweeter.ui.search.addSearchScreen
 import edu.csuci.tweeter.ui.voting.VotingRoute
@@ -238,6 +240,11 @@ private fun TweeterNavHost(
                 launchSingleTop = true
             }
         }
+        val openSavedPosts = {
+            navController.navigate(SavedPostsRoute) {
+                launchSingleTop = true
+            }
+        }
         addFeedScreen(
             onShowOnMap = { navController.navigateToTopLevel(MapRoute) },
             onLogIn = openLogIn,
@@ -285,7 +292,16 @@ private fun TweeterNavHost(
                 navController.navigate(EditProfileRoute) {
                     launchSingleTop = true
                 }
-            }
+            },
+            onOpenSavedPosts = openSavedPosts
+        )
+        addSavedPostsScreen(
+            onBack = { navController.navigateUp() },
+            onShowOnMap = { navController.navigateToTopLevel(MapRoute) },
+            onOpenProfile = openUserProfile,
+            onLogIn = openLogIn,
+            onOpenAnimal = openAnimalPosts,
+            onOpenVoting = openVoting
         )
         addUserProfileScreen(
             onBack = { navController.navigateUp() },
@@ -295,7 +311,8 @@ private fun TweeterNavHost(
                 navController.navigate(EditProfileRoute) {
                     launchSingleTop = true
                 }
-            }
+            },
+            onOpenSavedPosts = openSavedPosts
         )
         addEditProfileScreen(onClose = { navController.navigateUp() })
         addLogInScreen(

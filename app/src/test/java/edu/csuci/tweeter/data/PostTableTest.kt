@@ -126,6 +126,24 @@ class PostTableTest {
     }
 
     @Test
+    fun rowsOf_postIds_returnsTheirRowsInTableOrder() {
+        val table = PostTable.of(SAMPLE_POSTS)
+
+        val rows = table.rowsOf(setOf(SAMPLE_POSTS[2].id, SAMPLE_POSTS[0].id))
+
+        assertArrayEquals(intArrayOf(0, 2), rows)
+    }
+
+    @Test
+    fun rowsOf_unknownPostId_isLeftOut() {
+        val table = PostTable.of(SAMPLE_POSTS)
+
+        val rows = table.rowsOf(setOf(UNKNOWN_ID, SAMPLE_POSTS[1].id))
+
+        assertArrayEquals(intArrayOf(1), rows)
+    }
+
+    @Test
     fun rowsByLikeCount_mostLikedFirst() {
         val table = tableOfLikeCounts(1, 5, 0, 3)
 
@@ -354,8 +372,8 @@ class PostTableTest {
         voteRound = voteRound(row)
     )
 
-    // No screen shows comments or bookmarks yet, and whether the user liked a post depends on who
-    // is looking, so the table doesn't keep them. It keeps authors only to find their rows with
+    // No screen shows comments yet, and whether the user liked or saved a post depends on who is
+    // looking, so the table doesn't keep them. It keeps authors only to find their rows with
     // rowsBy, which the tests of rowsBy cover, and what the vote counts mean rather than the
     // counts, which the tests of shownAnimal and agreement cover.
     private fun Post.withFieldsNotReadBackCleared(): Post = copy(
