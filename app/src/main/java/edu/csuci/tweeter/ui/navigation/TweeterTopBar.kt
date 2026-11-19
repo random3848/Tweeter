@@ -50,7 +50,7 @@ fun TweeterTopBar(modifier: Modifier = Modifier, actions: @Composable RowScope.(
                 Text(
                     text = stringResource(R.string.app_name),
                     style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.primary
                 )
                 Row(verticalAlignment = Alignment.CenterVertically, content = actions)
             }

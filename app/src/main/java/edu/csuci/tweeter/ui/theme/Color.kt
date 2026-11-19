@@ -43,9 +43,6 @@ val DARK_SURFACE = Color(0xFF0E1A1F)
 /** Text and icons. */
 val DARK_TEXT = Color(0xFFF4F6F5)
 
-/** Lighter BLUE for buttons and accents; the original is too dark on a dark screen. */
-val DARK_BLUE = Color(0xFF6FB3CC)
-
 /** Secondary text. Same as DARK_TEXT, so all dark mode text is one color. */
 val DARK_MUTED_TEXT = DARK_TEXT
 
@@ -60,6 +57,3 @@ val DARK_DIVIDER_GRAY = Color(0xFF1B2A31)
 
 /** Lighter ERROR_RED for contrast on dark. */
 val DARK_ERROR_RED = Color(0xFFFF6B5A)
-
-/** The bars at the top and bottom, slightly lighter than the screen. */
-val DARK_BAR = Color(0xFF0F2B36)

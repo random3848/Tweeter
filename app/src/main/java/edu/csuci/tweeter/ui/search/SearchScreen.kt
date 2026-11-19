@@ -15,7 +15,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -69,16 +68,14 @@ fun SearchScreen(
             results.query.isBlank() -> {
                 CenteredMessage(
                     text = stringResource(R.string.search_prompt),
-                    modifier = bodyModifier,
-                    color = MaterialTheme.colorScheme.primary
+                    modifier = bodyModifier
                 )
             }
 
             results.isEmpty() -> {
                 CenteredMessage(
                     text = stringResource(R.string.search_no_results, results.query.trim()),
-                    modifier = bodyModifier,
-                    color = MaterialTheme.colorScheme.primary
+                    modifier = bodyModifier
                 )
             }
 
@@ -120,14 +117,7 @@ private fun SearchField(
         label = { Text(stringResource(R.string.search_field_label)) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.primary,
-            focusedLabelColor = MaterialTheme.colorScheme.primary,
-            unfocusedLabelColor = MaterialTheme.colorScheme.primary,
-            cursorColor = MaterialTheme.colorScheme.primary
-        )
+        keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() })
     )
 }
 
@@ -173,7 +163,6 @@ private fun LazyListScope.sectionHeading(@StringRes text: Int) {
         Text(
             text = stringResource(text),
             style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.primary,
             modifier = Modifier
                 .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 4.dp)
                 .semantics { heading() }

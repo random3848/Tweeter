@@ -1,7 +1,6 @@
 package edu.csuci.tweeter.ui.profile
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,7 +16,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -31,7 +29,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -44,7 +41,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.data.UserProfile
 import edu.csuci.tweeter.ui.camera.CameraOpener
-import edu.csuci.tweeter.ui.theme.ThemeSettings
 
 /**
  * Lets the logged-in user change their photo, name and bio. Save stores them and returns to
@@ -119,15 +115,6 @@ fun EditProfileScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error
                     )
-                }
-                // Placeholder: flips dark mode on or off.
-                val context = LocalContext.current
-                val isDark = ThemeSettings.darkMode ?: isSystemInDarkTheme()
-                Button(
-                    onClick = { ThemeSettings.set(context, !isDark) },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(text = if (isDark) "Switch to light mode" else "Switch to dark mode")
                 }
             }
         }

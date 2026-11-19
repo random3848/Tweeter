@@ -177,4 +177,9 @@
         <item quantity="other">%d followers</item>
     </plurals>
 
+    <string name="theme_title">Theme</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+
 </resources>

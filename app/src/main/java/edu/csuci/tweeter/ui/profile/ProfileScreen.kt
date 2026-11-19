@@ -1,11 +1,18 @@
 package edu.csuci.tweeter.ui.profile
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -43,6 +50,7 @@ fun ProfileScreen(
     profileViewModel: ProfileViewModel = viewModel(factory = ProfileViewModel.factory)
 ) {
     val uiState by profileViewModel.uiState.collectAsStateWithLifecycle()
+    val darkMode by profileViewModel.darkMode.collectAsStateWithLifecycle()
 
     Column(modifier = modifier.fillMaxSize()) {
         BackTopBar(
@@ -56,6 +64,12 @@ fun ProfileScreen(
                 }
             }
         )
+        ThemeSelector(
+            darkMode = darkMode,
+            onSelect = profileViewModel::setDarkMode,
+            modifier = Modifier.padding(vertical = 12.dp)
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
         when (val state = uiState) {
             ProfileUiState.Loading -> {
@@ -88,6 +102,46 @@ fun ProfileScreen(
                         Text(text = stringResource(R.string.profile_edit))
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThemeSelector(
+    darkMode: Boolean?,
+    onSelect: (Boolean?) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.theme_title),
+            style = MaterialTheme.typography.titleMedium
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val options = listOf(
+                null to R.string.theme_system,
+                false to R.string.theme_light,
+                true to R.string.theme_dark
+            )
+            for ((value, labelRes) in options) {
+                FilterChip(
+                    selected = darkMode == value,
+                    onClick = { onSelect(value) },
+                    label = { Text(stringResource(labelRes)) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                        labelColor = MaterialTheme.colorScheme.onSurface
+                    ),
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }

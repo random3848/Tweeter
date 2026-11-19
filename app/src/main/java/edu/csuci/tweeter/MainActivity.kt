@@ -6,11 +6,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import edu.csuci.tweeter.ui.TweeterApp
-import edu.csuci.tweeter.ui.theme.ThemeSettings
 import edu.csuci.tweeter.ui.theme.TweeterTheme
+import edu.csuci.tweeter.ui.theme.useDarkTheme
 
 /** The app's only activity. It opens to an empty screen; the app has no screens yet. */
 class MainActivity : ComponentActivity() {
@@ -20,37 +19,22 @@ class MainActivity : ComponentActivity() {
             // The app starts afresh, so no screen it restores can still use a camera photo.
             (application as TweeterApplication).container.cameraFileStore.discardAll()
         }
-        // The app is always light, so the system bars always use dark icons, even when the
-        // device is in dark mode.
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
-        )
-        ThemeSettings.load(this)
+        val themeRepository = (application as TweeterApplication).container.themeRepository
         setContent {
-            TweeterTheme {
-                val darkTheme = ThemeSettings.darkMode ?: isSystemInDarkTheme()
-                // The system bars' icons follow the app's theme: light icons in dark mode, dark
-                // icons in light mode.
-                DisposableEffect(darkTheme) {
-                    enableEdgeToEdge(
-                        statusBarStyle = if (darkTheme) {
-                            SystemBarStyle.dark(Color.TRANSPARENT)
-                        } else {
-                            SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
-                        },
-                        navigationBarStyle = if (darkTheme) {
-                            SystemBarStyle.dark(Color.TRANSPARENT)
-                        } else {
-                            SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
-                        }
-                    )
-                    onDispose {}
+            val darkTheme = useDarkTheme(themeRepository)
+            // The system bars' icons follow the app's theme: light icons in dark mode, dark
+            // icons in light mode.
+            SideEffect {
+                val barStyle = if (darkTheme) {
+                    SystemBarStyle.dark(Color.TRANSPARENT)
+                } else {
+                    SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
                 }
-                TweeterTheme {
-                    // Screens go here.
-                    TweeterApp()
-                }
+                enableEdgeToEdge(statusBarStyle = barStyle, navigationBarStyle = barStyle)
+            }
+            TweeterTheme(darkTheme) {
+                // Screens go here.
+                TweeterApp()
             }
         }
     }

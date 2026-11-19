@@ -5,6 +5,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import edu.csuci.tweeter.data.ThemeRepository
+
+/** The saved choice if there is one, otherwise the phone's setting. */
+fun resolveDarkTheme(savedChoice: Boolean?, systemDark: Boolean): Boolean =
+    savedChoice ?: systemDark
+
+/** Whether the app is dark now: the user's saved choice, or else the phone's setting. */
+@Composable
+fun useDarkTheme(repository: ThemeRepository): Boolean {
+    val savedChoice by repository.darkMode.collectAsState()
+    return resolveDarkTheme(savedChoice, isSystemInDarkTheme())
+}
 
 /**
  * Theme of the app, taken from the designs: black and white with gray text, one red accent, and
@@ -15,12 +29,9 @@ import androidx.compose.runtime.Composable
  *
  * @param darkTheme Whether to use the dark colors.
  * @param content The UI to theme.
- */
+ **/
 @Composable
-fun TweeterTheme(
-    darkTheme: Boolean = ThemeSettings.darkMode ?: isSystemInDarkTheme(),
-    content: @Composable () -> Unit
-) {
+fun TweeterTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = if (darkTheme) darkColors else lightColors,
         typography = TYPOGRAPHY,
@@ -34,25 +45,25 @@ private val lightColors = lightColorScheme(
     primary = BLUE,
     onPrimary = WHITE,
     primaryContainer = LIGHT_GRAY,
-    onPrimaryContainer = BLUE,
+    onPrimaryContainer = INK,
     inversePrimary = WHITE,
     secondary = MUTED_TEXT,
     onSecondary = WHITE,
     secondaryContainer = PALE_GRAY,
-    onSecondaryContainer = BLUE,
+    onSecondaryContainer = INK,
     tertiary = ACCENT_RED,
     onTertiary = WHITE,
     tertiaryContainer = PALE_GRAY,
-    onTertiaryContainer = BLUE,
+    onTertiaryContainer = INK,
     background = WHITE,
-    onBackground = BLUE,
+    onBackground = INK,
     surface = WHITE,
-    onSurface = BLUE,
+    onSurface = INK,
     surfaceVariant = LIGHT_GRAY,
     onSurfaceVariant = MUTED_TEXT,
     // No tint on raised surfaces; the designs are flat white.
     surfaceTint = WHITE,
-    inverseSurface = BLUE,
+    inverseSurface = INK,
     inverseOnSurface = WHITE,
     error = ERROR_RED,
     onError = WHITE,
@@ -81,6 +92,7 @@ private val darkColors = darkColorScheme(
     onSecondaryContainer = DARK_TEXT,
     tertiary = ACCENT_RED,
     onTertiary = WHITE,
+    tertiaryContainer = DARK_PALE_GRAY,
     onTertiaryContainer = DARK_TEXT,
     background = DARK_SURFACE,
     onBackground = DARK_TEXT,

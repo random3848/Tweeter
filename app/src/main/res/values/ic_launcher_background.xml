@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- BLUE from the designs (ui/theme/Color.kt). -->
-    <color name="ic_launcher_background">#174A5D</color>
+    <!-- INK from the designs (ui/theme/Color.kt). -->
+    <color name="ic_launcher_background">#111614</color>
     <color name="splash_background">#EEF1EE</color>
 </resources>

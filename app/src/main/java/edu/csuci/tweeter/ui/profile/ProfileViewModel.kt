@@ -14,6 +14,7 @@ import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.ProfileRepository
+import edu.csuci.tweeter.data.ThemeRepository
 import edu.csuci.tweeter.data.UserProfile
 import java.util.Objects
 import kotlinx.coroutines.CoroutineDispatcher
@@ -82,9 +83,18 @@ class ProfileViewModel(
     profileRepository: ProfileRepository,
     private val postRepository: PostRepository,
     private val postDeleter: PostDeleter,
+    private val themeRepository: ThemeRepository,
     private val rowsDispatcher: CoroutineDispatcher,
     sharing: SharingStarted
 ) : ViewModel() {
+    /** The user's dark mode choice (true for dark, false for light, null for system). */
+    val darkMode: StateFlow<Boolean?> = themeRepository.darkMode
+
+    /** Sets the user's dark mode choice. */
+    fun setDarkMode(darkMode: Boolean?) {
+        themeRepository.setDarkMode(darkMode)
+    }
+
     /** The current state of the screen, updated as the user logs in and the profile changes. */
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<ProfileUiState> = accountRepository.loggedInUid
@@ -147,6 +157,7 @@ class ProfileViewModel(
                     profileRepository = application.container.profileRepository,
                     postRepository = application.container.postRepository,
                     postDeleter = application.container.postDeleter,
+                    themeRepository = application.container.themeRepository,
                     rowsDispatcher = Dispatchers.Default,
                     sharing = application.container.whileScreenCollects
                 )

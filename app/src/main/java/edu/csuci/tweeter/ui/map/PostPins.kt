@@ -1,10 +1,12 @@
 package edu.csuci.tweeter.ui.map
 
 import androidx.annotation.VisibleForTesting
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import edu.csuci.tweeter.data.PostTable
+import edu.csuci.tweeter.ui.theme.ACCENT_RED
+import edu.csuci.tweeter.ui.theme.BLUE
+import edu.csuci.tweeter.ui.theme.WHITE
 import kotlin.math.cos
 import kotlinx.serialization.json.contentOrNull
 import org.maplibre.compose.expressions.dsl.const
@@ -39,9 +41,9 @@ internal fun PostPins(uiState: MapUiState, onPinClick: (String) -> Unit) {
     CircleLayer(
         id = "post-pins",
         source = rememberGeoJsonSource(uiState.pinnedPosts.pins),
-        color = const(MaterialTheme.colorScheme.onSurface),
+        color = const(BLUE),
         radius = const(PIN_RADIUS),
-        strokeColor = const(MaterialTheme.colorScheme.surface),
+        strokeColor = const(WHITE),
         strokeWidth = const(PIN_OUTLINE_WIDTH),
         onClick = { tappedPins ->
             val postId = position?.let { tap -> nearestPinnedPostId(tappedPins, tap) }
@@ -57,9 +59,9 @@ internal fun PostPins(uiState: MapUiState, onPinClick: (String) -> Unit) {
     CircleLayer(
         id = "selected-post-pin",
         source = rememberGeoJsonSource(uiState.selectedPin),
-        color = const(MaterialTheme.colorScheme.onSurface),
+        color = const(ACCENT_RED),
         radius = const(SELECTED_PIN_RADIUS),
-        strokeColor = const(MaterialTheme.colorScheme.surface),
+        strokeColor = const(WHITE),
         strokeWidth = const(SELECTED_PIN_OUTLINE_WIDTH)
     )
 }
