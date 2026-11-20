@@ -12,10 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 
@@ -40,14 +37,12 @@ fun CameraOpener(camera: CameraControls) {
     }
 
     val context = LocalContext.current
-    var pendingUri by remember { mutableStateOf<String?>(null) }
-
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        val uri = pendingUri
-        pendingUri = null
-        if ((isGranted && uri != null)) {
+        // Still the file the permission was asked for, unless the picture was given up on since.
+        val uri = currentCamera.cameraUriToOpen
+        if (isGranted && uri != null) {
             cameraLauncher.openCamera(uri, currentCamera)
         } else {
             currentCamera.pictureCancelled()
@@ -66,7 +61,6 @@ fun CameraOpener(camera: CameraControls) {
             if (hasPermission) {
                 cameraLauncher.openCamera(uri, currentCamera)
             } else {
-                pendingUri = uri
                 permissionLauncher.launch(Manifest.permission.CAMERA)
             }
         }

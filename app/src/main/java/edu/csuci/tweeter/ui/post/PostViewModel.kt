@@ -40,7 +40,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-private const val UPLOADED_PHOTO_URL_KEY = "uploadedPhotoUrl"
+private const val CAMERA_MESSAGE_KEY = "cameraMessage"
 
 /**
  * Holds the post's photo, taken with the camera or chosen from the camera roll, finds where it
@@ -58,51 +58,54 @@ class PostViewModel(
     private val cameraFileStore: CameraFileStore,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
+    // Looks for the photo's location while it's [LocationStatus.Locating].
     private var locateJob: Job? = null
 
-    // The photo whose latest upload failed, or null.
-    private var failedPhotoUri by mutableStateOf<String?>(null)
-
-    // The photo the screen asked location permissions for last, so that it asks once per photo.
-    private var photoAskedToLocate by mutableStateOf<String?>(null)
+    // The latest share's status, including a failure of a photo that's no longer the post's.
+    private var latestShareStatus by mutableStateOf<ShareStatus>(ShareStatus.Idle)
 
     /** The logged-in user's ID, or null while nobody is logged in and posting isn't allowed. */
     val loggedInUid: StateFlow<String?> = accountRepository.loggedInUid
 
-    /** Whether the photo is being uploaded and shared. */
-    var isUploading by mutableStateOf(false)
-        private set
+    /**
+     * How far sharing the post has got. A failure belongs to its photo: it's reported while that
+     * photo is the post's, and again if it's chosen again, but not for another photo.
+     */
+    val shareStatus: ShareStatus
+        get() {
+            val status = latestShareStatus
+            val isFailureOfAnotherPhoto =
+                status is ShareStatus.Failed && status.photoUri != photo.uri
+            return if (isFailureOfAnotherPhoto) ShareStatus.Idle else status
+        }
 
-    /** The URL of the photo of the post shared last, or null until a post has been shared. */
-    var uploadedPhotoUrl by mutableStateOf(savedStateHandle.get<String>(UPLOADED_PHOTO_URL_KEY))
-        private set
-
-    /** Whether sharing the photo at [photoUri] failed the last time it was tried. */
-    val uploadFailed: Boolean
-        get() = failedPhotoUri != null && failedPhotoUri == photo.uri
+    private val isUploading: Boolean
+        get() = latestShareStatus == ShareStatus.Uploading
 
     /**
-     * Where the post's photo was taken: found by [locatePhoto], or picked by the user with
-     * [pickLocation]. Null until either happens, or when no location could be found; the post
-     * can't be shared until it is set.
+     * How far finding where the post's photo was taken has got: looked for by [locatePhoto], or
+     * picked by the user with [pickLocation]. The post can't be shared until it's
+     * [LocationStatus.Located].
      */
-    var location by mutableStateOf<LocationFix?>(null)
+    var locationStatus by mutableStateOf<LocationStatus>(LocationStatus.AwaitingPermission)
         private set
 
-    /** Whether [locatePhoto] is still looking for the photo's location. */
-    var isLocating by mutableStateOf(false)
+    /** How far the in-app camera has got taking a picture for the post. */
+    var captureStatus by mutableStateOf<CaptureStatus>(CaptureStatus.Idle)
         private set
 
-    /** Whether the in-app camera is currently taking a picture. */
-    var isCapturing by mutableStateOf(false)
-        private set
+    /** Whether the in-app camera can take a picture now: none is being taken or shared. */
+    val canTakePicture: Boolean
+        get() = !isCapturing && !isUploading
 
-    /** Whether the last attempt to take a picture with the in-app camera failed. */
-    var captureFailed by mutableStateOf(false)
-        private set
+    private val isCapturing: Boolean
+        get() = captureStatus != CaptureStatus.Idle
 
-    /** The file the in-app camera should save its next picture into, or null when idle. */
-    var pendingCaptureFile by mutableStateOf<CameraFile?>(null)
+    /**
+     * What the camera screen tells the user about the last thing they did on it, or null for
+     * nothing. It survives Android stopping the app.
+     */
+    var cameraMessage by mutableStateOf(savedStateHandle.get<CameraMessage>(CAMERA_MESSAGE_KEY))
         private set
 
     /**
@@ -122,21 +125,30 @@ class PostViewModel(
      * for first; whatever the user answers, it then calls [locatePhoto].
      */
     val photoToLocate: String?
-        get() = photo.uri.takeIf { it != photoAskedToLocate }
+        get() = photo.uri.takeIf { locationStatus == LocationStatus.AwaitingPermission }
 
     /**
      * Makes the photo at [uri], chosen from the camera roll, the post's photo. Ignored while it
      * uploads.
      */
     fun choosePhoto(uri: String) {
-        clearMessages()
+        clearMessage()
         photo.chooseFromCameraRoll(uri)
     }
 
-    /** Clears status banners from an earlier capture or upload. */
-    fun clearMessages() {
-        captureFailed = false
-        clearUploadedPhotoUrl()
+    /** Clears the camera screen's message, as the user does something new there. */
+    fun clearMessage() {
+        changeMessage(null)
+    }
+
+    private fun changeMessage(message: CameraMessage?) {
+        cameraMessage = message
+        savedStateHandle[CAMERA_MESSAGE_KEY] = message
+    }
+
+    /** Tells the user that the camera roll, which the screen tried to open, couldn't be opened. */
+    fun onCameraRollFailed() {
+        changeMessage(CameraMessage.CAMERA_ROLL_FAILED)
     }
 
     /**
@@ -144,39 +156,79 @@ class PostViewModel(
      * Ignored while a capture or upload is already running.
      */
     fun requestPhotoCapture() {
-        if (isCapturing || isUploading) {
+        if (!canTakePicture) {
             return
         }
 
-        isCapturing = true
-        clearMessages()
+        clearMessage()
+        captureStatus = CaptureStatus.CreatingFile
         viewModelScope.launch {
             try {
-                pendingCaptureFile = cameraFileStore.create()
+                captureFileCreated(cameraFileStore.create())
             } catch (error: IOException) {
                 Log.e("PostViewModel", "Could not create camera photo file", error)
-                captureFailed = true
-                isCapturing = false
+                captureFileNotCreated()
             }
         }
     }
 
+    // Hands [file] to the camera screen to take the picture into, or deletes it if the capture
+    // was cancelled meanwhile.
+    private fun captureFileCreated(file: CameraFile) {
+        if (captureStatus == CaptureStatus.CreatingFile) {
+            captureStatus = CaptureStatus.Capturing(file)
+        } else {
+            cameraFileStore.discard(file.path)
+        }
+    }
+
+    private fun captureFileNotCreated() {
+        if (captureStatus == CaptureStatus.CreatingFile) {
+            failCapture()
+        }
+    }
+
+    private fun failCapture() {
+        captureStatus = CaptureStatus.Idle
+        changeMessage(CameraMessage.CAPTURE_FAILED)
+    }
+
     /**
      * Makes [file], which the in-app camera saved a picture into, the post's photo. It's deleted
-     * instead while the photo uploads.
+     * instead while the photo uploads, and when it's not the file of the running capture, which
+     * was cancelled.
      */
     fun onPhotoCaptured(file: CameraFile) {
-        pendingCaptureFile = null
-        isCapturing = false
+        if (captureStatus != CaptureStatus.Capturing(file)) {
+            cameraFileStore.discard(file.path)
+            return
+        }
+
+        captureStatus = CaptureStatus.Idle
         photo.chooseCameraPicture(file)
     }
 
-    /** Marks the in-app capture into [file] as failed and deletes the unused file. */
+    /**
+     * Marks the in-app capture into [file] as failed, unless it was cancelled, and deletes the
+     * unused file.
+     */
     fun onCaptureFailed(file: CameraFile) {
-        pendingCaptureFile = null
-        isCapturing = false
-        captureFailed = true
+        if (captureStatus == CaptureStatus.Capturing(file)) {
+            failCapture()
+        }
         cameraFileStore.discard(file.path)
+    }
+
+    /**
+     * Cancels the in-app capture, for when the camera screen that would take it leaves: deletes
+     * its file, or the file still being created once it is, so that the screen shown next doesn't
+     * take a picture nobody asked it for. A picture saved into the file afterwards is deleted.
+     */
+    fun cancelPhotoCapture() {
+        (captureStatus as? CaptureStatus.Capturing)?.let { cameraFileStore.discard(it.file.path) }
+        if (isCapturing) {
+            captureStatus = CaptureStatus.Idle
+        }
     }
 
     /** Forgets the photo, to take another. Ignored while it uploads. */
@@ -185,28 +237,28 @@ class PostViewModel(
             return
         }
 
+        clearMessage()
+        forgetPhoto()
+    }
+
+    // Leaves no photo chosen and forgets its location, so that the photo chosen next is located
+    // afresh, even if it's the same one.
+    private fun forgetPhoto() {
         locateJob?.cancel()
-        location = null
-        isLocating = false
-        clearMessages()
+        locationStatus = LocationStatus.AwaitingPermission
         photo.clear()
-        photoAskedToLocate = null
     }
 
     override fun onCleared() {
-        pendingCaptureFile?.let { cameraFileStore.discard(it.path) }
-        pendingCaptureFile = null
+        cancelPhotoCapture()
         super.onCleared()
-    }
-
-    private fun clearUploadedPhotoUrl() {
-        uploadedPhotoUrl = null
-        savedStateHandle[UPLOADED_PHOTO_URL_KEY] = null
     }
 
     /** Stops asking to find [photoToLocate], whose permissions the screen has asked for. */
     fun locationPermissionsRequested() {
-        photoAskedToLocate = photo.uri
+        if (locationStatus == LocationStatus.AwaitingPermission) {
+            locationStatus = LocationStatus.NeedsPin
+        }
     }
 
     /**
@@ -218,40 +270,38 @@ class PostViewModel(
         val uri = photo.uri ?: return
         val capturedInApp = photo.isFromCamera
         locateJob?.cancel()
-        location = null
-        isLocating = true
+        locationStatus = LocationStatus.Locating
         locateJob = viewModelScope.launch {
-            location = photoLocator.locate(uri, capturedInApp)
-            isLocating = false
+            val fix = photoLocator.locate(uri, capturedInApp)
+            locationStatus = fix?.let { LocationStatus.Located(it) } ?: LocationStatus.NeedsPin
         }
     }
 
     /** Sets the post's location to [point], which the user picked on the map. */
     fun pickLocation(point: GeoPoint) {
         locateJob?.cancel()
-        isLocating = false
-        location = LocationFix(point, LocationSource.MANUAL)
+        locationStatus = LocationStatus.Located(LocationFix(point, LocationSource.MANUAL))
     }
 
     /**
-     * Uploads the photo at [photoUri] without its location tags and shares it as a post at
-     * [location] by the logged-in user, then forgets the photo. Ignored while one runs, or while
-     * [photoUri] or [location] is null. Fails if nobody is logged in.
+     * Uploads the photo at [photoUri] without its location tags and shares it as a post where
+     * [locationStatus] says it was taken, by the logged-in user, then forgets the photo. Ignored
+     * while one runs, while [photoUri] is null, or until the location is known. Fails if nobody
+     * is logged in.
      */
     fun uploadPhoto(caption: String, animalType: String, confidence: Int?) {
         val uri = photo.uri
-        val point = location?.point
+        val point = (locationStatus as? LocationStatus.Located)?.fix?.point
         if (isUploading || uri == null || point == null) {
             return
         }
 
-        isUploading = true
-        failedPhotoUri = null
+        latestShareStatus = ShareStatus.Uploading
         photo.lock()
 
         viewModelScope.launch {
             try {
-                val photoUrl = sharePost(
+                sharePost(
                     photo = LocationFreePhoto(uri),
                     findAuthor = {
                         profileRepository.getLoggedInProfile(accountRepository).first()
@@ -262,18 +312,17 @@ class PostViewModel(
                         )
                     }
                 )
-                forgetSharedPhoto(photoUrl)
+                forgetSharedPhoto()
             } catch (error: NobodyLoggedInException) {
                 Log.e("PostViewModel", "Nobody is logged in, so the post can't be shared", error)
-                failedPhotoUri = uri
+                latestShareStatus = ShareStatus.Failed(uri)
             } catch (error: PhotoUploadException) {
                 Log.e("PostViewModel", "Photo upload failed", error)
-                failedPhotoUri = uri
+                latestShareStatus = ShareStatus.Failed(uri)
             } catch (error: FirebaseException) {
                 Log.e("PostViewModel", "Could not save the post", error)
-                failedPhotoUri = uri
+                latestShareStatus = ShareStatus.Failed(uri)
             } finally {
-                isUploading = false
                 photo.unlock()
             }
         }
@@ -288,13 +337,11 @@ class PostViewModel(
         }
     }
 
-    // Forgets the photo, shared as [photoUrl]. The photo chosen next is located afresh, even if
-    // it's the same one.
-    private fun forgetSharedPhoto(photoUrl: String) {
-        uploadedPhotoUrl = photoUrl
-        savedStateHandle[UPLOADED_PHOTO_URL_KEY] = photoUrl
-        photo.clear()
-        photoAskedToLocate = null
+    // Forgets the photo, now shared, and tells the user it was.
+    private fun forgetSharedPhoto() {
+        latestShareStatus = ShareStatus.Idle
+        changeMessage(CameraMessage.POST_SHARED)
+        forgetPhoto()
     }
 
     private fun newPost(

@@ -20,8 +20,7 @@ object CreateAccountRoute
  */
 fun NavGraphBuilder.addLogInScreen(onBack: () -> Unit, onAuthenticated: () -> Unit) {
     opaqueComposable<LogInRoute> {
-        AuthScreen(
-            creatingAccount = false,
+        LogInScreen(
             onBack = onBack,
             onAuthenticated = onAuthenticated
         )
@@ -36,8 +35,7 @@ fun NavGraphBuilder.addLogInScreen(onBack: () -> Unit, onAuthenticated: () -> Un
  */
 fun NavGraphBuilder.addCreateAccountScreen(onBack: () -> Unit, onAuthenticated: () -> Unit) {
     opaqueComposable<CreateAccountRoute> {
-        AuthScreen(
-            creatingAccount = true,
+        CreateAccountScreen(
             onBack = onBack,
             onAuthenticated = onAuthenticated
         )

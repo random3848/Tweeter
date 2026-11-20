@@ -51,8 +51,8 @@ internal const val PROFILE_WRITE_TIMEOUT_MILLIS = 10_000L
  * @param profileSaver Saves the profile, deleting the photo the save leaves unused, even once
  *     this ViewModel has stopped waiting for it.
  * @param accountRepository Who is logged in.
- * @param photo The new profile photo, chosen with the camera or from the camera roll. It isn't
- *     replaced while the profile saves.
+ * @param photo The new profile photo, chosen with the camera or from the camera roll. Saving
+ *     locks it, so that it isn't replaced while the profile saves.
  * @param cameraCapture Takes pictures with the camera app into [photo], for the screen to control
  *     through this ViewModel; it's closed with the ViewModel.
  * @param savedStateHandle Keeps the typed name and bio, and whether the photo was removed.
@@ -67,17 +67,16 @@ class EditProfileViewModel(
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel(cameraCapture),
     CameraControls by cameraCapture {
-    // The profile as it's stored, before the edits, or null while it's still being read.
-    private var profile by mutableStateOf<UserProfile?>(null)
-
-    /** The name and bio as typed, or null while the profile is still being read. */
-    var edits by mutableStateOf<ProfileEdits?>(null)
-        private set
+    private var stage by mutableStateOf<Stage>(Stage.Loading)
 
     // Whether the user removed the photo; a photo chosen since replaces it all the same.
     private var isPhotoRemoved by mutableStateOf(
         savedStateHandle.get<Boolean>(PHOTO_REMOVED_KEY) ?: false
     )
+
+    // The profile being edited, or null while it's read and when there's none to edit.
+    private val editing: Stage.Editing?
+        get() = stage as? Stage.Editing
 
     /** What saving does with the profile photo. */
     val photoChange: PhotoChange
@@ -90,32 +89,49 @@ class EditProfileViewModel(
             }
         }
 
+    /**
+     * The name and bio as typed, or null while the profile is still being read and when there's
+     * no profile to edit.
+     */
+    val edits: ProfileEdits?
+        get() = editing?.edits
+
     /** Whether the edits are being saved. */
-    var isSaving by mutableStateOf(false)
-        private set
+    val isSaving: Boolean
+        get() = editing?.save?.isRunning == true
 
     /**
      * Whether saving is writing the profile, after any new photo has uploaded. The write can't be
      * taken back, so the screen doesn't let the user leave until it's done. Leaving while the
      * photo uploads is fine: it stops the upload and nothing is saved.
      */
-    var isWritingProfile by mutableStateOf(false)
-        private set
+    val isWritingProfile: Boolean
+        get() = editing?.save == SaveStatus.WRITING_PROFILE
 
     /** Whether the latest attempt to save failed. */
-    var saveFailed by mutableStateOf(false)
-        private set
+    val saveFailed: Boolean
+        get() = editing?.save == SaveStatus.FAILED
 
     /**
-     * Whether the screen is finished and should close: the edits were saved, or there's no
-     * profile to edit because nobody is logged in or it couldn't be read.
+     * Whether the screen should close, as nothing is left to do on it: the edits were saved, or
+     * there's no profile to edit because nobody is logged in or it couldn't be read.
      */
-    var isDone by mutableStateOf(false)
-        private set
+    val shouldClose: Boolean
+        get() = when (val current = stage) {
+            Stage.Loading -> false
+            Stage.NothingToEdit -> true
+            is Stage.Editing -> current.save == SaveStatus.SAVED
+        }
 
-    /** Whether [save] would save: the edits are valid and no save is running. */
+    /**
+     * Whether [save] would save: the edits are valid, no save is running and they weren't saved
+     * already.
+     */
     val canSave: Boolean
-        get() = edits?.isValid == true && !isSaving
+        get() {
+            val current = editing ?: return false
+            return current.edits.isValid && current.save.canStart
+        }
 
     /**
      * The profile as its avatar shows it while editing, or null while it's still being read: with
@@ -123,7 +139,7 @@ class EditProfileViewModel(
      */
     val avatarProfile: UserProfile?
         get() {
-            val currentProfile = profile ?: return null
+            val currentProfile = editing?.profile ?: return null
             val photoUrl = when (val change = photoChange) {
                 PhotoChange.Unchanged -> currentProfile.photoUrl
                 is PhotoChange.Replace -> change.photoUri
@@ -158,14 +174,17 @@ class EditProfileViewModel(
 
     /**
      * Makes the photo at [photoUri], chosen from the camera roll, the new profile photo, uploaded
-     * when the profile is saved. Ignored while [isSaving], since saving reads the photo it
-     * started with.
+     * when the profile is saved. Ignored while [isSaving]: saving locks [photo] on the photo it
+     * uploads, and the lock drops this one, as it drops a picture the camera app saves meanwhile.
      */
     fun choosePhoto(photoUri: String) {
         photo.chooseFromCameraRoll(photoUri)
     }
 
-    /** Removes the profile photo when the profile is saved. Ignored while [isSaving]. */
+    /**
+     * Removes the profile photo when the profile is saved. Ignored while [isSaving], which this
+     * checks itself: [photo]'s lock doesn't keep the photo from being cleared.
+     */
     fun removePhoto() {
         if (isSaving) {
             return
@@ -178,31 +197,31 @@ class EditProfileViewModel(
 
     /**
      * Saves the edits and the photo change to the profile, uploading a new photo first, then
-     * sets [isDone]. Ignored unless [canSave].
+     * sets [shouldClose]. Ignored unless [canSave].
      */
     fun save() {
-        val currentProfile = profile ?: return
-        val currentEdits = edits ?: return
+        val current = editing ?: return
         if (!canSave) {
             return
         }
 
-        isSaving = true
+        updateSave(SaveStatus.UPLOADING_PHOTO)
         photo.lock()
-        saveFailed = false
         val change = photoChange
-        viewModelScope.launch { saveProfile(currentEdits.applyTo(currentProfile), change) }
+        viewModelScope.launch { saveProfile(current.edits.applyTo(current.profile), change) }
     }
 
     private suspend fun loadProfile() {
         val loggedInProfile = readLoggedInProfile()
-        if (loggedInProfile == null) {
-            isDone = true
-            return
+        stage = if (loggedInProfile == null) {
+            Stage.NothingToEdit
+        } else {
+            Stage.Editing(
+                profile = loggedInProfile,
+                edits = savedEdits() ?: ProfileEdits.of(loggedInProfile),
+                save = SaveStatus.NOT_STARTED
+            )
         }
-
-        profile = loggedInProfile
-        edits = savedEdits() ?: ProfileEdits.of(loggedInProfile)
     }
 
     // Null when nobody is logged in or the profile can't be read; either way there's nothing to
@@ -217,16 +236,14 @@ class EditProfileViewModel(
     private suspend fun saveProfile(editedProfile: UserProfile, change: PhotoChange) {
         try {
             saveWithPhoto(editedProfile, change)
-            isDone = true
+            updateSave(SaveStatus.SAVED)
         } catch (error: PhotoUploadException) {
             Log.e("EditProfileViewModel", "Could not upload the profile photo", error)
-            saveFailed = true
+            updateSave(SaveStatus.FAILED)
         } catch (error: ProfileSaveException) {
             Log.e("EditProfileViewModel", "Could not save the profile", error)
-            saveFailed = true
+            updateSave(SaveStatus.FAILED)
         } finally {
-            isWritingProfile = false
-            isSaving = false
             photo.unlock()
         }
     }
@@ -239,7 +256,7 @@ class EditProfileViewModel(
 
     // Writes [profileToWrite], whose photo replaces [previousPhotoUrl].
     private suspend fun writeProfile(profileToWrite: UserProfile, previousPhotoUrl: String) {
-        isWritingProfile = true
+        updateSave(SaveStatus.WRITING_PROFILE)
         val saving = profileSaver.save(profileToWrite, previousPhotoUrl)
         val confirmed = withTimeoutOrNull(PROFILE_WRITE_TIMEOUT_MILLIS) { saving.await() }
         if (confirmed == null) {
@@ -262,9 +279,52 @@ class EditProfileViewModel(
     }
 
     private fun updateEdits(newEdits: ProfileEdits) {
-        edits = newEdits
+        stage = editingNow().copy(edits = newEdits)
         savedStateHandle[DISPLAY_NAME_KEY] = newEdits.displayName
         savedStateHandle[BIO_KEY] = newEdits.bio
+    }
+
+    private fun updateSave(newSave: SaveStatus) {
+        stage = editingNow().copy(save = newSave)
+    }
+
+    // Only a profile being edited is changed or saved, and it stays loaded until the screen
+    // closes, also while a save runs.
+    private fun editingNow(): Stage.Editing = checkNotNull(editing) { "No profile is being edited" }
+
+    // Where the screen is: reading the profile, editing it, or with no profile to edit.
+    private sealed interface Stage {
+        // The profile is still being read.
+        data object Loading : Stage
+
+        // Nobody is logged in or the profile couldn't be read, so the screen closes.
+        data object NothingToEdit : Stage
+
+        // The user edits [profile], as it's stored, into [edits], which saving is at [save].
+        data class Editing(
+            val profile: UserProfile,
+            val edits: ProfileEdits,
+            val save: SaveStatus
+        ) : Stage
+    }
+
+    // How far saving the edits has got, and whether a save can start from there. The edits can
+    // still change while a save runs; it saves the ones it started with.
+    private enum class SaveStatus(val isRunning: Boolean, val canStart: Boolean) {
+        // Not saved yet.
+        NOT_STARTED(isRunning = false, canStart = true),
+
+        // Uploading the new photo first, if there is one. Leaving now saves nothing.
+        UPLOADING_PHOTO(isRunning = true, canStart = false),
+
+        // Writing the profile, which can't be taken back.
+        WRITING_PROFILE(isRunning = true, canStart = false),
+
+        // The latest save failed; the user can save again.
+        FAILED(isRunning = false, canStart = true),
+
+        // Saved, so the screen closes, and nothing saves again.
+        SAVED(isRunning = false, canStart = false)
     }
 
     companion object {
