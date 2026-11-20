@@ -22,6 +22,7 @@ import edu.csuci.tweeter.ui.camera.ChosenPhoto
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -30,6 +31,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -113,13 +115,9 @@ class PostViewModelTest {
 
     @Test
     fun requestPhotoCapture_fileCreationFails_setsCaptureFailed() {
-        val failingFileStore = CameraFileStore(
-            findDirectory = { throw IOException("Disk full") },
-            scope = appScope,
-            ioDispatcher = dispatcher,
-            contentUriOf = ::contentUriOf
+        val viewModel = createViewModel(
+            cameraFileStore = cameraFileStoreOn(dispatcher) { throw IOException("Disk full") }
         )
-        val viewModel = createViewModel(cameraFileStore = failingFileStore)
 
         viewModel.requestPhotoCapture()
 
@@ -314,6 +312,82 @@ class PostViewModelTest {
         store.clear()
 
         assertEquals(emptyList<String>(), contentUrisInDirectory())
+    }
+
+    @Test
+    fun cancelPhotoCapture_whileFileIsCreated_leavesNoFileToCaptureInto() {
+        val ioDispatcher = StandardTestDispatcher(dispatcher.scheduler)
+        val viewModel = createViewModel(cameraFileStore = cameraFileStoreOn(ioDispatcher))
+        viewModel.requestPhotoCapture()
+
+        viewModel.cancelPhotoCapture()
+        ioDispatcher.scheduler.advanceUntilIdle()
+
+        assertNull(viewModel.pendingCaptureFile)
+        assertEquals(emptyList<String>(), contentUrisInDirectory())
+    }
+
+    @Test
+    fun cancelPhotoCapture_whileFileIsCreated_reportsNoFailureOfCreatingIt() {
+        val ioDispatcher = StandardTestDispatcher(dispatcher.scheduler)
+        val viewModel = createViewModel(
+            cameraFileStore = cameraFileStoreOn(ioDispatcher) { throw IOException("Disk full") }
+        )
+        viewModel.requestPhotoCapture()
+
+        viewModel.cancelPhotoCapture()
+        ioDispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(viewModel.captureFailed)
+    }
+
+    @Test
+    fun cancelPhotoCapture_whileCapturing_deletesFile() {
+        val viewModel = createViewModel()
+        startCapture(viewModel)
+
+        viewModel.cancelPhotoCapture()
+
+        assertNull(viewModel.pendingCaptureFile)
+        assertFalse(viewModel.isCapturing)
+        assertEquals(emptyList<String>(), contentUrisInDirectory())
+    }
+
+    @Test
+    fun requestPhotoCapture_afterCancelWhileFileIsCreated_takesPictureIntoOneFile() {
+        val ioDispatcher = StandardTestDispatcher(dispatcher.scheduler)
+        val viewModel = createViewModel(cameraFileStore = cameraFileStoreOn(ioDispatcher))
+        viewModel.requestPhotoCapture()
+        viewModel.cancelPhotoCapture()
+
+        viewModel.requestPhotoCapture()
+        ioDispatcher.scheduler.advanceUntilIdle()
+
+        val file = checkNotNull(viewModel.pendingCaptureFile)
+        assertEquals(listOf(file.contentUri), contentUrisInDirectory())
+    }
+
+    @Test
+    fun onPhotoCaptured_afterCaptureCancelled_choosesNoPhoto() {
+        val viewModel = createViewModel()
+        val file = startCapture(viewModel)
+        viewModel.cancelPhotoCapture()
+
+        viewModel.onPhotoCaptured(file)
+
+        assertNull(viewModel.photoUri)
+        assertEquals(emptyList<String>(), contentUrisInDirectory())
+    }
+
+    @Test
+    fun onCaptureFailed_afterCaptureCancelled_reportsNoFailure() {
+        val viewModel = createViewModel()
+        val file = startCapture(viewModel)
+        viewModel.cancelPhotoCapture()
+
+        viewModel.onCaptureFailed(file)
+
+        assertFalse(viewModel.captureFailed)
     }
 
     @Test
@@ -637,12 +711,7 @@ class PostViewModelTest {
 
     private fun createViewModel(
         photoRepository: PhotoRepository = UnusedPhotoRepository(),
-        cameraFileStore: CameraFileStore = CameraFileStore(
-            findDirectory = { directory },
-            scope = appScope,
-            ioDispatcher = dispatcher,
-            contentUriOf = ::contentUriOf
-        ),
+        cameraFileStore: CameraFileStore = cameraFileStoreOn(dispatcher),
         photoLocator: PhotoLocator<String> = PhotoLocator(
             readExif = { null },
             currentDeviceFix = { null },
@@ -662,6 +731,17 @@ class PostViewModelTest {
             savedStateHandle = savedStateHandle
         )
     }
+
+    // Camera files created in [findDirectory], and deleted, on [ioDispatcher].
+    private fun cameraFileStoreOn(
+        ioDispatcher: CoroutineDispatcher,
+        findDirectory: () -> File = { directory }
+    ): CameraFileStore = CameraFileStore(
+        findDirectory = findDirectory,
+        scope = appScope,
+        ioDispatcher = ioDispatcher,
+        contentUriOf = ::contentUriOf
+    )
 
     private fun postCount(): Int = runBlocking { postRepository.getPostTable().first().size }
 

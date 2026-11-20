@@ -105,6 +105,11 @@ class PostViewModel(
     var pendingCaptureFile by mutableStateOf<CameraFile?>(null)
         private set
 
+    // Whether the capture requested last still waits for its file, which it doesn't once it's
+    // cancelled.
+    private val isWaitingForCaptureFile: Boolean
+        get() = isCapturing && pendingCaptureFile == null
+
     /**
      * The URI of the photo to share: a `content://` URI on the phone, or null until the user
      * takes or chooses one, and again once it is shared.
@@ -152,31 +157,69 @@ class PostViewModel(
         clearMessages()
         viewModelScope.launch {
             try {
-                pendingCaptureFile = cameraFileStore.create()
+                captureFileCreated(cameraFileStore.create())
             } catch (error: IOException) {
                 Log.e("PostViewModel", "Could not create camera photo file", error)
-                captureFailed = true
-                isCapturing = false
+                captureFileNotCreated()
             }
+        }
+    }
+
+    // Hands [file] to the camera screen to take the picture into, or deletes it if the capture
+    // was cancelled meanwhile.
+    private fun captureFileCreated(file: CameraFile) {
+        if (isWaitingForCaptureFile) {
+            pendingCaptureFile = file
+        } else {
+            cameraFileStore.discard(file.path)
+        }
+    }
+
+    private fun captureFileNotCreated() {
+        if (isWaitingForCaptureFile) {
+            captureFailed = true
+            isCapturing = false
         }
     }
 
     /**
      * Makes [file], which the in-app camera saved a picture into, the post's photo. It's deleted
-     * instead while the photo uploads.
+     * instead while the photo uploads, and when it's not the file of the running capture, which
+     * was cancelled.
      */
     fun onPhotoCaptured(file: CameraFile) {
+        if (file != pendingCaptureFile) {
+            cameraFileStore.discard(file.path)
+            return
+        }
+
         pendingCaptureFile = null
         isCapturing = false
         photo.chooseCameraPicture(file)
     }
 
-    /** Marks the in-app capture into [file] as failed and deletes the unused file. */
+    /**
+     * Marks the in-app capture into [file] as failed, unless it was cancelled, and deletes the
+     * unused file.
+     */
     fun onCaptureFailed(file: CameraFile) {
+        if (file == pendingCaptureFile) {
+            pendingCaptureFile = null
+            isCapturing = false
+            captureFailed = true
+        }
+        cameraFileStore.discard(file.path)
+    }
+
+    /**
+     * Cancels the in-app capture, for when the camera screen that would take it leaves: deletes
+     * its file, or the file still being created once it is, so that the screen shown next doesn't
+     * take a picture nobody asked it for. A picture saved into the file afterwards is deleted.
+     */
+    fun cancelPhotoCapture() {
+        pendingCaptureFile?.let { cameraFileStore.discard(it.path) }
         pendingCaptureFile = null
         isCapturing = false
-        captureFailed = true
-        cameraFileStore.discard(file.path)
     }
 
     /** Forgets the photo, to take another. Ignored while it uploads. */
@@ -194,8 +237,7 @@ class PostViewModel(
     }
 
     override fun onCleared() {
-        pendingCaptureFile?.let { cameraFileStore.discard(it.path) }
-        pendingCaptureFile = null
+        cancelPhotoCapture()
         super.onCleared()
     }
 

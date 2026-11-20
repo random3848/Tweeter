@@ -224,6 +224,9 @@ private fun CameraCaptureScreen(
             }
         )
     }
+    DisposableEffect(postViewModel) {
+        onDispose { postViewModel.cancelPhotoCapture() }
+    }
 
     val cameraRollLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
