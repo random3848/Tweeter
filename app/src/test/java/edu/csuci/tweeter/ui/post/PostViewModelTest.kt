@@ -250,8 +250,7 @@ class PostViewModelTest {
         viewModel.retakePhoto()
 
         assertNull(viewModel.photoUri)
-        assertNull(viewModel.location)
-        assertFalse(viewModel.isLocating)
+        assertEquals(LocationStatus.AwaitingPermission, viewModel.locationStatus)
         assertEquals(emptyList<String>(), contentUrisInDirectory())
     }
 
@@ -440,18 +439,17 @@ class PostViewModelTest {
 
         viewModel.locatePhoto()
 
-        assertEquals(EXIF_FIX, viewModel.location)
+        assertEquals(LocationStatus.Located(EXIF_FIX), viewModel.locationStatus)
     }
 
     @Test
-    fun locatePhoto_nothingFound_leavesLocationToPick() {
+    fun locatePhoto_nothingFound_needsPin() {
         val viewModel = createViewModel()
         viewModel.choosePhoto(CAMERA_ROLL_URI)
 
         viewModel.locatePhoto()
 
-        assertNull(viewModel.location)
-        assertFalse(viewModel.isLocating)
+        assertEquals(LocationStatus.NeedsPin, viewModel.locationStatus)
     }
 
     @Test
@@ -461,7 +459,7 @@ class PostViewModelTest {
 
         viewModel.locatePhoto()
 
-        assertTrue(viewModel.isLocating)
+        assertEquals(LocationStatus.Locating, viewModel.locationStatus)
     }
 
     @Test
@@ -472,7 +470,7 @@ class PostViewModelTest {
 
         viewModel.locatePhoto()
 
-        assertNull(viewModel.location)
+        assertEquals(LocationStatus.Locating, viewModel.locationStatus)
     }
 
     @Test
@@ -481,7 +479,7 @@ class PostViewModelTest {
 
         viewModel.locatePhoto()
 
-        assertFalse(viewModel.isLocating)
+        assertEquals(LocationStatus.AwaitingPermission, viewModel.locationStatus)
     }
 
     @Test
@@ -491,7 +489,7 @@ class PostViewModelTest {
 
         viewModel.pickLocation(PICKED_POINT)
 
-        assertEquals(PICKED_FIX, viewModel.location)
+        assertEquals(LocationStatus.Located(PICKED_FIX), viewModel.locationStatus)
     }
 
     @Test
@@ -504,7 +502,7 @@ class PostViewModelTest {
         viewModel.pickLocation(PICKED_POINT)
 
         assertTrue(device.lookups.single().isCancelled)
-        assertFalse(viewModel.isLocating)
+        assertEquals(LocationStatus.Located(PICKED_FIX), viewModel.locationStatus)
     }
 
     @Test
@@ -517,18 +515,18 @@ class PostViewModelTest {
 
         device.fix.complete(DEVICE_FIX)
 
-        assertEquals(PICKED_FIX, viewModel.location)
+        assertEquals(LocationStatus.Located(PICKED_FIX), viewModel.locationStatus)
     }
 
     @Test
-    fun location_photoChosenAfterShare_isNotTheSharedPostsLocation() {
+    fun locationStatus_photoChosenAfterShare_awaitsPermissionForIt() {
         val viewModel = createViewModel(photoRepository = UploadingPhotoRepository())
         viewModel.choosePhoto(CAMERA_ROLL_URI)
         shareChosenPhoto(viewModel)
 
         viewModel.choosePhoto(OTHER_CAMERA_ROLL_URI)
 
-        assertNull(viewModel.location)
+        assertEquals(LocationStatus.AwaitingPermission, viewModel.locationStatus)
     }
 
     @Test

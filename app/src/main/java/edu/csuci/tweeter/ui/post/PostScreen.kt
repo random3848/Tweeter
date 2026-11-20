@@ -63,7 +63,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
-import edu.csuci.tweeter.location.LocationFix
 import edu.csuci.tweeter.location.LocationSource
 import edu.csuci.tweeter.ui.auth.LogInPrompt
 import edu.csuci.tweeter.ui.location.LocationPicker
@@ -429,8 +428,10 @@ private fun PostDetailsForm(postViewModel: PostViewModel, modifier: Modifier = M
             }
         }
 
+        val locationStatus = postViewModel.locationStatus
+        val location = (locationStatus as? LocationStatus.Located)?.fix
         Button(
-            enabled = !postViewModel.isUploading && postViewModel.location != null,
+            enabled = !postViewModel.isUploading && location != null,
             onClick = { showPostDialog = true }
         ) {
             Text(stringResource(R.string.upload_photo))
@@ -456,9 +457,9 @@ private fun PostDetailsForm(postViewModel: PostViewModel, modifier: Modifier = M
         }
         Text(stringResource(statusResource))
 
-        Text(locationStatus(postViewModel.location, postViewModel.isLocating))
+        Text(locationText(locationStatus))
         LocationPicker(
-            selected = postViewModel.location?.point,
+            selected = location?.point,
             onSelect = postViewModel::pickLocation,
             modifier = Modifier
                 .fillMaxWidth()
@@ -525,14 +526,17 @@ private fun CameraPreview(imageCapture: ImageCapture, modifier: Modifier = Modif
     }
 }
 
-/** What the post screen says about the photo's [location] while or after [isLocating]. */
+/** What the post screen says about how far finding where the photo was taken has got. */
 @Composable
-private fun locationStatus(location: LocationFix?, isLocating: Boolean): String = when {
-    isLocating -> stringResource(R.string.post_location_finding)
+private fun locationText(status: LocationStatus): String = when (status) {
+    LocationStatus.AwaitingPermission, LocationStatus.NeedsPin -> {
+        stringResource(R.string.post_location_needed)
+    }
 
-    location == null -> stringResource(R.string.post_location_needed)
+    LocationStatus.Locating -> stringResource(R.string.post_location_finding)
 
-    else -> {
+    is LocationStatus.Located -> {
+        val location = status.fix
         val text = when (location.source) {
             LocationSource.EXIF -> R.string.post_location_from_photo
             LocationSource.DEVICE -> R.string.post_location_from_device

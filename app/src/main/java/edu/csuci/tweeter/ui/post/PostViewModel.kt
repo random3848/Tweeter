@@ -58,13 +58,11 @@ class PostViewModel(
     private val cameraFileStore: CameraFileStore,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
+    // Looks for the photo's location while it's [LocationStatus.Locating].
     private var locateJob: Job? = null
 
     // The photo whose latest upload failed, or null.
     private var failedPhotoUri by mutableStateOf<String?>(null)
-
-    // The photo the screen asked location permissions for last, so that it asks once per photo.
-    private var photoAskedToLocate by mutableStateOf<String?>(null)
 
     /** The logged-in user's ID, or null while nobody is logged in and posting isn't allowed. */
     val loggedInUid: StateFlow<String?> = accountRepository.loggedInUid
@@ -82,15 +80,11 @@ class PostViewModel(
         get() = failedPhotoUri != null && failedPhotoUri == photo.uri
 
     /**
-     * Where the post's photo was taken: found by [locatePhoto], or picked by the user with
-     * [pickLocation]. Null until either happens, or when no location could be found; the post
-     * can't be shared until it is set.
+     * How far finding where the post's photo was taken has got: looked for by [locatePhoto], or
+     * picked by the user with [pickLocation]. The post can't be shared until it's
+     * [LocationStatus.Located].
      */
-    var location by mutableStateOf<LocationFix?>(null)
-        private set
-
-    /** Whether [locatePhoto] is still looking for the photo's location. */
-    var isLocating by mutableStateOf(false)
+    var locationStatus by mutableStateOf<LocationStatus>(LocationStatus.AwaitingPermission)
         private set
 
     /** How far the in-app camera has got taking a picture for the post. */
@@ -122,7 +116,7 @@ class PostViewModel(
      * for first; whatever the user answers, it then calls [locatePhoto].
      */
     val photoToLocate: String?
-        get() = photo.uri.takeIf { it != photoAskedToLocate }
+        get() = photo.uri.takeIf { locationStatus == LocationStatus.AwaitingPermission }
 
     /**
      * Makes the photo at [uri], chosen from the camera roll, the post's photo. Ignored while it
@@ -222,12 +216,16 @@ class PostViewModel(
             return
         }
 
-        locateJob?.cancel()
-        location = null
-        isLocating = false
         clearMessages()
+        forgetPhoto()
+    }
+
+    // Leaves no photo chosen and forgets its location, so that the photo chosen next is located
+    // afresh, even if it's the same one.
+    private fun forgetPhoto() {
+        locateJob?.cancel()
+        locationStatus = LocationStatus.AwaitingPermission
         photo.clear()
-        photoAskedToLocate = null
     }
 
     override fun onCleared() {
@@ -242,7 +240,9 @@ class PostViewModel(
 
     /** Stops asking to find [photoToLocate], whose permissions the screen has asked for. */
     fun locationPermissionsRequested() {
-        photoAskedToLocate = photo.uri
+        if (locationStatus == LocationStatus.AwaitingPermission) {
+            locationStatus = LocationStatus.NeedsPin
+        }
     }
 
     /**
@@ -254,29 +254,28 @@ class PostViewModel(
         val uri = photo.uri ?: return
         val capturedInApp = photo.isFromCamera
         locateJob?.cancel()
-        location = null
-        isLocating = true
+        locationStatus = LocationStatus.Locating
         locateJob = viewModelScope.launch {
-            location = photoLocator.locate(uri, capturedInApp)
-            isLocating = false
+            val fix = photoLocator.locate(uri, capturedInApp)
+            locationStatus = fix?.let { LocationStatus.Located(it) } ?: LocationStatus.NeedsPin
         }
     }
 
     /** Sets the post's location to [point], which the user picked on the map. */
     fun pickLocation(point: GeoPoint) {
         locateJob?.cancel()
-        isLocating = false
-        location = LocationFix(point, LocationSource.MANUAL)
+        locationStatus = LocationStatus.Located(LocationFix(point, LocationSource.MANUAL))
     }
 
     /**
-     * Uploads the photo at [photoUri] without its location tags and shares it as a post at
-     * [location] by the logged-in user, then forgets the photo. Ignored while one runs, or while
-     * [photoUri] or [location] is null. Fails if nobody is logged in.
+     * Uploads the photo at [photoUri] without its location tags and shares it as a post where
+     * [locationStatus] says it was taken, by the logged-in user, then forgets the photo. Ignored
+     * while one runs, while [photoUri] is null, or until the location is known. Fails if nobody
+     * is logged in.
      */
     fun uploadPhoto(caption: String, animalType: String, confidence: Int?) {
         val uri = photo.uri
-        val point = location?.point
+        val point = (locationStatus as? LocationStatus.Located)?.fix?.point
         if (isUploading || uri == null || point == null) {
             return
         }
@@ -324,14 +323,11 @@ class PostViewModel(
         }
     }
 
-    // Forgets the photo, shared as [photoUrl], and its location. The photo chosen next is located
-    // afresh, even if it's the same one.
+    // Forgets the photo, shared as [photoUrl].
     private fun forgetSharedPhoto(photoUrl: String) {
         uploadedPhotoUrl = photoUrl
         savedStateHandle[UPLOADED_PHOTO_URL_KEY] = photoUrl
-        location = null
-        photo.clear()
-        photoAskedToLocate = null
+        forgetPhoto()
     }
 
     private fun newPost(
