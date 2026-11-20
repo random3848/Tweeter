@@ -15,14 +15,20 @@ import edu.csuci.tweeter.data.FakeProfileRepository
 import edu.csuci.tweeter.data.PhotoRepository
 import edu.csuci.tweeter.data.PhotoUploadException
 import edu.csuci.tweeter.location.GeoPoint
+import edu.csuci.tweeter.location.LocationFix
+import edu.csuci.tweeter.location.LocationSource
 import edu.csuci.tweeter.location.PhotoLocator
 import edu.csuci.tweeter.ui.camera.ChosenPhoto
 import java.io.File
 import java.io.IOException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -42,7 +48,18 @@ private const val CONTENT_URI_PREFIX = "content://camera/"
 private const val CAMERA_ROLL_URI = "content://media/1"
 private const val OTHER_CAMERA_ROLL_URI = "content://media/2"
 private const val UPLOADED_URL = "https://example.com/uploaded.jpg"
+private const val LOGGED_IN_UID = "uid"
 private val PICKED_POINT = GeoPoint(latitude = 34.16, longitude = -119.04)
+private val PICKED_FIX = LocationFix(PICKED_POINT, LocationSource.MANUAL)
+private val EXIF_FIX = LocationFix(
+    GeoPoint(latitude = 34.2, longitude = -119.2),
+    LocationSource.EXIF
+)
+private val DEVICE_FIX = LocationFix(
+    GeoPoint(latitude = 34.3, longitude = -119.3),
+    LocationSource.DEVICE,
+    accuracyMeters = 5f
+)
 
 class PostViewModelTest {
     @get:Rule
@@ -109,6 +126,60 @@ class PostViewModelTest {
         assertTrue(viewModel.captureFailed)
         assertFalse(viewModel.isCapturing)
         assertNull(viewModel.pendingCaptureFile)
+    }
+
+    @Test
+    fun requestPhotoCapture_whileUploading_isIgnored() {
+        val viewModel = createViewModel(photoRepository = SlowPhotoRepository())
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+        shareChosenPhoto(viewModel)
+
+        viewModel.requestPhotoCapture()
+
+        assertFalse(viewModel.isCapturing)
+        assertEquals(emptyList<String>(), contentUrisInDirectory())
+    }
+
+    @Test
+    fun requestPhotoCapture_afterFailedCapture_clearsCaptureFailed() {
+        val viewModel = createViewModel()
+        viewModel.onCaptureFailed(startCapture(viewModel))
+
+        viewModel.requestPhotoCapture()
+
+        assertFalse(viewModel.captureFailed)
+    }
+
+    @Test
+    fun requestPhotoCapture_afterShare_clearsUploadedPhotoUrl() {
+        val viewModel = createViewModel(photoRepository = UploadingPhotoRepository())
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+        shareChosenPhoto(viewModel)
+
+        viewModel.requestPhotoCapture()
+
+        assertNull(viewModel.uploadedPhotoUrl)
+    }
+
+    @Test
+    fun clearMessages_afterFailedCapture_clearsCaptureFailed() {
+        val viewModel = createViewModel()
+        viewModel.onCaptureFailed(startCapture(viewModel))
+
+        viewModel.clearMessages()
+
+        assertFalse(viewModel.captureFailed)
+    }
+
+    @Test
+    fun clearMessages_afterShare_clearsUploadedPhotoUrl() {
+        val viewModel = createViewModel(photoRepository = UploadingPhotoRepository())
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+        shareChosenPhoto(viewModel)
+
+        viewModel.clearMessages()
+
+        assertNull(viewModel.uploadedPhotoUrl)
     }
 
     @Test
@@ -265,6 +336,128 @@ class PostViewModelTest {
     }
 
     @Test
+    fun photoToLocate_noPhoto_isNull() {
+        assertNull(createViewModel().photoToLocate)
+    }
+
+    @Test
+    fun photoToLocate_sameDocumentAfterRetake_isItAgain() {
+        val viewModel = createViewModel()
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+        viewModel.locationPermissionsRequested()
+        viewModel.retakePhoto()
+
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+
+        assertEquals(CAMERA_ROLL_URI, viewModel.photoToLocate)
+    }
+
+    @Test
+    fun photoToLocate_sameDocumentAfterShare_isItAgain() {
+        val viewModel = createViewModel(photoRepository = UploadingPhotoRepository())
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+        viewModel.locationPermissionsRequested()
+        shareChosenPhoto(viewModel)
+
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+
+        assertEquals(CAMERA_ROLL_URI, viewModel.photoToLocate)
+    }
+
+    @Test
+    fun locatePhoto_documentWithGpsTags_findsTheirLocation() {
+        val viewModel = createViewModel(
+            photoLocator = PhotoLocator(
+                readExif = { EXIF_FIX },
+                currentDeviceFix = { null },
+                ioDispatcher = dispatcher
+            )
+        )
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+
+        viewModel.locatePhoto()
+
+        assertEquals(EXIF_FIX, viewModel.location)
+    }
+
+    @Test
+    fun locatePhoto_nothingFound_leavesLocationToPick() {
+        val viewModel = createViewModel()
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+
+        viewModel.locatePhoto()
+
+        assertNull(viewModel.location)
+        assertFalse(viewModel.isLocating)
+    }
+
+    @Test
+    fun locatePhoto_whileDeviceLooks_isLocating() {
+        val viewModel = createViewModel(photoLocator = SlowDevice().photoLocator())
+        takeCameraPhoto(viewModel)
+
+        viewModel.locatePhoto()
+
+        assertTrue(viewModel.isLocating)
+    }
+
+    @Test
+    fun locatePhoto_afterPick_forgetsPickedLocation() {
+        val viewModel = createViewModel(photoLocator = SlowDevice().photoLocator())
+        takeCameraPhoto(viewModel)
+        viewModel.pickLocation(PICKED_POINT)
+
+        viewModel.locatePhoto()
+
+        assertNull(viewModel.location)
+    }
+
+    @Test
+    fun locatePhoto_noPhoto_isIgnored() {
+        val viewModel = createViewModel(photoLocator = SlowDevice().photoLocator())
+
+        viewModel.locatePhoto()
+
+        assertFalse(viewModel.isLocating)
+    }
+
+    @Test
+    fun pickLocation_setsPickedLocation() {
+        val viewModel = createViewModel()
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+
+        viewModel.pickLocation(PICKED_POINT)
+
+        assertEquals(PICKED_FIX, viewModel.location)
+    }
+
+    @Test
+    fun pickLocation_whileLocating_stopsLooking() {
+        val device = SlowDevice()
+        val viewModel = createViewModel(photoLocator = device.photoLocator())
+        takeCameraPhoto(viewModel)
+        viewModel.locatePhoto()
+
+        viewModel.pickLocation(PICKED_POINT)
+
+        assertTrue(device.lookups.single().isCancelled)
+        assertFalse(viewModel.isLocating)
+    }
+
+    @Test
+    fun pickLocation_whileLocating_keepsPickOverDeviceFixFoundLater() {
+        val device = SlowDevice()
+        val viewModel = createViewModel(photoLocator = device.photoLocator())
+        takeCameraPhoto(viewModel)
+        viewModel.locatePhoto()
+        viewModel.pickLocation(PICKED_POINT)
+
+        device.fix.complete(DEVICE_FIX)
+
+        assertEquals(PICKED_FIX, viewModel.location)
+    }
+
+    @Test
     fun choosePhoto_whileUploading_keepsPhotoBeingUploaded() {
         val viewModel = createViewModel(photoRepository = SlowPhotoRepository())
         viewModel.choosePhoto(CAMERA_ROLL_URI)
@@ -328,6 +521,104 @@ class PostViewModelTest {
         assertEquals(emptyList<String>(), contentUrisInDirectory())
     }
 
+    @Test
+    fun uploadPhoto_shared_addsPostAtLocation() {
+        val viewModel = createViewModel(photoRepository = UploadingPhotoRepository())
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+        viewModel.pickLocation(PICKED_POINT)
+
+        viewModel.uploadPhoto(caption = "", animalType = "", confidence = null)
+
+        assertEquals(PICKED_POINT, firstPostPoint())
+    }
+
+    @Test
+    fun uploadPhoto_withoutLocation_isIgnored() {
+        val viewModel = createViewModel(photoRepository = UploadingPhotoRepository())
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+
+        viewModel.uploadPhoto(caption = "", animalType = "", confidence = null)
+
+        assertEquals(0, postCount())
+    }
+
+    @Test
+    fun uploadPhoto_uploadRunning_isUploading() {
+        val viewModel = createViewModel(photoRepository = SlowPhotoRepository())
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+        viewModel.pickLocation(PICKED_POINT)
+
+        viewModel.uploadPhoto(caption = "", animalType = "", confidence = null)
+
+        assertTrue(viewModel.isUploading)
+    }
+
+    @Test
+    fun uploadPhoto_whileUploading_isIgnored() {
+        val photoRepository = SlowPhotoRepository()
+        val viewModel = createViewModel(photoRepository = photoRepository)
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+        shareChosenPhoto(viewModel)
+
+        viewModel.uploadPhoto(caption = "", animalType = "", confidence = null)
+
+        assertEquals(1, photoRepository.uploadCount)
+    }
+
+    @Test
+    fun uploadPhoto_nobodyLoggedIn_fails() {
+        val viewModel = createViewModel(
+            photoRepository = SlowPhotoRepository(),
+            loggedInUid = null
+        )
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+        viewModel.pickLocation(PICKED_POINT)
+
+        viewModel.uploadPhoto(caption = "", animalType = "", confidence = null)
+
+        assertTrue(viewModel.uploadFailed)
+    }
+
+    @Test
+    fun uploadPhoto_retryAfterFailure_isNoLongerFailed() {
+        val viewModel = createViewModel(photoRepository = FailingOncePhotoRepository())
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+        shareChosenPhoto(viewModel)
+
+        viewModel.uploadPhoto(caption = "", animalType = "", confidence = null)
+
+        assertFalse(viewModel.uploadFailed)
+    }
+
+    @Test
+    fun uploadFailed_sameDocumentChosenAgain_isTrue() {
+        val viewModel = createViewModel(photoRepository = FailingPhotoRepository())
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+        shareChosenPhoto(viewModel)
+        viewModel.retakePhoto()
+
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+
+        assertTrue(viewModel.uploadFailed)
+    }
+
+    @Test
+    fun init_afterShare_restoresUploadedPhotoUrl() {
+        val viewModel = createViewModel(photoRepository = UploadingPhotoRepository())
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+        shareChosenPhoto(viewModel)
+
+        val restored = createViewModel()
+
+        assertEquals(UPLOADED_URL, restored.uploadedPhotoUrl)
+    }
+
+    // Shares the chosen photo, at the picked point, with no details.
+    private fun shareChosenPhoto(viewModel: PostViewModel) {
+        viewModel.pickLocation(PICKED_POINT)
+        viewModel.uploadPhoto(caption = "", animalType = "", confidence = null)
+    }
+
     // Starts a capture, returning the pending CameraFile created by the ViewModel.
     private fun startCapture(viewModel: PostViewModel): CameraFile {
         viewModel.requestPhotoCapture()
@@ -356,14 +647,15 @@ class PostViewModelTest {
             readExif = { null },
             currentDeviceFix = { null },
             ioDispatcher = dispatcher
-        )
+        ),
+        loggedInUid: String? = LOGGED_IN_UID
     ): PostViewModel {
         val photo = ChosenPhoto(cameraFileStore, savedStateHandle)
         return PostViewModel(
             photoRepository = photoRepository,
             postRepository = postRepository,
             profileRepository = FakeProfileRepository(),
-            accountRepository = FakeAccountRepository(initialUid = "uid"),
+            accountRepository = FakeAccountRepository(initialUid = loggedInUid),
             photoLocator = photoLocator,
             photo = photo,
             cameraFileStore = cameraFileStore,
@@ -372,6 +664,11 @@ class PostViewModelTest {
     }
 
     private fun postCount(): Int = runBlocking { postRepository.getPostTable().first().size }
+
+    private fun firstPostPoint(): GeoPoint = runBlocking {
+        val table = postRepository.getPostTable().first()
+        GeoPoint(latitude = table.latitude(0), longitude = table.longitude(0))
+    }
 
     private fun contentUriOf(file: File): String = CONTENT_URI_PREFIX + file.name
 
@@ -400,6 +697,47 @@ class PostViewModelTest {
 
     // An upload that doesn't finish while the test runs, like a slow one.
     private class SlowPhotoRepository : UnusedPhotoRepository() {
-        override suspend fun uploadPhoto(photoUri: String): String = awaitCancellation()
+        var uploadCount = 0
+            private set
+
+        override suspend fun uploadPhoto(photoUri: String): String {
+            uploadCount++
+            return awaitCancellation()
+        }
+    }
+
+    // The first upload fails; those after it don't finish while the test runs.
+    private class FailingOncePhotoRepository : UnusedPhotoRepository() {
+        private var hasFailed = false
+
+        override suspend fun uploadPhoto(photoUri: String): String {
+            if (hasFailed) {
+                return awaitCancellation()
+            }
+            hasFailed = true
+            throw PhotoUploadException(IOException("Could not read the photo"))
+        }
+    }
+
+    // A device that finds where it is once [fix] completes, for photos without GPS tags.
+    private inner class SlowDevice {
+        val fix = CompletableDeferred<LocationFix?>()
+
+        private val startedLookups = mutableListOf<Job>()
+
+        // The jobs of the lookups started so far, oldest first.
+        val lookups: List<Job>
+            get() = startedLookups
+
+        fun photoLocator(): PhotoLocator<String> = PhotoLocator(
+            readExif = { null },
+            currentDeviceFix = ::findCurrentFix,
+            ioDispatcher = dispatcher
+        )
+
+        private suspend fun findCurrentFix(): LocationFix? {
+            startedLookups += currentCoroutineContext().job
+            return fix.await()
+        }
     }
 }
