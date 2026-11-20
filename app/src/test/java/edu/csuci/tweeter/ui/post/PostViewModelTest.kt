@@ -90,40 +90,35 @@ class PostViewModelTest {
     }
 
     @Test
-    fun requestPhotoCapture_createsFileAndSetsPendingFile() {
+    fun requestPhotoCapture_createsFileToCaptureInto() {
         val viewModel = createViewModel()
 
         viewModel.requestPhotoCapture()
 
-        val file = checkNotNull(viewModel.pendingCaptureFile)
-        assertTrue(viewModel.isCapturing)
-        assertFalse(viewModel.captureFailed)
-        assertEquals(listOf(file.contentUri), contentUrisInDirectory())
+        assertEquals(listOf(captureFileOf(viewModel).contentUri), contentUrisInDirectory())
     }
 
     @Test
     fun requestPhotoCapture_whileAlreadyCapturing_ignoresSecondRequest() {
         val viewModel = createViewModel()
         viewModel.requestPhotoCapture()
-        val firstFile = viewModel.pendingCaptureFile
+        val firstStatus = viewModel.captureStatus
 
         viewModel.requestPhotoCapture()
 
-        assertEquals(firstFile, viewModel.pendingCaptureFile)
+        assertEquals(firstStatus, viewModel.captureStatus)
         assertEquals(1, contentUrisInDirectory().size)
     }
 
     @Test
-    fun requestPhotoCapture_fileCreationFails_setsCaptureFailed() {
+    fun requestPhotoCapture_fileCreationFails_fails() {
         val viewModel = createViewModel(
             cameraFileStore = cameraFileStoreOn(dispatcher) { throw IOException("Disk full") }
         )
 
         viewModel.requestPhotoCapture()
 
-        assertTrue(viewModel.captureFailed)
-        assertFalse(viewModel.isCapturing)
-        assertNull(viewModel.pendingCaptureFile)
+        assertEquals(CaptureStatus.Failed, viewModel.captureStatus)
     }
 
     @Test
@@ -134,18 +129,18 @@ class PostViewModelTest {
 
         viewModel.requestPhotoCapture()
 
-        assertFalse(viewModel.isCapturing)
+        assertEquals(CaptureStatus.Idle, viewModel.captureStatus)
         assertEquals(emptyList<String>(), contentUrisInDirectory())
     }
 
     @Test
-    fun requestPhotoCapture_afterFailedCapture_clearsCaptureFailed() {
+    fun requestPhotoCapture_afterFailedCapture_capturesAgain() {
         val viewModel = createViewModel()
         viewModel.onCaptureFailed(startCapture(viewModel))
 
         viewModel.requestPhotoCapture()
 
-        assertFalse(viewModel.captureFailed)
+        assertTrue(viewModel.captureStatus is CaptureStatus.Capturing)
     }
 
     @Test
@@ -160,13 +155,13 @@ class PostViewModelTest {
     }
 
     @Test
-    fun clearMessages_afterFailedCapture_clearsCaptureFailed() {
+    fun clearMessages_afterFailedCapture_isIdle() {
         val viewModel = createViewModel()
         viewModel.onCaptureFailed(startCapture(viewModel))
 
         viewModel.clearMessages()
 
-        assertFalse(viewModel.captureFailed)
+        assertEquals(CaptureStatus.Idle, viewModel.captureStatus)
     }
 
     @Test
@@ -181,7 +176,7 @@ class PostViewModelTest {
     }
 
     @Test
-    fun onPhotoCaptured_makesItThePhotoAndClearsPendingFile() {
+    fun onPhotoCaptured_makesItThePhotoAndIsIdle() {
         val viewModel = createViewModel()
         val file = startCapture(viewModel)
 
@@ -189,8 +184,7 @@ class PostViewModelTest {
 
         assertEquals(file.contentUri, viewModel.photoUri)
         assertTrue(viewModel.isPhotoFromCamera)
-        assertFalse(viewModel.isCapturing)
-        assertNull(viewModel.pendingCaptureFile)
+        assertEquals(CaptureStatus.Idle, viewModel.captureStatus)
     }
 
     @Test
@@ -201,9 +195,7 @@ class PostViewModelTest {
 
         viewModel.onCaptureFailed(file)
 
-        assertTrue(viewModel.captureFailed)
-        assertFalse(viewModel.isCapturing)
-        assertNull(viewModel.pendingCaptureFile)
+        assertEquals(CaptureStatus.Failed, viewModel.captureStatus)
         assertEquals(CAMERA_ROLL_URI, viewModel.photoUri)
         assertEquals(emptyList<String>(), contentUrisInDirectory())
     }
@@ -232,7 +224,7 @@ class PostViewModelTest {
     }
 
     @Test
-    fun choosePhoto_clearsUploadedPhotoUrlAndCaptureFailed() {
+    fun choosePhoto_clearsUploadedPhotoUrl() {
         val viewModel = createViewModel(photoRepository = UploadingPhotoRepository())
         takeCameraPhoto(viewModel)
         viewModel.pickLocation(PICKED_POINT)
@@ -241,7 +233,6 @@ class PostViewModelTest {
         viewModel.choosePhoto(CAMERA_ROLL_URI)
 
         assertNull(viewModel.uploadedPhotoUrl)
-        assertFalse(viewModel.captureFailed)
     }
 
     @Test
@@ -323,7 +314,7 @@ class PostViewModelTest {
         viewModel.cancelPhotoCapture()
         ioDispatcher.scheduler.advanceUntilIdle()
 
-        assertNull(viewModel.pendingCaptureFile)
+        assertEquals(CaptureStatus.Idle, viewModel.captureStatus)
         assertEquals(emptyList<String>(), contentUrisInDirectory())
     }
 
@@ -338,7 +329,7 @@ class PostViewModelTest {
         viewModel.cancelPhotoCapture()
         ioDispatcher.scheduler.advanceUntilIdle()
 
-        assertFalse(viewModel.captureFailed)
+        assertEquals(CaptureStatus.Idle, viewModel.captureStatus)
     }
 
     @Test
@@ -348,8 +339,7 @@ class PostViewModelTest {
 
         viewModel.cancelPhotoCapture()
 
-        assertNull(viewModel.pendingCaptureFile)
-        assertFalse(viewModel.isCapturing)
+        assertEquals(CaptureStatus.Idle, viewModel.captureStatus)
         assertEquals(emptyList<String>(), contentUrisInDirectory())
     }
 
@@ -363,8 +353,7 @@ class PostViewModelTest {
         viewModel.requestPhotoCapture()
         ioDispatcher.scheduler.advanceUntilIdle()
 
-        val file = checkNotNull(viewModel.pendingCaptureFile)
-        assertEquals(listOf(file.contentUri), contentUrisInDirectory())
+        assertEquals(listOf(captureFileOf(viewModel).contentUri), contentUrisInDirectory())
     }
 
     @Test
@@ -387,7 +376,7 @@ class PostViewModelTest {
 
         viewModel.onCaptureFailed(file)
 
-        assertFalse(viewModel.captureFailed)
+        assertEquals(CaptureStatus.Idle, viewModel.captureStatus)
     }
 
     @Test
@@ -693,10 +682,17 @@ class PostViewModelTest {
         viewModel.uploadPhoto(caption = "", animalType = "", confidence = null)
     }
 
-    // Starts a capture, returning the pending CameraFile created by the ViewModel.
+    // Starts a capture, returning the file the ViewModel created for the picture.
     private fun startCapture(viewModel: PostViewModel): CameraFile {
         viewModel.requestPhotoCapture()
-        return checkNotNull(viewModel.pendingCaptureFile) { "No capture file was created" }
+        return captureFileOf(viewModel)
+    }
+
+    // The file the running capture's picture goes into.
+    private fun captureFileOf(viewModel: PostViewModel): CameraFile {
+        val status = viewModel.captureStatus
+        check(status is CaptureStatus.Capturing) { "No capture file was created" }
+        return status.file
     }
 
     // Takes a picture that completes capture, and returns its content URI.

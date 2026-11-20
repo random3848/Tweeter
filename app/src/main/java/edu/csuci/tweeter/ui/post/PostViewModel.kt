@@ -93,22 +93,17 @@ class PostViewModel(
     var isLocating by mutableStateOf(false)
         private set
 
-    /** Whether the in-app camera is currently taking a picture. */
-    var isCapturing by mutableStateOf(false)
+    /** How far the in-app camera has got taking a picture for the post. */
+    var captureStatus by mutableStateOf<CaptureStatus>(CaptureStatus.Idle)
         private set
 
-    /** Whether the last attempt to take a picture with the in-app camera failed. */
-    var captureFailed by mutableStateOf(false)
-        private set
+    /** Whether the in-app camera can take a picture now: none is being taken or shared. */
+    val canTakePicture: Boolean
+        get() = !isCapturing && !isUploading
 
-    /** The file the in-app camera should save its next picture into, or null when idle. */
-    var pendingCaptureFile by mutableStateOf<CameraFile?>(null)
-        private set
-
-    // Whether the capture requested last still waits for its file, which it doesn't once it's
-    // cancelled.
-    private val isWaitingForCaptureFile: Boolean
-        get() = isCapturing && pendingCaptureFile == null
+    private val isCapturing: Boolean
+        get() = captureStatus == CaptureStatus.CreatingFile ||
+            captureStatus is CaptureStatus.Capturing
 
     /**
      * The URI of the photo to share: a `content://` URI on the phone, or null until the user
@@ -140,7 +135,9 @@ class PostViewModel(
 
     /** Clears status banners from an earlier capture or upload. */
     fun clearMessages() {
-        captureFailed = false
+        if (captureStatus == CaptureStatus.Failed) {
+            captureStatus = CaptureStatus.Idle
+        }
         clearUploadedPhotoUrl()
     }
 
@@ -149,12 +146,12 @@ class PostViewModel(
      * Ignored while a capture or upload is already running.
      */
     fun requestPhotoCapture() {
-        if (isCapturing || isUploading) {
+        if (!canTakePicture) {
             return
         }
 
-        isCapturing = true
         clearMessages()
+        captureStatus = CaptureStatus.CreatingFile
         viewModelScope.launch {
             try {
                 captureFileCreated(cameraFileStore.create())
@@ -168,17 +165,16 @@ class PostViewModel(
     // Hands [file] to the camera screen to take the picture into, or deletes it if the capture
     // was cancelled meanwhile.
     private fun captureFileCreated(file: CameraFile) {
-        if (isWaitingForCaptureFile) {
-            pendingCaptureFile = file
+        if (captureStatus == CaptureStatus.CreatingFile) {
+            captureStatus = CaptureStatus.Capturing(file)
         } else {
             cameraFileStore.discard(file.path)
         }
     }
 
     private fun captureFileNotCreated() {
-        if (isWaitingForCaptureFile) {
-            captureFailed = true
-            isCapturing = false
+        if (captureStatus == CaptureStatus.CreatingFile) {
+            captureStatus = CaptureStatus.Failed
         }
     }
 
@@ -188,13 +184,12 @@ class PostViewModel(
      * was cancelled.
      */
     fun onPhotoCaptured(file: CameraFile) {
-        if (file != pendingCaptureFile) {
+        if (captureStatus != CaptureStatus.Capturing(file)) {
             cameraFileStore.discard(file.path)
             return
         }
 
-        pendingCaptureFile = null
-        isCapturing = false
+        captureStatus = CaptureStatus.Idle
         photo.chooseCameraPicture(file)
     }
 
@@ -203,10 +198,8 @@ class PostViewModel(
      * unused file.
      */
     fun onCaptureFailed(file: CameraFile) {
-        if (file == pendingCaptureFile) {
-            pendingCaptureFile = null
-            isCapturing = false
-            captureFailed = true
+        if (captureStatus == CaptureStatus.Capturing(file)) {
+            captureStatus = CaptureStatus.Failed
         }
         cameraFileStore.discard(file.path)
     }
@@ -217,9 +210,10 @@ class PostViewModel(
      * take a picture nobody asked it for. A picture saved into the file afterwards is deleted.
      */
     fun cancelPhotoCapture() {
-        pendingCaptureFile?.let { cameraFileStore.discard(it.path) }
-        pendingCaptureFile = null
-        isCapturing = false
+        (captureStatus as? CaptureStatus.Capturing)?.let { cameraFileStore.discard(it.file.path) }
+        if (isCapturing) {
+            captureStatus = CaptureStatus.Idle
+        }
     }
 
     /** Forgets the photo, to take another. Ignored while it uploads. */

@@ -206,9 +206,9 @@ private fun CameraCaptureScreen(
     }
 
     val imageCapture = remember { ImageCapture.Builder().build() }
-    val pendingFile = postViewModel.pendingCaptureFile
-    LaunchedEffect(pendingFile) {
-        val file = pendingFile ?: return@LaunchedEffect
+    val captureFile = (postViewModel.captureStatus as? CaptureStatus.Capturing)?.file
+    LaunchedEffect(captureFile) {
+        val file = captureFile ?: return@LaunchedEffect
         imageCapture.takePicture(
             ImageCapture.OutputFileOptions.Builder(java.io.File(file.path)).build(),
             ContextCompat.getMainExecutor(context),
@@ -269,11 +269,10 @@ private fun CameraCaptureScreen(
         }
 
         CameraBottomControls(
-            captureFailed = postViewModel.captureFailed,
+            captureFailed = postViewModel.captureStatus == CaptureStatus.Failed,
             pickerFailed = pickerFailed,
             showUploadedMessage = postViewModel.uploadedPhotoUrl != null,
-            shutterEnabled =
-                hasCameraPermission && !postViewModel.isCapturing && !postViewModel.isUploading,
+            shutterEnabled = hasCameraPermission && postViewModel.canTakePicture,
             onPickFromRoll = {
                 postViewModel.clearMessages()
                 pickerFailed = false
