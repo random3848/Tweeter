@@ -40,7 +40,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-private const val UPLOADED_PHOTO_URL_KEY = "uploadedPhotoUrl"
+private const val CAMERA_MESSAGE_KEY = "cameraMessage"
 
 /**
  * Holds the post's photo, taken with the camera or chosen from the camera roll, finds where it
@@ -62,10 +62,7 @@ class PostViewModel(
     private var locateJob: Job? = null
 
     // The latest share's status, including a failure of a photo that's no longer the post's.
-    private var latestShareStatus by mutableStateOf<ShareStatus>(
-        savedStateHandle.get<String>(UPLOADED_PHOTO_URL_KEY)?.let { ShareStatus.Shared(it) } ?:
-            ShareStatus.Idle
-    )
+    private var latestShareStatus by mutableStateOf<ShareStatus>(ShareStatus.Idle)
 
     /** The logged-in user's ID, or null while nobody is logged in and posting isn't allowed. */
     val loggedInUid: StateFlow<String?> = accountRepository.loggedInUid
@@ -102,8 +99,14 @@ class PostViewModel(
         get() = !isCapturing && !isUploading
 
     private val isCapturing: Boolean
-        get() = captureStatus == CaptureStatus.CreatingFile ||
-            captureStatus is CaptureStatus.Capturing
+        get() = captureStatus != CaptureStatus.Idle
+
+    /**
+     * What the camera screen tells the user about the last thing they did on it, or null for
+     * nothing. It survives Android stopping the app.
+     */
+    var cameraMessage by mutableStateOf(savedStateHandle.get<CameraMessage>(CAMERA_MESSAGE_KEY))
+        private set
 
     /**
      * The URI of the photo to share: a `content://` URI on the phone, or null until the user
@@ -129,19 +132,23 @@ class PostViewModel(
      * uploads.
      */
     fun choosePhoto(uri: String) {
-        clearMessages()
+        clearMessage()
         photo.chooseFromCameraRoll(uri)
     }
 
-    /** Clears status banners from an earlier capture or upload. */
-    fun clearMessages() {
-        if (captureStatus == CaptureStatus.Failed) {
-            captureStatus = CaptureStatus.Idle
-        }
-        if (latestShareStatus is ShareStatus.Shared) {
-            latestShareStatus = ShareStatus.Idle
-            savedStateHandle[UPLOADED_PHOTO_URL_KEY] = null
-        }
+    /** Clears the camera screen's message, as the user does something new there. */
+    fun clearMessage() {
+        changeMessage(null)
+    }
+
+    private fun changeMessage(message: CameraMessage?) {
+        cameraMessage = message
+        savedStateHandle[CAMERA_MESSAGE_KEY] = message
+    }
+
+    /** Tells the user that the camera roll, which the screen tried to open, couldn't be opened. */
+    fun onCameraRollFailed() {
+        changeMessage(CameraMessage.CAMERA_ROLL_FAILED)
     }
 
     /**
@@ -153,7 +160,7 @@ class PostViewModel(
             return
         }
 
-        clearMessages()
+        clearMessage()
         captureStatus = CaptureStatus.CreatingFile
         viewModelScope.launch {
             try {
@@ -177,8 +184,13 @@ class PostViewModel(
 
     private fun captureFileNotCreated() {
         if (captureStatus == CaptureStatus.CreatingFile) {
-            captureStatus = CaptureStatus.Failed
+            failCapture()
         }
+    }
+
+    private fun failCapture() {
+        captureStatus = CaptureStatus.Idle
+        changeMessage(CameraMessage.CAPTURE_FAILED)
     }
 
     /**
@@ -202,7 +214,7 @@ class PostViewModel(
      */
     fun onCaptureFailed(file: CameraFile) {
         if (captureStatus == CaptureStatus.Capturing(file)) {
-            captureStatus = CaptureStatus.Failed
+            failCapture()
         }
         cameraFileStore.discard(file.path)
     }
@@ -225,7 +237,7 @@ class PostViewModel(
             return
         }
 
-        clearMessages()
+        clearMessage()
         forgetPhoto()
     }
 
@@ -289,7 +301,7 @@ class PostViewModel(
 
         viewModelScope.launch {
             try {
-                val photoUrl = sharePost(
+                sharePost(
                     photo = LocationFreePhoto(uri),
                     findAuthor = {
                         profileRepository.getLoggedInProfile(accountRepository).first()
@@ -300,7 +312,7 @@ class PostViewModel(
                         )
                     }
                 )
-                forgetSharedPhoto(photoUrl)
+                forgetSharedPhoto()
             } catch (error: NobodyLoggedInException) {
                 Log.e("PostViewModel", "Nobody is logged in, so the post can't be shared", error)
                 latestShareStatus = ShareStatus.Failed(uri)
@@ -325,10 +337,10 @@ class PostViewModel(
         }
     }
 
-    // Forgets the photo, shared as [photoUrl].
-    private fun forgetSharedPhoto(photoUrl: String) {
-        latestShareStatus = ShareStatus.Shared(photoUrl)
-        savedStateHandle[UPLOADED_PHOTO_URL_KEY] = photoUrl
+    // Forgets the photo, now shared, and tells the user it was.
+    private fun forgetSharedPhoto() {
+        latestShareStatus = ShareStatus.Idle
+        changeMessage(CameraMessage.POST_SHARED)
         forgetPhoto()
     }
 

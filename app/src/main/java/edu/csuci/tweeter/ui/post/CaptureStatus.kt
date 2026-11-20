@@ -16,7 +16,4 @@ sealed interface CaptureStatus {
      * @property file The file the picture goes into.
      */
     data class Capturing(val file: CameraFile) : CaptureStatus
-
-    /** The last picture couldn't be taken. */
-    data object Failed : CaptureStatus
 }

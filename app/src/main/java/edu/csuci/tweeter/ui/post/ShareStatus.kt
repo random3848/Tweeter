@@ -14,11 +14,4 @@ sealed interface ShareStatus {
      * @property photoUri The photo that couldn't be shared.
      */
     data class Failed(val photoUri: String) : ShareStatus
-
-    /**
-     * Shared as a post, and the photo forgotten.
-     *
-     * @property photoUrl The URL the post's photo was uploaded to.
-     */
-    data class Shared(val photoUrl: String) : ShareStatus
 }

@@ -159,7 +159,6 @@ private fun CameraCaptureScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    var pickerFailed by rememberSaveable { mutableStateOf(false) }
     var permissionDenied by rememberSaveable { mutableStateOf(false) }
 
     var hasCameraPermission by remember {
@@ -268,24 +267,18 @@ private fun CameraCaptureScreen(
         }
 
         CameraBottomControls(
-            captureFailed = postViewModel.captureStatus == CaptureStatus.Failed,
-            pickerFailed = pickerFailed,
-            showUploadedMessage = postViewModel.shareStatus is ShareStatus.Shared,
+            message = postViewModel.cameraMessage,
             shutterEnabled = hasCameraPermission && postViewModel.canTakePicture,
             onPickFromRoll = {
-                postViewModel.clearMessages()
-                pickerFailed = false
+                postViewModel.clearMessage()
                 try {
                     cameraRollLauncher.launch(arrayOf("image/*"))
                 } catch (error: ActivityNotFoundException) {
                     Log.e("PostScreen", "No file picker available", error)
-                    pickerFailed = true
+                    postViewModel.onCameraRollFailed()
                 }
             },
-            onTakePhoto = {
-                pickerFailed = false
-                postViewModel.requestPhotoCapture()
-            },
+            onTakePhoto = postViewModel::requestPhotoCapture,
             modifier = Modifier.align(Alignment.BottomCenter)
         )
     }
@@ -332,15 +325,12 @@ private fun CameraPermissionRequest(
 
 @Composable
 private fun CameraBottomControls(
-    captureFailed: Boolean,
-    pickerFailed: Boolean,
-    showUploadedMessage: Boolean,
+    message: CameraMessage?,
     shutterEnabled: Boolean,
     onPickFromRoll: () -> Unit,
     onTakePhoto: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val textColor = MaterialTheme.colorScheme.onPrimary
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -348,14 +338,8 @@ private fun CameraBottomControls(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        if (showUploadedMessage) {
-            Text(stringResource(R.string.photo_uploaded), color = textColor)
-        }
-        if (captureFailed) {
-            Text(stringResource(R.string.photo_camera_failed), color = textColor)
-        }
-        if (pickerFailed) {
-            Text(stringResource(R.string.photo_picker_failed), color = textColor)
+        if (message != null) {
+            Text(cameraMessageText(message), color = MaterialTheme.colorScheme.onPrimary)
         }
 
         Box(modifier = Modifier.fillMaxWidth()) {
@@ -371,6 +355,16 @@ private fun CameraBottomControls(
         }
     }
 }
+
+/** What the camera screen says to tell the user [message]. */
+@Composable
+private fun cameraMessageText(message: CameraMessage): String = stringResource(
+    when (message) {
+        CameraMessage.POST_SHARED -> R.string.photo_uploaded
+        CameraMessage.CAPTURE_FAILED -> R.string.photo_camera_failed
+        CameraMessage.CAMERA_ROLL_FAILED -> R.string.photo_picker_failed
+    }
+)
 
 @Composable
 private fun CameraRollButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
@@ -529,7 +523,7 @@ private fun shareText(status: ShareStatus): String = stringResource(
     when (status) {
         ShareStatus.Uploading -> R.string.photo_uploading
         is ShareStatus.Failed -> R.string.photo_upload_failed
-        ShareStatus.Idle, is ShareStatus.Shared -> R.string.photo_ready
+        ShareStatus.Idle -> R.string.photo_ready
     }
 )
 

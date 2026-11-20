@@ -111,14 +111,15 @@ class PostViewModelTest {
     }
 
     @Test
-    fun requestPhotoCapture_fileCreationFails_fails() {
+    fun requestPhotoCapture_fileCreationFails_saysCaptureFailed() {
         val viewModel = createViewModel(
             cameraFileStore = cameraFileStoreOn(dispatcher) { throw IOException("Disk full") }
         )
 
         viewModel.requestPhotoCapture()
 
-        assertEquals(CaptureStatus.Failed, viewModel.captureStatus)
+        assertEquals(CaptureStatus.Idle, viewModel.captureStatus)
+        assertEquals(CameraMessage.CAPTURE_FAILED, viewModel.cameraMessage)
     }
 
     @Test
@@ -144,35 +145,65 @@ class PostViewModelTest {
     }
 
     @Test
-    fun requestPhotoCapture_afterShare_forgetsShare() {
+    fun requestPhotoCapture_afterShare_clearsMessage() {
         val viewModel = createViewModel(photoRepository = UploadingPhotoRepository())
         viewModel.choosePhoto(CAMERA_ROLL_URI)
         shareChosenPhoto(viewModel)
 
         viewModel.requestPhotoCapture()
 
-        assertEquals(ShareStatus.Idle, viewModel.shareStatus)
+        assertNull(viewModel.cameraMessage)
     }
 
     @Test
-    fun clearMessages_afterFailedCapture_isIdle() {
+    fun requestPhotoCapture_afterCameraRollFailed_clearsMessage() {
+        val viewModel = createViewModel()
+        viewModel.onCameraRollFailed()
+
+        viewModel.requestPhotoCapture()
+
+        assertNull(viewModel.cameraMessage)
+    }
+
+    @Test
+    fun clearMessage_afterFailedCapture_clearsIt() {
         val viewModel = createViewModel()
         viewModel.onCaptureFailed(startCapture(viewModel))
 
-        viewModel.clearMessages()
+        viewModel.clearMessage()
 
-        assertEquals(CaptureStatus.Idle, viewModel.captureStatus)
+        assertNull(viewModel.cameraMessage)
     }
 
     @Test
-    fun clearMessages_afterShare_forgetsShare() {
+    fun clearMessage_afterShare_clearsIt() {
         val viewModel = createViewModel(photoRepository = UploadingPhotoRepository())
         viewModel.choosePhoto(CAMERA_ROLL_URI)
         shareChosenPhoto(viewModel)
 
-        viewModel.clearMessages()
+        viewModel.clearMessage()
 
-        assertEquals(ShareStatus.Idle, viewModel.shareStatus)
+        assertNull(viewModel.cameraMessage)
+    }
+
+    @Test
+    fun onCameraRollFailed_saysSo() {
+        val viewModel = createViewModel()
+
+        viewModel.onCameraRollFailed()
+
+        assertEquals(CameraMessage.CAMERA_ROLL_FAILED, viewModel.cameraMessage)
+    }
+
+    @Test
+    fun onCaptureFailed_afterCameraRollFailed_saysOnlyCaptureFailed() {
+        val viewModel = createViewModel()
+        val file = startCapture(viewModel)
+        viewModel.onCameraRollFailed()
+
+        viewModel.onCaptureFailed(file)
+
+        assertEquals(CameraMessage.CAPTURE_FAILED, viewModel.cameraMessage)
     }
 
     @Test
@@ -195,7 +226,8 @@ class PostViewModelTest {
 
         viewModel.onCaptureFailed(file)
 
-        assertEquals(CaptureStatus.Failed, viewModel.captureStatus)
+        assertEquals(CaptureStatus.Idle, viewModel.captureStatus)
+        assertEquals(CameraMessage.CAPTURE_FAILED, viewModel.cameraMessage)
         assertEquals(CAMERA_ROLL_URI, viewModel.photoUri)
         assertEquals(emptyList<String>(), contentUrisInDirectory())
     }
@@ -224,7 +256,7 @@ class PostViewModelTest {
     }
 
     @Test
-    fun choosePhoto_afterShare_forgetsShare() {
+    fun choosePhoto_afterShare_clearsMessage() {
         val viewModel = createViewModel(photoRepository = UploadingPhotoRepository())
         takeCameraPhoto(viewModel)
         viewModel.pickLocation(PICKED_POINT)
@@ -232,7 +264,7 @@ class PostViewModelTest {
 
         viewModel.choosePhoto(CAMERA_ROLL_URI)
 
-        assertEquals(ShareStatus.Idle, viewModel.shareStatus)
+        assertNull(viewModel.cameraMessage)
     }
 
     @Test
@@ -328,7 +360,7 @@ class PostViewModelTest {
         viewModel.cancelPhotoCapture()
         ioDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(CaptureStatus.Idle, viewModel.captureStatus)
+        assertNull(viewModel.cameraMessage)
     }
 
     @Test
@@ -375,7 +407,7 @@ class PostViewModelTest {
 
         viewModel.onCaptureFailed(file)
 
-        assertEquals(CaptureStatus.Idle, viewModel.captureStatus)
+        assertNull(viewModel.cameraMessage)
     }
 
     @Test
@@ -580,7 +612,7 @@ class PostViewModelTest {
     }
 
     @Test
-    fun uploadPhoto_shared_forgetsCameraPhotoAndKeepsItsUrl() {
+    fun uploadPhoto_shared_forgetsCameraPhotoAndSaysShared() {
         val viewModel = createViewModel(photoRepository = UploadingPhotoRepository())
         takeCameraPhoto(viewModel)
         viewModel.pickLocation(PICKED_POINT)
@@ -588,7 +620,7 @@ class PostViewModelTest {
         viewModel.uploadPhoto(caption = "", animalType = "", confidence = null)
 
         assertNull(viewModel.photoUri)
-        assertEquals(ShareStatus.Shared(UPLOADED_URL), viewModel.shareStatus)
+        assertEquals(CameraMessage.POST_SHARED, viewModel.cameraMessage)
         assertEquals(emptyList<String>(), contentUrisInDirectory())
     }
 
@@ -674,14 +706,14 @@ class PostViewModelTest {
     }
 
     @Test
-    fun init_afterShare_restoresShare() {
+    fun init_afterShare_restoresSharedMessage() {
         val viewModel = createViewModel(photoRepository = UploadingPhotoRepository())
         viewModel.choosePhoto(CAMERA_ROLL_URI)
         shareChosenPhoto(viewModel)
 
         val restored = createViewModel()
 
-        assertEquals(ShareStatus.Shared(UPLOADED_URL), restored.shareStatus)
+        assertEquals(CameraMessage.POST_SHARED, restored.cameraMessage)
     }
 
     // Shares the chosen photo, at the picked point, with no details.
