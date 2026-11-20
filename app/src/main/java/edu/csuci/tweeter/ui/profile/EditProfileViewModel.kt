@@ -113,9 +113,12 @@ class EditProfileViewModel(
     var isDone by mutableStateOf(false)
         private set
 
-    /** Whether [save] would save: the edits are valid and no save is running. */
+    /**
+     * Whether [save] would save: the edits are valid, no save is running and the screen isn't
+     * [isDone].
+     */
     val canSave: Boolean
-        get() = edits?.isValid == true && !isSaving
+        get() = edits?.isValid == true && !isSaving && !isDone
 
     /**
      * The profile as its avatar shows it while editing, or null while it's still being read: with

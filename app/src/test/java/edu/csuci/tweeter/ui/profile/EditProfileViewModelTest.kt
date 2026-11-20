@@ -216,6 +216,27 @@ class EditProfileViewModelTest {
     }
 
     @Test
+    fun canSave_afterSaved_false() {
+        val viewModel = createViewModel()
+
+        viewModel.save()
+
+        assertFalse(viewModel.canSave)
+    }
+
+    @Test
+    fun save_afterSaved_savesNothingMore() {
+        val viewModel = createViewModel()
+        viewModel.save()
+        profileRepository.failsToSave = true
+
+        viewModel.save()
+
+        assertFalse(viewModel.saveFailed)
+        assertTrue(viewModel.isDone)
+    }
+
+    @Test
     fun save_repositoryFails_reportsFailureAndStaysOpen() {
         profileRepository.failsToSave = true
         val viewModel = createViewModel()
