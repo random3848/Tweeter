@@ -16,8 +16,6 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -43,7 +41,7 @@ class FollowViewModelTest {
         viewModel.follow()
 
         assertEquals(OTHER_UID, followRepository.followedUid)
-        assertTrue(viewModel.uiState.value.isFollowing)
+        assertEquals(FollowUiState.Loaded(isFollowing = true), viewModel.uiState.value)
     }
 
     @Test
@@ -54,7 +52,7 @@ class FollowViewModelTest {
         viewModel.unfollow()
 
         assertEquals(OTHER_UID, followRepository.unfollowedUid)
-        assertFalse(viewModel.uiState.value.isFollowing)
+        assertEquals(FollowUiState.Loaded(isFollowing = false), viewModel.uiState.value)
     }
 
     @Test
@@ -63,7 +61,7 @@ class FollowViewModelTest {
 
         viewModel.follow()
 
-        assertFalse(viewModel.uiState.value.canFollow)
+        assertEquals(FollowUiState.NotAllowed, viewModel.uiState.value)
         assertEquals(null, followRepository.followedUid)
     }
 
@@ -74,7 +72,7 @@ class FollowViewModelTest {
 
         viewModel.follow()
 
-        assertFalse(viewModel.uiState.value.canFollow)
+        assertEquals(FollowUiState.NotAllowed, viewModel.uiState.value)
         assertEquals(null, followRepository.followedUid)
     }
 
@@ -83,9 +81,7 @@ class FollowViewModelTest {
         followRepository.readFails.value = true
         val viewModel = createViewModel()
 
-        assertTrue(viewModel.uiState.value.hasFailed)
-        assertFalse(viewModel.uiState.value.isLoading)
-        assertFalse(viewModel.uiState.value.canFollow)
+        assertEquals(FollowUiState.ReadFailed, viewModel.uiState.value)
 
         viewModel.follow()
 
@@ -97,21 +93,18 @@ class FollowViewModelTest {
         followRepository.readFails.value = true
         val viewModel = createViewModel()
 
-        assertTrue(viewModel.uiState.value.hasFailed)
+        assertEquals(FollowUiState.ReadFailed, viewModel.uiState.value)
 
         followRepository.readFails.value = false
         followRepository.following.value = true
         viewModel.retry()
 
         assertEquals(2, followRepository.observeCount)
-        assertFalse(viewModel.uiState.value.hasFailed)
-        assertFalse(viewModel.uiState.value.isLoading)
-        assertTrue(viewModel.uiState.value.canFollow)
-        assertTrue(viewModel.uiState.value.isFollowing)
+        assertEquals(FollowUiState.Loaded(isFollowing = true), viewModel.uiState.value)
 
         followRepository.following.value = false
 
-        assertFalse(viewModel.uiState.value.isFollowing)
+        assertEquals(FollowUiState.Loaded(isFollowing = false), viewModel.uiState.value)
     }
 
     @Test
@@ -124,7 +117,10 @@ class FollowViewModelTest {
         viewModel.unfollow()
 
         assertEquals(1, followRepository.changeCount)
-        assertTrue(viewModel.uiState.value.isChanging)
+        assertEquals(
+            FollowUiState.Loaded(isFollowing = false, change = FollowChange.RUNNING),
+            viewModel.uiState.value
+        )
     }
 
     @Test
@@ -135,8 +131,7 @@ class FollowViewModelTest {
 
         followRepository.finishChanges()
 
-        assertFalse(viewModel.uiState.value.isChanging)
-        assertTrue(viewModel.uiState.value.isFollowing)
+        assertEquals(FollowUiState.Loaded(isFollowing = true), viewModel.uiState.value)
     }
 
     @Test
@@ -146,10 +141,10 @@ class FollowViewModelTest {
 
         viewModel.follow()
 
-        assertTrue(viewModel.uiState.value.hasFailed)
-        assertTrue(viewModel.uiState.value.canFollow)
-        assertFalse(viewModel.uiState.value.isChanging)
-        assertFalse(viewModel.uiState.value.isFollowing)
+        assertEquals(
+            FollowUiState.Loaded(isFollowing = false, change = FollowChange.FAILED),
+            viewModel.uiState.value
+        )
     }
 
     @Test
@@ -160,9 +155,10 @@ class FollowViewModelTest {
 
         viewModel.unfollow()
 
-        assertTrue(viewModel.uiState.value.hasFailed)
-        assertTrue(viewModel.uiState.value.canFollow)
-        assertTrue(viewModel.uiState.value.isFollowing)
+        assertEquals(
+            FollowUiState.Loaded(isFollowing = true, change = FollowChange.FAILED),
+            viewModel.uiState.value
+        )
     }
 
     @Test
@@ -174,7 +170,10 @@ class FollowViewModelTest {
         viewModel.retry()
 
         assertEquals(1, followRepository.observeCount)
-        assertTrue(viewModel.uiState.value.hasFailed)
+        assertEquals(
+            FollowUiState.Loaded(isFollowing = false, change = FollowChange.FAILED),
+            viewModel.uiState.value
+        )
     }
 
     @Test
@@ -187,8 +186,7 @@ class FollowViewModelTest {
         viewModel.follow()
 
         assertEquals(2, followRepository.changeCount)
-        assertFalse(viewModel.uiState.value.hasFailed)
-        assertTrue(viewModel.uiState.value.isFollowing)
+        assertEquals(FollowUiState.Loaded(isFollowing = true), viewModel.uiState.value)
     }
 
     @Test
@@ -201,8 +199,7 @@ class FollowViewModelTest {
         viewModel.follow()
 
         assertEquals(1, followRepository.changeCount)
-        assertTrue(viewModel.uiState.value.hasFailed)
-        assertFalse(viewModel.uiState.value.canFollow)
+        assertEquals(FollowUiState.ReadFailed, viewModel.uiState.value)
     }
 
     @Test
@@ -215,9 +212,7 @@ class FollowViewModelTest {
         followRepository.finishChanges()
 
         assertEquals(OTHER_UID, followRepository.followedUid)
-        assertTrue(viewModel.uiState.value.hasFailed)
-        assertFalse(viewModel.uiState.value.canFollow)
-        assertFalse(viewModel.uiState.value.isChanging)
+        assertEquals(FollowUiState.ReadFailed, viewModel.uiState.value)
     }
 
     @Test
@@ -232,9 +227,7 @@ class FollowViewModelTest {
         viewModel.retry()
 
         assertEquals(2, followRepository.observeCount)
-        assertFalse(viewModel.uiState.value.hasFailed)
-        assertTrue(viewModel.uiState.value.canFollow)
-        assertTrue(viewModel.uiState.value.isFollowing)
+        assertEquals(FollowUiState.Loaded(isFollowing = true), viewModel.uiState.value)
     }
 
     private fun createViewModel(userUid: String = OTHER_UID): FollowViewModel = FollowViewModel(
