@@ -88,6 +88,8 @@ dependencies {
     // The map engine draws with Vulkan; the library needs exactly one renderer at runtime.
     runtimeOnly(libs.maplibre.compose.runtime.vulkan)
     implementation(libs.play.services.location)
+    // Checks for posts to notify the user of every so often, also while the app is closed.
+    implementation(libs.androidx.work.runtime.ktx)
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.storage)

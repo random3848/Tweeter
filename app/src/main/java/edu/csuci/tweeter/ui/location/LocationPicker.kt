@@ -23,7 +23,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import edu.csuci.tweeter.R
-import edu.csuci.tweeter.location.DeviceLocationProvider
+import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.location.GeoPoint
 import edu.csuci.tweeter.ui.map.CAMPUS_LATITUDE
 import edu.csuci.tweeter.ui.map.CAMPUS_LONGITUDE
@@ -77,7 +77,9 @@ fun LocationPicker(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val deviceLocationProvider = remember { DeviceLocationProvider(context) }
+    val deviceLocationProvider = remember {
+        (context.applicationContext as TweeterApplication).container.deviceLocationProvider
+    }
     val currentOnSelect by rememberUpdatedState(onSelect)
     var tappedPoint by remember { mutableStateOf<GeoPoint?>(null) }
     var isLocating by remember { mutableStateOf(false) }
@@ -87,7 +89,7 @@ fun LocationPicker(
         scope.launch {
             isLocating = true
             hasNoFix = false
-            val fix = deviceLocationProvider.currentFix()
+            val fix = deviceLocationProvider.getAndSaveCurrentFix()
             isLocating = false
             if (fix == null) {
                 hasNoFix = true
@@ -98,7 +100,7 @@ fun LocationPicker(
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(RequestMultiplePermissions()) {
-        // Without permission, currentFix() returns null and the message below is shown.
+        // Without permission, getAndSaveCurrentFix() returns null and the message below is shown.
         pickDeviceLocation()
     }
 
