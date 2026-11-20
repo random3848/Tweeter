@@ -61,23 +61,29 @@ class PostViewModel(
     // Looks for the photo's location while it's [LocationStatus.Locating].
     private var locateJob: Job? = null
 
-    // The photo whose latest upload failed, or null.
-    private var failedPhotoUri by mutableStateOf<String?>(null)
+    // The latest share's status, including a failure of a photo that's no longer the post's.
+    private var latestShareStatus by mutableStateOf<ShareStatus>(
+        savedStateHandle.get<String>(UPLOADED_PHOTO_URL_KEY)?.let { ShareStatus.Shared(it) } ?:
+            ShareStatus.Idle
+    )
 
     /** The logged-in user's ID, or null while nobody is logged in and posting isn't allowed. */
     val loggedInUid: StateFlow<String?> = accountRepository.loggedInUid
 
-    /** Whether the photo is being uploaded and shared. */
-    var isUploading by mutableStateOf(false)
-        private set
+    /**
+     * How far sharing the post has got. A failure belongs to its photo: it's reported while that
+     * photo is the post's, and again if it's chosen again, but not for another photo.
+     */
+    val shareStatus: ShareStatus
+        get() {
+            val status = latestShareStatus
+            val isFailureOfAnotherPhoto =
+                status is ShareStatus.Failed && status.photoUri != photo.uri
+            return if (isFailureOfAnotherPhoto) ShareStatus.Idle else status
+        }
 
-    /** The URL of the photo of the post shared last, or null until a post has been shared. */
-    var uploadedPhotoUrl by mutableStateOf(savedStateHandle.get<String>(UPLOADED_PHOTO_URL_KEY))
-        private set
-
-    /** Whether sharing the photo at [photoUri] failed the last time it was tried. */
-    val uploadFailed: Boolean
-        get() = failedPhotoUri != null && failedPhotoUri == photo.uri
+    private val isUploading: Boolean
+        get() = latestShareStatus == ShareStatus.Uploading
 
     /**
      * How far finding where the post's photo was taken has got: looked for by [locatePhoto], or
@@ -132,7 +138,10 @@ class PostViewModel(
         if (captureStatus == CaptureStatus.Failed) {
             captureStatus = CaptureStatus.Idle
         }
-        clearUploadedPhotoUrl()
+        if (latestShareStatus is ShareStatus.Shared) {
+            latestShareStatus = ShareStatus.Idle
+            savedStateHandle[UPLOADED_PHOTO_URL_KEY] = null
+        }
     }
 
     /**
@@ -233,11 +242,6 @@ class PostViewModel(
         super.onCleared()
     }
 
-    private fun clearUploadedPhotoUrl() {
-        uploadedPhotoUrl = null
-        savedStateHandle[UPLOADED_PHOTO_URL_KEY] = null
-    }
-
     /** Stops asking to find [photoToLocate], whose permissions the screen has asked for. */
     fun locationPermissionsRequested() {
         if (locationStatus == LocationStatus.AwaitingPermission) {
@@ -280,8 +284,7 @@ class PostViewModel(
             return
         }
 
-        isUploading = true
-        failedPhotoUri = null
+        latestShareStatus = ShareStatus.Uploading
         photo.lock()
 
         viewModelScope.launch {
@@ -300,15 +303,14 @@ class PostViewModel(
                 forgetSharedPhoto(photoUrl)
             } catch (error: NobodyLoggedInException) {
                 Log.e("PostViewModel", "Nobody is logged in, so the post can't be shared", error)
-                failedPhotoUri = uri
+                latestShareStatus = ShareStatus.Failed(uri)
             } catch (error: PhotoUploadException) {
                 Log.e("PostViewModel", "Photo upload failed", error)
-                failedPhotoUri = uri
+                latestShareStatus = ShareStatus.Failed(uri)
             } catch (error: FirebaseException) {
                 Log.e("PostViewModel", "Could not save the post", error)
-                failedPhotoUri = uri
+                latestShareStatus = ShareStatus.Failed(uri)
             } finally {
-                isUploading = false
                 photo.unlock()
             }
         }
@@ -325,7 +327,7 @@ class PostViewModel(
 
     // Forgets the photo, shared as [photoUrl].
     private fun forgetSharedPhoto(photoUrl: String) {
-        uploadedPhotoUrl = photoUrl
+        latestShareStatus = ShareStatus.Shared(photoUrl)
         savedStateHandle[UPLOADED_PHOTO_URL_KEY] = photoUrl
         forgetPhoto()
     }

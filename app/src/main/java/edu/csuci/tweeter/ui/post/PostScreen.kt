@@ -270,7 +270,7 @@ private fun CameraCaptureScreen(
         CameraBottomControls(
             captureFailed = postViewModel.captureStatus == CaptureStatus.Failed,
             pickerFailed = pickerFailed,
-            showUploadedMessage = postViewModel.uploadedPhotoUrl != null,
+            showUploadedMessage = postViewModel.shareStatus is ShareStatus.Shared,
             shutterEnabled = hasCameraPermission && postViewModel.canTakePicture,
             onPickFromRoll = {
                 postViewModel.clearMessages()
@@ -411,6 +411,8 @@ private fun ShutterButton(enabled: Boolean, onClick: () -> Unit, modifier: Modif
 @Composable
 private fun PostDetailsForm(postViewModel: PostViewModel, modifier: Modifier = Modifier) {
     var showPostDialog by rememberSaveable { mutableStateOf(false) }
+    val shareStatus = postViewModel.shareStatus
+    val isUploading = shareStatus == ShareStatus.Uploading
 
     Column(
         modifier = modifier
@@ -421,7 +423,7 @@ private fun PostDetailsForm(postViewModel: PostViewModel, modifier: Modifier = M
     ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
             Button(
-                enabled = !postViewModel.isUploading,
+                enabled = !isUploading,
                 onClick = { postViewModel.retakePhoto() }
             ) {
                 Text(stringResource(R.string.camera_retake))
@@ -431,7 +433,7 @@ private fun PostDetailsForm(postViewModel: PostViewModel, modifier: Modifier = M
         val locationStatus = postViewModel.locationStatus
         val location = (locationStatus as? LocationStatus.Located)?.fix
         Button(
-            enabled = !postViewModel.isUploading && location != null,
+            enabled = !isUploading && location != null,
             onClick = { showPostDialog = true }
         ) {
             Text(stringResource(R.string.upload_photo))
@@ -446,16 +448,11 @@ private fun PostDetailsForm(postViewModel: PostViewModel, modifier: Modifier = M
             )
         }
 
-        if (postViewModel.isUploading) {
+        if (isUploading) {
             CircularProgressIndicator()
         }
 
-        val statusResource = when {
-            postViewModel.isUploading -> R.string.photo_uploading
-            postViewModel.uploadFailed -> R.string.photo_upload_failed
-            else -> R.string.photo_ready
-        }
-        Text(stringResource(statusResource))
+        Text(shareText(shareStatus))
 
         Text(locationText(locationStatus))
         LocationPicker(
@@ -525,6 +522,16 @@ private fun CameraPreview(imageCapture: ImageCapture, modifier: Modifier = Modif
         }
     }
 }
+
+/** What the post screen says about how far sharing the photo has got. */
+@Composable
+private fun shareText(status: ShareStatus): String = stringResource(
+    when (status) {
+        ShareStatus.Uploading -> R.string.photo_uploading
+        is ShareStatus.Failed -> R.string.photo_upload_failed
+        ShareStatus.Idle, is ShareStatus.Shared -> R.string.photo_ready
+    }
+)
 
 /** What the post screen says about how far finding where the photo was taken has got. */
 @Composable
