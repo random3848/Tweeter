@@ -60,9 +60,10 @@ private val TEXTURE_MAP_UI_OPTIONS = MapUiOptions { renderMode = AndroidRenderMo
 /**
  * A map for choosing where a photo was taken, with a "Use my location" button below it.
  *
- * Tapping the map picks that point. "Use my location" asks for location permission if needed
- * and picks the device's current position. The caller holds the picked point, so it can start
- * from a location found by `PhotoLocator`; the map moves to any point not picked by tapping.
+ * Tapping the map picks that point, and drops a device location still being looked for.
+ * "Use my location" asks for location permission if needed and picks the device's current
+ * position. The caller holds the picked point, so it can start from a location found by
+ * `PhotoLocator`; the map moves to any point not picked by tapping.
  *
  * @param selected The picked point, drawn as a pin, or null if nothing is picked yet.
  * @param onSelect Called with the point the user picks.
@@ -105,7 +106,7 @@ fun LocationPicker(
             // the finger.
             cameraTarget = selected.takeIf { it != tappedPoint },
             onMapClick = {
-                deviceLocationSearch.clearNoFix()
+                deviceLocationSearch.stop()
                 tappedPoint = it
                 currentOnSelect(it)
             },

@@ -18,6 +18,7 @@ private val DEVICE_POINT = GeoPoint(latitude = 34.16, longitude = -119.04)
 class DeviceLocationSearchTest {
     private var nextFix = CompletableDeferred<GeoPoint?>()
     private val pickedPoints = mutableListOf<GeoPoint>()
+    private var searchCount = 0
 
     @Test
     fun start_whileWaitingForFix_isLocating() = runTest {
@@ -66,16 +67,69 @@ class DeviceLocationSearchTest {
     }
 
     @Test
-    fun clearNoFix_afterNoFix_stopsSayingSo() = runTest {
+    fun start_whileLocating_startsNoOtherSearch() = runTest {
+        val search = deviceLocationSearch()
+        search.start(pickedPoints::add)
+
+        search.start(pickedPoints::add)
+        runCurrent()
+
+        assertEquals(1, searchCount)
+    }
+
+    @Test
+    fun stop_whileLocating_dropsFixThatComesLater() = runTest {
+        val search = deviceLocationSearch()
+        search.start(pickedPoints::add)
+        runCurrent()
+
+        search.stop()
+        nextFix.complete(DEVICE_POINT)
+        runCurrent()
+
+        assertEquals(emptyList<GeoPoint>(), pickedPoints)
+        assertFalse(search.isLocating)
+    }
+
+    @Test
+    fun stop_beforeSearchRuns_searchesNothing() = runTest {
+        val search = deviceLocationSearch()
+        search.start(pickedPoints::add)
+
+        search.stop()
+        runCurrent()
+
+        assertEquals(0, searchCount)
+        assertFalse(search.isLocating)
+    }
+
+    @Test
+    fun start_afterStop_searchesAgain() = runTest {
+        val search = deviceLocationSearch()
+        search.start(pickedPoints::add)
+        runCurrent()
+        search.stop()
+
+        search.start(pickedPoints::add)
+        nextFix.complete(DEVICE_POINT)
+        runCurrent()
+
+        assertEquals(2, searchCount)
+        assertEquals(listOf(DEVICE_POINT), pickedPoints)
+    }
+
+    @Test
+    fun stop_afterNoFix_stopsSayingSo() = runTest {
         val search = deviceLocationSearchThatFoundNoFix()
 
-        search.clearNoFix()
+        search.stop()
 
         assertFalse(search.hasNoFix)
     }
 
     // Searches in the background scope, which ends with the test, since some fixes never come.
     private fun TestScope.deviceLocationSearch() = DeviceLocationSearch(backgroundScope) {
+        searchCount++
         nextFix.await()
     }
 

@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import edu.csuci.tweeter.location.GeoPoint
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
@@ -25,11 +26,21 @@ internal class DeviceLocationSearch(
     var hasNoFix by mutableStateOf(false)
         private set
 
-    /** Searches for the device's location, passing it to [onFound] if a fix comes. */
+    private var search: Job? = null
+
+    /**
+     * Searches for the device's location, passing it to [onFound] if a fix comes. Does nothing
+     * while a search is running.
+     */
     fun start(onFound: (GeoPoint) -> Unit) {
-        scope.launch {
-            isLocating = true
-            hasNoFix = false
+        if (isLocating) {
+            return
+        }
+
+        // Set before the search is dispatched, so a second tap in the same frame starts nothing.
+        isLocating = true
+        hasNoFix = false
+        search = scope.launch {
             val point = findDevicePoint()
             isLocating = false
             if (point == null) {
@@ -40,8 +51,13 @@ internal class DeviceLocationSearch(
         }
     }
 
-    /** Stops saying that no fix was found, once the user picks a point on the map instead. */
-    fun clearNoFix() {
+    /**
+     * Stops the search, and saying that no fix was found, once the user picks a point on the map
+     * instead: a fix that came later would replace that point.
+     */
+    fun stop() {
+        search?.cancel()
+        isLocating = false
         hasNoFix = false
     }
 }
