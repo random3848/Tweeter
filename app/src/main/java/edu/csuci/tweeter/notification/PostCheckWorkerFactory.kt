@@ -7,12 +7,16 @@ import androidx.work.WorkerParameters
 
 /**
  * Creates the workers of the checks for posts to notify the user of, giving each its check, so
- * that WorkManager doesn't create them by reflection.
+ * that WorkManager doesn't create them by reflection. Each check is created only once a worker
+ * needs it.
  *
- * @param rareAnimalCheck Gets the check [RareAnimalCheckWorker] runs, created only once a worker
- *     needs it.
+ * @param rareAnimalCheck Gets the check [RareAnimalCheckWorker] runs.
+ * @param popularPostCheck Gets the check [PopularPostCheckWorker] runs.
  */
-class PostCheckWorkerFactory(private val rareAnimalCheck: () -> RareAnimalCheck) : WorkerFactory() {
+class PostCheckWorkerFactory(
+    private val rareAnimalCheck: () -> RareAnimalCheck,
+    private val popularPostCheck: () -> PopularPostCheck
+) : WorkerFactory() {
     // Null for any other worker, such as WorkManager's own, which it then creates itself.
     override fun createWorker(
         appContext: Context,
@@ -21,6 +25,10 @@ class PostCheckWorkerFactory(private val rareAnimalCheck: () -> RareAnimalCheck)
     ): ListenableWorker? = when (workerClassName) {
         RareAnimalCheckWorker::class.java.name -> {
             RareAnimalCheckWorker(appContext, workerParameters, rareAnimalCheck())
+        }
+
+        PopularPostCheckWorker::class.java.name -> {
+            PopularPostCheckWorker(appContext, workerParameters, popularPostCheck())
         }
 
         else -> null

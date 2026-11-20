@@ -209,4 +209,12 @@
     <string name="notification_rare_animal_text">Spotted at %1$s</string>
     <string name="notification_rare_animal_text_no_place">Spotted near you</string>
 
+    <string name="notification_channel_popular_posts">Popular posts</string>
+    <string name="notification_channel_popular_posts_description">When someone\'s post from the last few days gets many likes, wherever it was shared.</string>
+    <string name="notification_popular_post_title_animal">Popular post: %1$s</string>
+    <string name="notification_popular_post_title">Popular post</string>
+    <!-- A popular post has many likes, so the count (%1$s) is never one. -->
+    <string name="notification_popular_post_text">%1$s likes · %2$s</string>
+    <string name="notification_popular_post_text_no_place">%1$s likes</string>
+
 </resources>

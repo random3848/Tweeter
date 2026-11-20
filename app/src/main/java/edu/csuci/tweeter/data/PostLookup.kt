@@ -19,8 +19,8 @@ interface PostLookup {
     suspend fun newestPostMillis(): Long?
 
     /**
-     * The posts the server received after the millisecond [timeMillis], newest first. When many
-     * are, only the newest of them.
+     * Every post the server received after the millisecond [timeMillis], newest first, however
+     * many there are: the lookup may read them in pages, but returns them all.
      *
      * @throws PostLookupException If the server can't be reached or refuses the lookup.
      */
@@ -43,4 +43,13 @@ interface PostLookup {
      * @throws PostLookupException If the server can't be reached or refuses the lookup.
      */
     suspend fun holdsPost(postId: String): Boolean
+
+    /**
+     * Every post with at least [minLikeCount] likes, however old, most liked first, however many
+     * there are: the lookup may read them in pages, but returns them all, each once. A post whose
+     * likes change while the pages are read may be left out, until the next lookup.
+     *
+     * @throws PostLookupException If the server can't be reached or refuses the lookup.
+     */
+    suspend fun postsWithLikesAtLeast(minLikeCount: Int): PostTable
 }

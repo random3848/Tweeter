@@ -34,18 +34,30 @@ Layout:
   `getAndSaveCurrentFix` (a fresh GPS fix, for photos and the location picker) and
   `saveRoughLocation` (a recent or low-power location, for notifications).
 - `app/src/main/java/edu/csuci/tweeter/notification/`: notifications about posts, with no server.
-  WorkManager runs each kind of check every 15 minutes, also while the app is closed: a check
-  (`RareAnimalCheck`, run by `RareAnimalCheckWorker`) looks up the posts the server received since
-  the time in its `LastCheckStore`, less a short settle window, with `PostLookup` (in `data/`),
-  skips those in its `NotifiedPostStore` before it counts any animal's posts, chooses which to
-  notify of with plain logic (`NearbyRareAnimalSelector`, with `AnimalRarity` in `data/`), and
-  shows them through `PostNotifier`, each kind in its own `PostChannel`. Times are the server's,
-  never the device's, whose clock may be wrong. Tapping one opens the post in Feed through
-  `AppContainer.showInFeedRequest`. A new kind adds a channel, a check with its own name, and a
-  worker that `PostCheckWorkerFactory` creates and `AppContainer.schedulePostChecks()` schedules.
-  Feed asks a logged-in user once for permission to notify them (`ui/notification/`), and saves
-  roughly where the device is each time it opens. The `saved_numbers` file these remember things
-  in is left out of backups (`res/xml/`), since a restore doesn't bring back the permission.
+  WorkManager runs each kind of check (a `PostCheck`) every so often, also while the app is
+  closed, through its own `PostCheckWorker` subclass. A check looks posts up with `PostLookup` (in
+  `data/`), which returns every post a lookup matches however many there are (Firestore's in
+  pages), chooses which to notify of with plain logic, and shows them through `PostNotifier`,
+  each kind in its own `PostChannel`, which users turn off in the system's settings for the app;
+  the app creates every channel when it starts, and a check whose channel is off looks nothing up.
+  Each check remembers the posts it notified each user of in a `NotifiedPostStore`. Checks go by
+  the server's times, never the device's, whose clock may be wrong. `RareAnimalCheck` (every 15
+  minutes) looks at the posts the server received since the time in its `LastCheckStore`, less a
+  short settle window, skips those it notified of before it counts any animal's posts, and chooses
+  with `NearbyRareAnimalSelector` (with `AnimalRarity` in `data/`). `PopularPostCheck` (hourly)
+  reads every post with as many likes as `PopularPostSelector` calls popular, however old (the
+  like count's single-field index serves that; the repo deploys no composite indexes), since
+  posts become popular after they are shared. The selector then chooses on the device among those
+  received within days of the server's newest, and the check forgets the posts it notified of
+  once they are too old to choose again. A first check, for a user or after they turn the channel
+  or notifications back on, notifies of nothing: like `RareAnimalCheck`'s, it counts what is there
+  already as notified of, and keeps when it ran for each user in a `LastCheckStore`. Tapping a
+  notification opens the post in Feed through `AppContainer.showInFeedRequest`.
+  A new kind adds a channel, a check with its own name, and a worker that `PostCheckWorkerFactory`
+  creates and `AppContainer.schedulePostChecks()` schedules. Feed asks a logged-in user once for
+  permission to notify them (`ui/notification/`), for every kind, and saves roughly where the
+  device is each time it opens. The `saved_numbers` file these remember things in is left out of
+  backups (`res/xml/`), since a restore doesn't bring back the permission.
 - `app/src/main/java/edu/csuci/tweeter/ui/camera/`: the photo the post and profile screens let the
   user choose, `ChosenPhoto`, and taking it with the camera app: `CameraCapture`, held by the
   screen's ViewModel, which exposes it as `CameraControls`, and `CameraOpener`, which the screen

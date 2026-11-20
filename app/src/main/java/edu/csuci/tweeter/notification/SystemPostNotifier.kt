@@ -12,8 +12,8 @@ import edu.csuci.tweeter.R
 
 /**
  * A [PostNotifier] that shows notifications in the system's notification shade, creating each
- * [PostChannel] before its first notification. Tapping one opens the post in Feed, through
- * [PostNotificationTap].
+ * [PostChannel] before its first notification, if [createChannels] hasn't. Tapping one opens the
+ * post in Feed, through [PostNotificationTap].
  *
  * A post's notification is tagged with its ID and numbered by its channel, so a post has at most
  * one notification of each channel.
@@ -34,9 +34,18 @@ class SystemPostNotifier(context: Context) : PostNotifier {
 
     override fun notify(notification: PostNotification) {
         if (canNotify(notification.channel)) {
-            createChannel(notification.channel)
+            manager.createNotificationChannel(systemChannelOf(notification.channel))
             show(notification.postId, notification.channel.ordinal, build(notification))
         }
+    }
+
+    /**
+     * Creates every [PostChannel], so that the system's settings for the app list each one, where
+     * users can turn it off, before its first notification. It calls the system, so it is for a
+     * background thread.
+     */
+    fun createChannels() {
+        manager.createNotificationChannelsCompat(PostChannel.entries.map(::systemChannelOf))
     }
 
     // A channel not created yet isn't turned off: it is created as it was declared.
@@ -46,13 +55,11 @@ class SystemPostNotifier(context: Context) : PostNotifier {
 
     // Creating a channel that exists changes nothing but its name and description, so this needs
     // no record of which channels were created.
-    private fun createChannel(channel: PostChannel) {
-        val systemChannel = NotificationChannelCompat.Builder(channel.id, channel.importance)
+    private fun systemChannelOf(channel: PostChannel): NotificationChannelCompat =
+        NotificationChannelCompat.Builder(channel.id, channel.importance)
             .setName(appContext.getString(channel.title))
             .setDescription(appContext.getString(channel.description))
             .build()
-        manager.createNotificationChannel(systemChannel)
-    }
 
     @Suppress("MissingPermission") // Checked by canNotify(channel) in notify().
     private fun show(tag: String, id: Int, notification: Notification) {
