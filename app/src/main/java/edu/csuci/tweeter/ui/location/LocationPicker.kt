@@ -33,7 +33,6 @@ import edu.csuci.tweeter.ui.map.MapControls
 import edu.csuci.tweeter.ui.map.PIN_OUTLINE_WIDTH
 import edu.csuci.tweeter.ui.map.PIN_RADIUS
 import edu.csuci.tweeter.ui.map.pinJsonAt
-import kotlinx.coroutines.launch
 import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.camera.CameraUpdate
 import org.maplibre.compose.expressions.dsl.const
@@ -82,21 +81,12 @@ fun LocationPicker(
     }
     val currentOnSelect by rememberUpdatedState(onSelect)
     var tappedPoint by remember { mutableStateOf<GeoPoint?>(null) }
-    var isLocating by remember { mutableStateOf(false) }
-    var hasNoFix by remember { mutableStateOf(false) }
+    val deviceLocationSearch = remember {
+        DeviceLocationSearch(scope) { deviceLocationProvider.getAndSaveCurrentFix()?.point }
+    }
 
     fun pickDeviceLocation() {
-        scope.launch {
-            isLocating = true
-            hasNoFix = false
-            val fix = deviceLocationProvider.getAndSaveCurrentFix()
-            isLocating = false
-            if (fix == null) {
-                hasNoFix = true
-            } else {
-                currentOnSelect(fix.point)
-            }
-        }
+        deviceLocationSearch.start { currentOnSelect(it) }
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(RequestMultiplePermissions()) {
@@ -115,7 +105,7 @@ fun LocationPicker(
             // the finger.
             cameraTarget = selected.takeIf { it != tappedPoint },
             onMapClick = {
-                hasNoFix = false
+                deviceLocationSearch.clearNoFix()
                 tappedPoint = it
                 currentOnSelect(it)
             },
@@ -123,7 +113,7 @@ fun LocationPicker(
                 .fillMaxWidth()
                 .weight(1f)
         )
-        if (hasNoFix) {
+        if (deviceLocationSearch.hasNoFix) {
             Text(
                 text = stringResource(R.string.location_picker_no_fix),
                 style = MaterialTheme.typography.bodyMedium
@@ -142,7 +132,7 @@ fun LocationPicker(
                     )
                 }
             },
-            enabled = !isLocating
+            enabled = !deviceLocationSearch.isLocating
         ) {
             Text(stringResource(R.string.location_picker_use_my_location))
         }
