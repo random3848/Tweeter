@@ -163,7 +163,6 @@ private fun LazyListScope.sectionHeading(@StringRes text: Int) {
         Text(
             text = stringResource(text),
             style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 4.dp)
                 .semantics { heading() }

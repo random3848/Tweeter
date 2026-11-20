@@ -41,7 +41,7 @@ fun TweeterBottomBar(
         )
 
         NavigationBar(
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
             tonalElevation = 0.dp
         ) {
             for (index in items.indices) {
@@ -58,7 +58,7 @@ fun TweeterBottomBar(
                         Icon(
                             painter = painterResource(icon),
                             contentDescription = stringResource(item.description),
-                            tint = Color.Unspecified,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(65.dp)
                         )
                     },
