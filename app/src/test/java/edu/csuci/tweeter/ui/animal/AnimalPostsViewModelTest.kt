@@ -2,12 +2,16 @@
 
 package edu.csuci.tweeter.ui.animal
 
+import edu.csuci.tweeter.data.BookmarkRepository
 import edu.csuci.tweeter.data.FakeAccountRepository
+import edu.csuci.tweeter.data.FakeBookmarkRepository
 import edu.csuci.tweeter.data.FakeLikeRepository
 import edu.csuci.tweeter.data.FakePhotoRepository
 import edu.csuci.tweeter.data.FakePostRepository
+import edu.csuci.tweeter.data.ListenerBookmarkRepository
 import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.SAMPLE_POSTS
+import edu.csuci.tweeter.ui.feed.PostBookmarker
 import edu.csuci.tweeter.ui.feed.PostLiker
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 import kotlinx.coroutines.CoroutineScope
@@ -38,6 +42,7 @@ class AnimalPostsViewModelTest {
     private val showOnMapRequest = ShowPostRequest()
     private val accountRepository = FakeAccountRepository(initialUid = USER)
     private val likeRepository = FakeLikeRepository(initialLikedPostIds = setOf(OLDER_FOX))
+    private val bookmarkRepository = FakeBookmarkRepository(setOf(NEWER_FOX))
     private val postRepository = FakePostRepository(
         initialPosts = listOf(
             SAMPLE_POSTS[0].copy(id = NEWER_FOX, animalType = ISLAND_FOX, authorUid = USER),
@@ -100,19 +105,19 @@ class AnimalPostsViewModelTest {
     }
 
     @Test
-    fun uiState_userLoggedIn_canLike() = runTest {
+    fun uiState_userLoggedIn_isLoggedIn() = runTest {
         val viewModel = collectedAnimalPostsViewModel()
 
-        assertTrue(viewModel.uiState.value.canLike)
+        assertTrue(viewModel.uiState.value.isLoggedIn)
     }
 
     @Test
-    fun uiState_guest_cannotLike() = runTest {
+    fun uiState_guest_isNotLoggedIn() = runTest {
         val viewModel = collectedAnimalPostsViewModel()
 
         accountRepository.logOut()
 
-        assertFalse(viewModel.uiState.value.canLike)
+        assertFalse(viewModel.uiState.value.isLoggedIn)
     }
 
     @Test
@@ -133,7 +138,54 @@ class AnimalPostsViewModelTest {
         assertEquals(emptySet<String>(), viewModel.uiState.value.likedPostIds)
     }
 
-    private fun TestScope.collectedAnimalPostsViewModel(): AnimalPostsViewModel {
+    @Test
+    fun uiState_holdsPostsUserSaved() = runTest {
+        val viewModel = collectedAnimalPostsViewModel()
+
+        assertEquals(setOf(NEWER_FOX), viewModel.uiState.value.bookmarkedPostIds)
+    }
+
+    @Test
+    fun uiState_bookmarksNeverRead_listsPosts() = runTest {
+        val viewModel = collectedAnimalPostsViewModel(bookmarks = ListenerBookmarkRepository())
+
+        val uiState = viewModel.uiState.value
+
+        assertFalse(uiState.isLoading)
+        assertArrayEquals(intArrayOf(0, 2), uiState.listedPosts.rows)
+    }
+
+    @Test
+    fun uiState_bookmarksReadAfterPosts_holdsPostsUserSaved() = runTest {
+        val bookmarks = ListenerBookmarkRepository()
+        val viewModel = collectedAnimalPostsViewModel(bookmarks)
+
+        bookmarks.deliver(setOf(OLDER_FOX))
+
+        assertEquals(setOf(OLDER_FOX), viewModel.uiState.value.bookmarkedPostIds)
+    }
+
+    @Test
+    fun toggleBookmark_postNotSaved_savesIt() = runTest {
+        val viewModel = collectedAnimalPostsViewModel()
+
+        viewModel.toggleBookmark(OLDER_FOX)
+
+        assertEquals(setOf(NEWER_FOX, OLDER_FOX), viewModel.uiState.value.bookmarkedPostIds)
+    }
+
+    @Test
+    fun toggleBookmark_savedPost_unsavesIt() = runTest {
+        val viewModel = collectedAnimalPostsViewModel()
+
+        viewModel.toggleBookmark(NEWER_FOX)
+
+        assertEquals(emptySet<String>(), viewModel.uiState.value.bookmarkedPostIds)
+    }
+
+    private fun TestScope.collectedAnimalPostsViewModel(
+        bookmarks: BookmarkRepository = bookmarkRepository
+    ): AnimalPostsViewModel {
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
         val viewModel = AnimalPostsViewModel(
             animal = ISLAND_FOX,
@@ -146,6 +198,7 @@ class AnimalPostsViewModelTest {
             ),
             accountRepository = accountRepository,
             postLiker = PostLiker(likeRepository),
+            postBookmarker = PostBookmarker(bookmarks),
             showOnMapRequest = showOnMapRequest,
             rowsDispatcher = dispatcher,
             sharing = SharingStarted.WhileSubscribed()

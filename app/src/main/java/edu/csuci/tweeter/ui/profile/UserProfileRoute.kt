@@ -20,12 +20,14 @@ data class UserProfileRoute(val userUid: String)
  * @param onLogIn Opens login for guests.
  * @param onCreateAccount Opens registration.
  * @param onEditProfile Opens the editor when viewing the owner's profile.
+ * @param onOpenSavedPosts Opens the viewer's saved posts when viewing the owner's profile.
  */
 fun NavGraphBuilder.addUserProfileScreen(
     onBack: () -> Unit,
     onLogIn: () -> Unit,
     onCreateAccount: () -> Unit,
-    onEditProfile: () -> Unit
+    onEditProfile: () -> Unit,
+    onOpenSavedPosts: () -> Unit
 ) {
     opaqueComposable<UserProfileRoute> { backStackEntry ->
         val route = backStackEntry.toRoute<UserProfileRoute>()
@@ -34,7 +36,8 @@ fun NavGraphBuilder.addUserProfileScreen(
             onBack = onBack,
             onLogIn = onLogIn,
             onCreateAccount = onCreateAccount,
-            onEditProfile = onEditProfile
+            onEditProfile = onEditProfile,
+            onOpenSavedPosts = onOpenSavedPosts
         )
     }
 }
