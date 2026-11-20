@@ -521,6 +521,17 @@ class PostViewModelTest {
     }
 
     @Test
+    fun location_photoChosenAfterShare_isNotTheSharedPostsLocation() {
+        val viewModel = createViewModel(photoRepository = UploadingPhotoRepository())
+        viewModel.choosePhoto(CAMERA_ROLL_URI)
+        shareChosenPhoto(viewModel)
+
+        viewModel.choosePhoto(OTHER_CAMERA_ROLL_URI)
+
+        assertNull(viewModel.location)
+    }
+
+    @Test
     fun choosePhoto_whileUploading_keepsPhotoBeingUploaded() {
         val viewModel = createViewModel(photoRepository = SlowPhotoRepository())
         viewModel.choosePhoto(CAMERA_ROLL_URI)

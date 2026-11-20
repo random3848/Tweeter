@@ -324,11 +324,12 @@ class PostViewModel(
         }
     }
 
-    // Forgets the photo, shared as [photoUrl]. The photo chosen next is located afresh, even if
-    // it's the same one.
+    // Forgets the photo, shared as [photoUrl], and its location. The photo chosen next is located
+    // afresh, even if it's the same one.
     private fun forgetSharedPhoto(photoUrl: String) {
         uploadedPhotoUrl = photoUrl
         savedStateHandle[UPLOADED_PHOTO_URL_KEY] = photoUrl
+        location = null
         photo.clear()
         photoAskedToLocate = null
     }
