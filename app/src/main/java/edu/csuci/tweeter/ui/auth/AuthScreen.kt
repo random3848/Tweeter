@@ -60,11 +60,13 @@ fun AuthScreen(
     } else {
         R.string.auth_log_in
     }
-    val fieldsEnabled = !authViewModel.isSubmitting && !authViewModel.isAuthenticated
-    val errorMessageId = authViewModel.errorMessageId
+    val status = authViewModel.status
+    val fieldsEnabled = status.acceptsInput
+    val errorMessageId = (status as? AuthStatus.Editing)?.errorMessageId
+    val isAuthenticated = status == AuthStatus.Authenticated
 
-    LaunchedEffect(authViewModel.isAuthenticated) {
-        if (authViewModel.isAuthenticated) {
+    LaunchedEffect(isAuthenticated) {
+        if (isAuthenticated) {
             password = ""
             confirmation = ""
             currentOnAuthenticated()
@@ -158,7 +160,7 @@ fun AuthScreen(
             ) {
                 Text(
                     text = stringResource(
-                        if (authViewModel.isSubmitting) {
+                        if (status == AuthStatus.Submitting) {
                             R.string.auth_submitting
                         } else {
                             titleId
@@ -175,7 +177,7 @@ fun AuthScreen(
                     Text(text = stringResource(R.string.auth_forgot_password))
                 }
 
-                if (authViewModel.passwordResetSent) {
+                if (status == AuthStatus.ResetSent) {
                     Text(
                         text = stringResource(R.string.auth_reset_email_sent),
                         style = MaterialTheme.typography.bodyMedium

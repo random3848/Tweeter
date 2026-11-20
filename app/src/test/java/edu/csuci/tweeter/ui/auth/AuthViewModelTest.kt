@@ -340,18 +340,18 @@ class AuthViewModelTest {
 
     /** Whether the form's fields and buttons are enabled, as the screen decides it. */
     private val AuthViewModel.acceptsInput: Boolean
-        get() = !isSubmitting && !isAuthenticated
+        get() = status.acceptsInput
 
     private val AuthViewModel.isWaiting: Boolean
-        get() = isSubmitting
+        get() = status == AuthStatus.Submitting
 
     private val AuthViewModel.hasAuthenticated: Boolean
-        get() = isAuthenticated
+        get() = status == AuthStatus.Authenticated
 
     private val AuthViewModel.hasSentReset: Boolean
-        get() = passwordResetSent
+        get() = status == AuthStatus.ResetSent
 
     @get:StringRes
     private val AuthViewModel.shownErrorId: Int?
-        get() = errorMessageId
+        get() = (status as? AuthStatus.Editing)?.errorMessageId
 }
