@@ -80,24 +80,24 @@ class EditProfileViewModelTest {
         val viewModel = createViewModel()
 
         assertEquals(ProfileEdits.of(profile), viewModel.edits)
-        assertFalse(viewModel.isDone)
+        assertFalse(viewModel.shouldClose)
     }
 
     @Test
-    fun init_nobodyLoggedIn_isDone() {
+    fun init_nobodyLoggedIn_shouldClose() {
         val viewModel = createViewModel(loggedInUid = null)
 
         assertNull(viewModel.edits)
-        assertTrue(viewModel.isDone)
+        assertTrue(viewModel.shouldClose)
     }
 
     @Test
-    fun init_profileCantBeRead_isDone() {
+    fun init_profileCantBeRead_shouldClose() {
         profileRepository.failsToRead = true
 
         val viewModel = createViewModel()
 
-        assertTrue(viewModel.isDone)
+        assertTrue(viewModel.shouldClose)
     }
 
     @Test
@@ -108,7 +108,7 @@ class EditProfileViewModelTest {
 
         assertNull(viewModel.edits)
         assertNull(viewModel.avatarProfile)
-        assertFalse(viewModel.isDone)
+        assertFalse(viewModel.shouldClose)
     }
 
     @Test
@@ -179,7 +179,7 @@ class EditProfileViewModelTest {
     }
 
     @Test
-    fun save_validEdits_savesTrimmedProfileAndIsDone() {
+    fun save_validEdits_savesTrimmedProfileAndShouldClose() {
         val viewModel = createViewModel()
         viewModel.updateDisplayName(" Maya Lin ")
         viewModel.updateBio("Birds, now. ")
@@ -190,7 +190,7 @@ class EditProfileViewModelTest {
             profile.copy(displayName = "Maya Lin", bio = "Birds, now."),
             profileRepository.savedProfile
         )
-        assertTrue(viewModel.isDone)
+        assertTrue(viewModel.shouldClose)
     }
 
     @Test
@@ -212,7 +212,7 @@ class EditProfileViewModelTest {
         viewModel.save()
 
         assertNull(profileRepository.savedProfile)
-        assertFalse(viewModel.isDone)
+        assertFalse(viewModel.shouldClose)
     }
 
     @Test
@@ -233,7 +233,7 @@ class EditProfileViewModelTest {
         viewModel.save()
 
         assertFalse(viewModel.saveFailed)
-        assertTrue(viewModel.isDone)
+        assertTrue(viewModel.shouldClose)
     }
 
     @Test
@@ -245,7 +245,7 @@ class EditProfileViewModelTest {
 
         assertTrue(viewModel.saveFailed)
         assertFalse(viewModel.isSaving)
-        assertFalse(viewModel.isDone)
+        assertFalse(viewModel.shouldClose)
     }
 
     @Test
@@ -438,7 +438,7 @@ class EditProfileViewModelTest {
 
         assertEquals(CHOSEN_PHOTO_URI, photoRepository.uploadedPhotoUri)
         assertEquals(FakePhotoRepository.UPLOADED_URL, profileRepository.savedProfile?.photoUrl)
-        assertTrue(viewModel.isDone)
+        assertTrue(viewModel.shouldClose)
     }
 
     @Test
@@ -474,7 +474,7 @@ class EditProfileViewModelTest {
 
         assertTrue(viewModel.saveFailed)
         assertNull(profileRepository.savedProfile)
-        assertFalse(viewModel.isDone)
+        assertFalse(viewModel.shouldClose)
     }
 
     @Test
@@ -575,7 +575,7 @@ class EditProfileViewModelTest {
         viewModel.save()
 
         assertTrue(viewModel.isWritingProfile)
-        assertFalse(viewModel.isDone)
+        assertFalse(viewModel.shouldClose)
     }
 
     @Test
@@ -589,18 +589,18 @@ class EditProfileViewModelTest {
 
         assertFalse(viewModel.isWritingProfile)
         assertFalse(viewModel.isSaving)
-        assertTrue(viewModel.isDone)
+        assertTrue(viewModel.shouldClose)
     }
 
     @Test
-    fun save_writeNotConfirmedInTime_isDoneWithoutFailure() {
+    fun save_writeNotConfirmedInTime_shouldCloseWithoutFailure() {
         profileRepository.saveFinished = CompletableDeferred()
         val viewModel = createViewModel()
         viewModel.save()
 
         dispatcher.scheduler.advanceTimeBy(PROFILE_WRITE_TIMEOUT_MILLIS + 1)
 
-        assertTrue(viewModel.isDone)
+        assertTrue(viewModel.shouldClose)
         assertFalse(viewModel.saveFailed)
         assertFalse(viewModel.isWritingProfile)
     }
@@ -613,7 +613,7 @@ class EditProfileViewModelTest {
 
         dispatcher.scheduler.advanceTimeBy(PROFILE_WRITE_TIMEOUT_MILLIS - 1)
 
-        assertFalse(viewModel.isDone)
+        assertFalse(viewModel.shouldClose)
         assertTrue(viewModel.isWritingProfile)
     }
 

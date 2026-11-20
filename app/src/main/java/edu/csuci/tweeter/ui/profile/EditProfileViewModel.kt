@@ -51,8 +51,8 @@ internal const val PROFILE_WRITE_TIMEOUT_MILLIS = 10_000L
  * @param profileSaver Saves the profile, deleting the photo the save leaves unused, even once
  *     this ViewModel has stopped waiting for it.
  * @param accountRepository Who is logged in.
- * @param photo The new profile photo, chosen with the camera or from the camera roll. It isn't
- *     replaced while the profile saves.
+ * @param photo The new profile photo, chosen with the camera or from the camera roll. Saving
+ *     locks it, so that it isn't replaced while the profile saves.
  * @param cameraCapture Takes pictures with the camera app into [photo], for the screen to control
  *     through this ViewModel; it's closed with the ViewModel.
  * @param savedStateHandle Keeps the typed name and bio, and whether the photo was removed.
@@ -113,10 +113,10 @@ class EditProfileViewModel(
         get() = editing?.save == SaveStatus.FAILED
 
     /**
-     * Whether the screen is finished and should close: the edits were saved, or there's no
-     * profile to edit because nobody is logged in or it couldn't be read.
+     * Whether the screen should close, as nothing is left to do on it: the edits were saved, or
+     * there's no profile to edit because nobody is logged in or it couldn't be read.
      */
-    val isDone: Boolean
+    val shouldClose: Boolean
         get() = when (val current = stage) {
             Stage.Loading -> false
             Stage.NothingToEdit -> true
@@ -124,8 +124,8 @@ class EditProfileViewModel(
         }
 
     /**
-     * Whether [save] would save: the edits are valid, no save is running and the screen isn't
-     * [isDone].
+     * Whether [save] would save: the edits are valid, no save is running and they weren't saved
+     * already.
      */
     val canSave: Boolean
         get() {
@@ -174,14 +174,17 @@ class EditProfileViewModel(
 
     /**
      * Makes the photo at [photoUri], chosen from the camera roll, the new profile photo, uploaded
-     * when the profile is saved. Ignored while [isSaving], since saving reads the photo it
-     * started with.
+     * when the profile is saved. Ignored while [isSaving]: saving locks [photo] on the photo it
+     * uploads, and the lock drops this one, as it drops a picture the camera app saves meanwhile.
      */
     fun choosePhoto(photoUri: String) {
         photo.chooseFromCameraRoll(photoUri)
     }
 
-    /** Removes the profile photo when the profile is saved. Ignored while [isSaving]. */
+    /**
+     * Removes the profile photo when the profile is saved. Ignored while [isSaving], which this
+     * checks itself: [photo]'s lock doesn't keep the photo from being cleared.
+     */
     fun removePhoto() {
         if (isSaving) {
             return
@@ -194,7 +197,7 @@ class EditProfileViewModel(
 
     /**
      * Saves the edits and the photo change to the profile, uploading a new photo first, then
-     * sets [isDone]. Ignored unless [canSave].
+     * sets [shouldClose]. Ignored unless [canSave].
      */
     fun save() {
         val current = editing ?: return
