@@ -3,10 +3,12 @@ package edu.csuci.tweeter.ui.profile
 import edu.csuci.tweeter.data.AccountRepository
 import edu.csuci.tweeter.data.FollowException
 import edu.csuci.tweeter.data.FollowRepository
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -78,7 +80,7 @@ class FollowViewModelTest {
 
     @Test
     fun observeFollowing_failure_showsErrorAndBlocksChanges() {
-        followRepository.failRead = true
+        followRepository.readFails.value = true
         val viewModel = createViewModel()
 
         assertTrue(viewModel.uiState.value.hasFailed)
@@ -92,12 +94,12 @@ class FollowViewModelTest {
 
     @Test
     fun retry_afterReadFailure_loadsRelationshipAndKeepsListening() {
-        followRepository.failRead = true
+        followRepository.readFails.value = true
         val viewModel = createViewModel()
 
         assertTrue(viewModel.uiState.value.hasFailed)
 
-        followRepository.failRead = false
+        followRepository.readFails.value = false
         followRepository.following.value = true
         viewModel.retry()
 
@@ -112,6 +114,129 @@ class FollowViewModelTest {
         assertFalse(viewModel.uiState.value.isFollowing)
     }
 
+    @Test
+    fun follow_whileChanging_blocksChangesAndIgnoresSecondTap() {
+        followRepository.holdChanges()
+        val viewModel = createViewModel()
+        viewModel.follow()
+
+        viewModel.follow()
+        viewModel.unfollow()
+
+        assertEquals(1, followRepository.changeCount)
+        assertTrue(viewModel.uiState.value.isChanging)
+    }
+
+    @Test
+    fun follow_changeFinishes_allowsChangesAgain() {
+        followRepository.holdChanges()
+        val viewModel = createViewModel()
+        viewModel.follow()
+
+        followRepository.finishChanges()
+
+        assertFalse(viewModel.uiState.value.isChanging)
+        assertTrue(viewModel.uiState.value.isFollowing)
+    }
+
+    @Test
+    fun follow_failure_showsErrorAndAllowsTryingAgain() {
+        followRepository.changeFails = true
+        val viewModel = createViewModel()
+
+        viewModel.follow()
+
+        assertTrue(viewModel.uiState.value.hasFailed)
+        assertTrue(viewModel.uiState.value.canFollow)
+        assertFalse(viewModel.uiState.value.isChanging)
+        assertFalse(viewModel.uiState.value.isFollowing)
+    }
+
+    @Test
+    fun unfollow_failure_showsErrorAndKeepsFollowing() {
+        followRepository.following.value = true
+        followRepository.changeFails = true
+        val viewModel = createViewModel()
+
+        viewModel.unfollow()
+
+        assertTrue(viewModel.uiState.value.hasFailed)
+        assertTrue(viewModel.uiState.value.canFollow)
+        assertTrue(viewModel.uiState.value.isFollowing)
+    }
+
+    @Test
+    fun retry_afterChangeFailure_doesNotReadAgain() {
+        followRepository.changeFails = true
+        val viewModel = createViewModel()
+        viewModel.follow()
+
+        viewModel.retry()
+
+        assertEquals(1, followRepository.observeCount)
+        assertTrue(viewModel.uiState.value.hasFailed)
+    }
+
+    @Test
+    fun follow_afterChangeFailure_triesAgainAndClearsError() {
+        followRepository.changeFails = true
+        val viewModel = createViewModel()
+        viewModel.follow()
+        followRepository.changeFails = false
+
+        viewModel.follow()
+
+        assertEquals(2, followRepository.changeCount)
+        assertFalse(viewModel.uiState.value.hasFailed)
+        assertTrue(viewModel.uiState.value.isFollowing)
+    }
+
+    @Test
+    fun observeFollowing_failureWhileChanging_showsRetryAndBlocksChanges() {
+        followRepository.holdChanges()
+        val viewModel = createViewModel()
+        viewModel.follow()
+
+        followRepository.readFails.value = true
+        viewModel.follow()
+
+        assertEquals(1, followRepository.changeCount)
+        assertTrue(viewModel.uiState.value.hasFailed)
+        assertFalse(viewModel.uiState.value.canFollow)
+    }
+
+    @Test
+    fun observeFollowing_failureWhileChanging_keepsShowingRetryAfterChangeFinishes() {
+        followRepository.holdChanges()
+        val viewModel = createViewModel()
+        viewModel.follow()
+        followRepository.readFails.value = true
+
+        followRepository.finishChanges()
+
+        assertEquals(OTHER_UID, followRepository.followedUid)
+        assertTrue(viewModel.uiState.value.hasFailed)
+        assertFalse(viewModel.uiState.value.canFollow)
+        assertFalse(viewModel.uiState.value.isChanging)
+    }
+
+    @Test
+    fun retry_afterReadFailureWhileChanging_loadsChangedRelationship() {
+        followRepository.holdChanges()
+        val viewModel = createViewModel()
+        viewModel.follow()
+        followRepository.readFails.value = true
+        followRepository.finishChanges()
+        followRepository.readFails.value = false
+
+        viewModel.retry()
+
+        assertEquals(2, followRepository.observeCount)
+        assertFalse(viewModel.uiState.value.hasFailed)
+        assertTrue(viewModel.uiState.value.canFollow)
+        assertTrue(viewModel.uiState.value.isFollowing)
+    }
+
     private fun createViewModel(userUid: String = OTHER_UID): FollowViewModel = FollowViewModel(
         userUid = userUid,
         accountRepository = accountRepository,
@@ -120,18 +245,35 @@ class FollowViewModelTest {
 
     private class FakeFollowRepository : FollowRepository {
         val following = MutableStateFlow(false)
+        val readFails = MutableStateFlow(false)
+        var changeFails: Boolean = false
         var followedUid: String? = null
         var unfollowedUid: String? = null
-        var failRead: Boolean = false
         var observeCount: Int = 0
+        var changeCount: Int = 0
+        private var changesAnswered = CompletableDeferred(Unit)
+
+        // Follows and unfollows wait until finishChanges(), like requests the server hasn't
+        // answered yet.
+        fun holdChanges() {
+            changesAnswered = CompletableDeferred()
+        }
+
+        fun finishChanges() {
+            changesAnswered.complete(Unit)
+        }
 
         override fun observeFollowing(followerUid: String, followedUid: String): Flow<Boolean> =
             flow {
                 observeCount++
-                if (failRead) {
-                    throw FollowException(IllegalStateException("Could not read following"))
-                }
-                emitAll(following)
+                emitAll(
+                    combine(following, readFails) { isFollowing, fails ->
+                        if (fails) {
+                            throw FollowException(IllegalStateException("Could not read following"))
+                        }
+                        isFollowing
+                    }
+                )
             }
 
         override fun observeFollowerCount(userUid: String): Flow<Int> =
@@ -144,13 +286,23 @@ class FollowViewModelTest {
             error("Not used by FollowViewModel")
 
         override suspend fun follow(userUid: String) {
+            answerChange()
             followedUid = userUid
             following.value = true
         }
 
         override suspend fun unfollow(userUid: String) {
+            answerChange()
             unfollowedUid = userUid
             following.value = false
+        }
+
+        private suspend fun answerChange() {
+            changeCount++
+            changesAnswered.await()
+            if (changeFails) {
+                throw FollowException(IllegalStateException("Could not change following"))
+            }
         }
     }
 
