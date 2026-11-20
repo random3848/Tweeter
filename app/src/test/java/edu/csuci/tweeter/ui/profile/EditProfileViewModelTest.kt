@@ -101,6 +101,17 @@ class EditProfileViewModelTest {
     }
 
     @Test
+    fun init_whileReadingProfile_hasNothingToEditAndStaysOpen() {
+        profileRepository.readFinished = CompletableDeferred()
+
+        val viewModel = createViewModel()
+
+        assertNull(viewModel.edits)
+        assertNull(viewModel.avatarProfile)
+        assertFalse(viewModel.isDone)
+    }
+
+    @Test
     fun init_savedEdits_restoresThem() {
         val savedStateHandle = SavedStateHandle()
         createViewModel(savedStateHandle = savedStateHandle).updateDisplayName("Maya Lin")
@@ -158,6 +169,16 @@ class EditProfileViewModelTest {
     }
 
     @Test
+    fun canSave_whileSaving_false() {
+        profileRepository.saveFinished = CompletableDeferred()
+        val viewModel = createViewModel()
+
+        viewModel.save()
+
+        assertFalse(viewModel.canSave)
+    }
+
+    @Test
     fun save_validEdits_savesTrimmedProfileAndIsDone() {
         val viewModel = createViewModel()
         viewModel.updateDisplayName(" Maya Lin ")
@@ -170,6 +191,17 @@ class EditProfileViewModelTest {
             profileRepository.savedProfile
         )
         assertTrue(viewModel.isDone)
+    }
+
+    @Test
+    fun save_validEdits_keepsShowingEditsWhileClosing() {
+        val viewModel = createViewModel()
+        viewModel.updateDisplayName("Maya Lin")
+
+        viewModel.save()
+
+        assertEquals("Maya Lin", viewModel.edits?.displayName)
+        assertEquals(profile, viewModel.avatarProfile)
     }
 
     @Test
@@ -193,6 +225,35 @@ class EditProfileViewModelTest {
         assertTrue(viewModel.saveFailed)
         assertFalse(viewModel.isSaving)
         assertFalse(viewModel.isDone)
+    }
+
+    @Test
+    fun save_afterFailure_clearsFailure() {
+        profileRepository.failsToSave = true
+        val viewModel = createViewModel()
+        viewModel.save()
+        profileRepository.failsToSave = false
+        profileRepository.saveFinished = CompletableDeferred()
+
+        viewModel.save()
+
+        assertFalse(viewModel.saveFailed)
+        assertTrue(viewModel.isSaving)
+    }
+
+    @Test
+    fun updateDisplayName_whileSaving_keepsNameAfterFailure() {
+        val saveFinished = CompletableDeferred<Unit>()
+        profileRepository.saveFinished = saveFinished
+        profileRepository.failsToSave = true
+        val viewModel = createViewModel()
+        viewModel.save()
+        viewModel.updateDisplayName("Maya Lin")
+
+        saveFinished.complete(Unit)
+
+        assertTrue(viewModel.saveFailed)
+        assertEquals("Maya Lin", viewModel.edits?.displayName)
     }
 
     @Test
@@ -396,6 +457,18 @@ class EditProfileViewModelTest {
     }
 
     @Test
+    fun choosePhoto_afterFailedSave_replacesPhoto() {
+        photoRepository.failsToUpload = true
+        val viewModel = createViewModel()
+        viewModel.choosePhoto(CHOSEN_PHOTO_URI)
+        viewModel.save()
+
+        viewModel.choosePhoto(OTHER_PHOTO_URI)
+
+        assertEquals(PhotoChange.Replace(OTHER_PHOTO_URI), viewModel.photoChange)
+    }
+
+    @Test
     fun save_photoReplaced_deletesPreviousPhoto() {
         profileRepository.profile = profile.copy(photoUrl = PHOTO_URL)
         val viewModel = createViewModel()
@@ -586,10 +659,15 @@ class EditProfileViewModelTest {
         // When set, saving waits for it, like a write the server hasn't confirmed yet.
         var saveFinished: CompletableDeferred<Unit>? = null
 
-        override fun getProfile(uid: String): Flow<UserProfile> = if (failsToRead) {
-            flow { throw FirebaseException("Could not read the profile") }
-        } else {
-            flowOf(profile)
+        // When set, reading waits for it, like a profile still being read.
+        var readFinished: CompletableDeferred<Unit>? = null
+
+        override fun getProfile(uid: String): Flow<UserProfile> = flow {
+            readFinished?.await()
+            if (failsToRead) {
+                throw FirebaseException("Could not read the profile")
+            }
+            emit(profile)
         }
 
         override fun getProfiles(): Flow<List<UserProfile>> = flowOf(listOf(profile))
@@ -618,6 +696,7 @@ class EditProfileViewModelTest {
     private companion object {
         const val PHOTO_URL = "https://example.com/maya.jpg"
         const val CHOSEN_PHOTO_URI = "content://photos/1"
+        const val OTHER_PHOTO_URI = "content://photos/2"
         const val CAMERA_URI_PREFIX = "content://camera/"
     }
 }

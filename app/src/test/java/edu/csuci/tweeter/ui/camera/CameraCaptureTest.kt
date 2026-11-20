@@ -87,6 +87,19 @@ class CameraCaptureTest {
     }
 
     @Test
+    fun takePicture_afterPictureSaved_keepsPhotoAndItsFile() = runTest {
+        val photo = chosenPhoto()
+        val capture = cameraCapture(photo)
+        val cameraUri = openCamera(capture)
+        capture.pictureSaved()
+
+        capture.takePicture()
+
+        assertEquals(cameraUri, photo.uri)
+        assertEquals(2, filesInDirectory().size)
+    }
+
+    @Test
     fun dismissCameraFailure_clearsFailure() = runTest {
         val capture = cameraCapture()
         capture.takePicture()
@@ -195,6 +208,17 @@ class CameraCaptureTest {
     }
 
     @Test
+    fun stopOpeningCamera_afterFailure_keepsFailure() = runTest {
+        val capture = cameraCapture()
+        capture.takePicture()
+        capture.cameraUnavailable()
+
+        capture.stopOpeningCamera()
+
+        assertTrue(capture.cameraFailed)
+    }
+
+    @Test
     fun stopOpeningCamera_cameraOpen_stillTakesItsPicture() = runTest {
         val photo = chosenPhoto()
         val capture = cameraCapture(photo)
@@ -245,6 +269,38 @@ class CameraCaptureTest {
 
         assertNull(restored.cameraUriToOpen)
         assertFalse(restored.isOpeningCamera)
+    }
+
+    @Test
+    fun restored_afterFailure_reportsFailure() = runTest {
+        directory.writeText("A file where the directory should be")
+        cameraCapture().takePicture()
+
+        val restored = cameraCapture()
+
+        assertTrue(restored.cameraFailed)
+    }
+
+    @Test
+    fun restored_afterPictureSaved_hasNoPictureToSave() = runTest {
+        val photo = chosenPhoto()
+        openCamera(cameraCapture(photo))
+        cameraCapture(photo).pictureSaved()
+        photo.chooseFromCameraRoll(CAMERA_ROLL_URI)
+
+        cameraCapture(photo).pictureSaved()
+
+        assertEquals(CAMERA_ROLL_URI, photo.uri)
+    }
+
+    @Test
+    fun restored_whileCameraOpen_pictureCancelledDeletesFile() = runTest {
+        openCamera(cameraCapture())
+        val restored = cameraCapture()
+
+        restored.pictureCancelled()
+
+        assertEquals(emptyList<File>(), filesInDirectory())
     }
 
     // Takes a picture up to the camera app opening, and returns the URI it saves into.
