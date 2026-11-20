@@ -105,6 +105,7 @@ class CameraCapture(
     }
 
     override fun pictureCancelled() {
+        discardFileToOpen()
         discardOpenedFile()
     }
 

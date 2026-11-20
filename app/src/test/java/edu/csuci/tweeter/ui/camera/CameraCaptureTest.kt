@@ -15,6 +15,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -180,6 +181,31 @@ class CameraCaptureTest {
 
         assertEquals(CAMERA_ROLL_URI, photo.uri)
         assertEquals(emptyList<File>(), filesInDirectory())
+    }
+
+    @Test
+    fun pictureCancelled_beforeCameraOpened_deletesFileAndStopsOpeningCamera() = runTest {
+        val capture = cameraCapture()
+        capture.takePicture()
+
+        capture.pictureCancelled()
+
+        assertEquals(emptyList<File>(), filesInDirectory())
+        assertNull(capture.cameraUriToOpen)
+        assertFalse(capture.isOpeningCamera)
+    }
+
+    @Test
+    fun takePicture_afterCancelledBeforeCameraOpened_asksToOpenCameraWithNewFile() = runTest {
+        val capture = cameraCapture()
+        capture.takePicture()
+        val cancelledUri = capture.cameraUriToOpen
+        capture.pictureCancelled()
+
+        capture.takePicture()
+
+        assertNotEquals(cancelledUri, capture.cameraUriToOpen)
+        assertEquals(listOf(capture.cameraUriToOpen), contentUrisInDirectory())
     }
 
     @Test
