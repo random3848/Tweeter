@@ -8,7 +8,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
@@ -18,14 +17,12 @@ import androidx.compose.ui.unit.dp
  *
  * @param text What to say.
  * @param modifier Applied to the space the text is centered in.
- * @param color Color of the text.
  * @param action What the user can do, such as a retry button.
  */
 @Composable
 fun CenteredMessage(
     text: String,
     modifier: Modifier = Modifier,
-    color: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     action: @Composable () -> Unit = {}
 ) {
     Column(
@@ -36,7 +33,7 @@ fun CenteredMessage(
         Text(
             text = text,
             style = MaterialTheme.typography.bodyLarge,
-            color = color,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
         action()
