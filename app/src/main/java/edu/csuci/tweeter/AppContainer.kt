@@ -196,7 +196,7 @@ class AppContainer(private val context: Context) {
     }
 
     /**
-     * The user's dark mode choice, kept in SharedPreferences. The first screen needs it before its
+     * The user's theme choice, kept in SharedPreferences. The first screen needs it before its
      * first frame, so [prepareFirstScreens] reads it on a background thread.
      */
     val themeRepository: ThemeRepository by lazy {
@@ -356,9 +356,9 @@ class AppContainer(private val context: Context) {
             postRepository
             profileRepository
             accountRepository
-            // Reading darkMode makes the repository load the preference file, which waits for the
+            // Reading themeChoice makes the repository load the preference file, which waits for the
             // disk, here instead of the main thread.
-            themeRepository.darkMode
+            themeRepository.themeChoice
         }
         applicationScope.launch { startMapEngine() }
     }

@@ -1,13 +1,14 @@
 package edu.csuci.tweeter.data
 
 import android.content.SharedPreferences
+import edu.csuci.tweeter.ui.theme.ThemeChoice
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * Keeps the dark mode choice in [SharedPreferences].
+ * Keeps the theme choice in [SharedPreferences].
  *
- * The file is read the first time [darkMode] is used, not when this is constructed, so
+ * The file is read the first time [themeChoice] is used, not when this is constructed, so
  * AppContainer can start that read on a background thread.
  */
 class SharedPreferencesThemeRepository(private val preferences: SharedPreferences) :
@@ -15,31 +16,27 @@ class SharedPreferencesThemeRepository(private val preferences: SharedPreference
 
     private val state by lazy {
         MutableStateFlow(
-            if (preferences.contains(KEY_DARK_MODE)) {
-                preferences.getBoolean(KEY_DARK_MODE, false)
-            } else {
-                null
+            try {
+                val name = preferences.getString(KEY_THEME_CHOICE, null)
+                if (name != null) ThemeChoice.valueOf(name) else ThemeChoice.SYSTEM
+            } catch (_: IllegalArgumentException) {
+                ThemeChoice.SYSTEM
             }
         )
     }
 
-    override val darkMode: StateFlow<Boolean?> get() = state
+    override val themeChoice: StateFlow<ThemeChoice> get() = state
 
-    override fun setDarkMode(darkMode: Boolean?) {
-        state.value = darkMode
-        // apply() writes to disk in the background.
-        val editor = preferences.edit()
-        if (darkMode == null) {
-            editor.remove(KEY_DARK_MODE)
-        } else {
-            editor.putBoolean(KEY_DARK_MODE, darkMode)
-        }
-        editor.apply()
+    override fun setThemeChoice(themeChoice: ThemeChoice) {
+        state.value = themeChoice
+        preferences.edit()
+            .putString(KEY_THEME_CHOICE, themeChoice.name)
+            .apply()
     }
 
     companion object {
-        /** The SharedPreferences file name where the dark mode choice is saved. */
+        /** The SharedPreferences file name where theme settings are saved. */
         const val PREFS_NAME = "theme_settings"
-        private const val KEY_DARK_MODE = "dark_mode"
+        private const val KEY_THEME_CHOICE = "theme_choice"
     }
 }

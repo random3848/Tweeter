@@ -26,6 +26,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.ui.auth.LogInPrompt
 import edu.csuci.tweeter.ui.navigation.BackTopBar
+import edu.csuci.tweeter.ui.theme.ThemeChoice
 
 /**
  * The logged-in user's profile: their picture, name and bio, then the posts they shared, each with
@@ -53,7 +54,7 @@ fun ProfileScreen(
     profileViewModel: ProfileViewModel = viewModel(factory = ProfileViewModel.factory)
 ) {
     val uiState by profileViewModel.uiState.collectAsStateWithLifecycle()
-    val darkMode by profileViewModel.darkMode.collectAsStateWithLifecycle()
+    val themeChoice by profileViewModel.themeChoice.collectAsStateWithLifecycle()
 
     Column(modifier = modifier.fillMaxSize()) {
         BackTopBar(
@@ -68,8 +69,8 @@ fun ProfileScreen(
             }
         )
         ThemeSelector(
-            darkMode = darkMode,
-            onSelect = profileViewModel::setDarkMode,
+            themeChoice = themeChoice,
+            onSelect = profileViewModel::setThemeChoice,
             modifier = Modifier.padding(vertical = 12.dp)
         )
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -107,8 +108,8 @@ fun ProfileScreen(
 
 @Composable
 private fun ThemeSelector(
-    darkMode: Boolean?,
-    onSelect: (Boolean?) -> Unit,
+    themeChoice: ThemeChoice,
+    onSelect: (ThemeChoice) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -123,16 +124,11 @@ private fun ThemeSelector(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            val options = listOf(
-                null to R.string.theme_system,
-                false to R.string.theme_light,
-                true to R.string.theme_dark
-            )
-            for ((value, labelRes) in options) {
+            for (choice in ThemeChoice.entries) {
                 FilterChip(
-                    selected = darkMode == value,
-                    onClick = { onSelect(value) },
-                    label = { Text(stringResource(labelRes)) },
+                    selected = themeChoice == choice,
+                    onClick = { onSelect(choice) },
+                    label = { Text(stringResource(choice.labelRes)) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primary,
                         selectedLabelColor = MaterialTheme.colorScheme.onPrimary,

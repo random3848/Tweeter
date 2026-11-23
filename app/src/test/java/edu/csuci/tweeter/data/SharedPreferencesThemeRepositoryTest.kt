@@ -1,37 +1,58 @@
 package edu.csuci.tweeter.data
 
 import android.content.SharedPreferences
+import edu.csuci.tweeter.ui.theme.ThemeChoice
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 class SharedPreferencesThemeRepositoryTest {
 
     @Test
-    fun darkMode_defaultIsNull() = runTest {
-        val repository = SharedPreferencesThemeRepository(FakeSharedPreferences())
-
-        assertNull(repository.darkMode.first())
-    }
-
-    @Test
-    fun setDarkMode_savesAndEmits() = runTest {
+    fun themeChoice_nothingSaved_isSystem() = runTest {
         val sharedPreferences = FakeSharedPreferences()
         val repository = SharedPreferencesThemeRepository(sharedPreferences)
 
-        repository.setDarkMode(true)
-        assertEquals(true, repository.darkMode.first())
-        assertEquals(true, sharedPreferences.getBoolean("dark_mode", false))
+        val choice = repository.themeChoice.first()
 
-        repository.setDarkMode(false)
-        assertEquals(false, repository.darkMode.first())
-        assertEquals(false, sharedPreferences.getBoolean("dark_mode", true))
+        assertEquals(ThemeChoice.SYSTEM, choice)
+    }
 
-        repository.setDarkMode(null)
-        assertNull(repository.darkMode.first())
-        assertEquals(false, sharedPreferences.contains("dark_mode"))
+    @Test
+    fun setThemeChoice_dark_isReadAfterRestart() = runTest {
+        val sharedPreferences = FakeSharedPreferences()
+        val writer = SharedPreferencesThemeRepository(sharedPreferences)
+        writer.setThemeChoice(ThemeChoice.DARK)
+        val reader = SharedPreferencesThemeRepository(sharedPreferences)
+
+        val choice = reader.themeChoice.first()
+
+        assertEquals(ThemeChoice.DARK, choice)
+    }
+
+    @Test
+    fun setThemeChoice_light_isReadAfterRestart() = runTest {
+        val sharedPreferences = FakeSharedPreferences()
+        val writer = SharedPreferencesThemeRepository(sharedPreferences)
+        writer.setThemeChoice(ThemeChoice.LIGHT)
+        val reader = SharedPreferencesThemeRepository(sharedPreferences)
+
+        val choice = reader.themeChoice.first()
+
+        assertEquals(ThemeChoice.LIGHT, choice)
+    }
+
+    @Test
+    fun setThemeChoice_system_isReadAfterRestart() = runTest {
+        val sharedPreferences = FakeSharedPreferences()
+        val writer = SharedPreferencesThemeRepository(sharedPreferences)
+        writer.setThemeChoice(ThemeChoice.SYSTEM)
+        val reader = SharedPreferencesThemeRepository(sharedPreferences)
+
+        val choice = reader.themeChoice.first()
+
+        assertEquals(ThemeChoice.SYSTEM, choice)
     }
 }
 

@@ -9,15 +9,16 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import edu.csuci.tweeter.data.ThemeRepository
 
-/** The saved choice if there is one, otherwise the phone's setting. */
-fun resolveDarkTheme(savedChoice: Boolean?, systemDark: Boolean): Boolean =
-    savedChoice ?: systemDark
-
-/** Whether the app is dark now: the user's saved choice, or else the phone's setting. */
+/** Whether the app is dark now: following the user's theme choice (System, Light, or Dark). */
 @Composable
-fun useDarkTheme(repository: ThemeRepository): Boolean {
-    val savedChoice by repository.darkMode.collectAsState()
-    return resolveDarkTheme(savedChoice, isSystemInDarkTheme())
+fun isDarkTheme(repository: ThemeRepository): Boolean {
+    val choice by repository.themeChoice.collectAsState()
+    val systemDark = isSystemInDarkTheme()
+    return when (choice) {
+        ThemeChoice.SYSTEM -> systemDark
+        ThemeChoice.LIGHT -> false
+        ThemeChoice.DARK -> true
+    }
 }
 
 /**

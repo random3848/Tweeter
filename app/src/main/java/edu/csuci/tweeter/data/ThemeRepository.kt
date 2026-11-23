@@ -1,12 +1,13 @@
 package edu.csuci.tweeter.data
 
+import edu.csuci.tweeter.ui.theme.ThemeChoice
 import kotlinx.coroutines.flow.StateFlow
 
 /** The user's dark mode choice, kept across app restarts. */
 interface ThemeRepository {
-    /** True for dark, false for light, null to follow the phone's setting. */
-    val darkMode: StateFlow<Boolean?>
+    /** The current theme choice (System, Light, or Dark). */
+    val themeChoice: StateFlow<ThemeChoice>
 
-    /** Saves the choice; null goes back to following the phone. */
-    fun setDarkMode(darkMode: Boolean?)
+    /** Saves the choice. */
+    fun setThemeChoice(themeChoice: ThemeChoice)
 }
