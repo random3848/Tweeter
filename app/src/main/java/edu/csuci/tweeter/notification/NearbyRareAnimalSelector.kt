@@ -10,7 +10,8 @@ private const val NEARBY_RADIUS_METERS = 10_000.0
 
 /**
  * Chooses the posts a user hears of as rare animals near them: posts by someone else, naming an
- * animal that [rarity] calls rare, at most [radiusMeters] from the user.
+ * animal that [rarity] calls rare, at most [radiusMeters] from the user, that they weren't notified
+ * of yet.
  */
 class NearbyRareAnimalSelector(
     private val rarity: AnimalRarity,
@@ -24,21 +25,23 @@ class NearbyRareAnimalSelector(
      * @throws edu.csuci.tweeter.data.PostLookupException If [rarity] can't tell.
      */
     suspend fun rowsToNotify(posts: PostTable, recipient: Recipient): IntArray {
-        val nearbySightings = (0 until posts.size).filter { row ->
-            isNearbySighting(posts, row, recipient)
+        val newNearbySightings = (0 until posts.size).filter { row ->
+            isNewNearbySighting(posts, row, recipient)
         }
         val isRareByAnimal = HashMap<String, Boolean>()
-        return nearbySightings.filter { row ->
+        return newNearbySightings.filter { row ->
             val animal = posts.animalType(row)
             isRareByAnimal.getOrPut(animal) { rarity.isRare(animal) }
         }.toIntArray()
     }
 
-    // Whether the post in [row] names an animal and was shared near [recipient] by someone else.
-    private fun isNearbySighting(posts: PostTable, row: Int, recipient: Recipient): Boolean {
+    // Whether the post in [row] names an animal, was shared near [recipient] by someone else, and
+    // wasn't notified of yet.
+    private fun isNewNearbySighting(posts: PostTable, row: Int, recipient: Recipient): Boolean {
         val namesAnimal = posts.animalType(row).isNotBlank()
         val isOwnPost = posts.authorUid(row) == recipient.uid
-        return namesAnimal && !isOwnPost && isNear(posts, row, recipient.location)
+        val isNews = posts.id(row) !in recipient.notifiedPostIds
+        return namesAnimal && !isOwnPost && isNews && isNear(posts, row, recipient.location)
     }
 
     private fun isNear(posts: PostTable, row: Int, location: GeoPoint): Boolean {

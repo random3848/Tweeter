@@ -19,34 +19,34 @@ private const val OTHER_POST_ID = "other post"
 
 class PostLikerTest {
     @Test
-    fun like_savesIt() = runTest {
+    fun toggle_postNotLiked_likesIt() = runTest {
         val likes = FakeLikeRepository()
 
-        PostLiker(likes).like(POST_ID)
+        PostLiker(likes).toggle(POST_ID, likedPostIds = emptySet())
 
         assertEquals(setOf(POST_ID), likes.getLikedPostIds().first())
     }
 
     @Test
-    fun unlike_takesItBack() = runTest {
+    fun toggle_likedPost_takesLikeBack() = runTest {
         val likes = FakeLikeRepository(initialLikedPostIds = setOf(POST_ID))
 
-        PostLiker(likes).unlike(POST_ID)
+        PostLiker(likes).toggle(POST_ID, likedPostIds = setOf(POST_ID))
 
         assertEquals(emptySet<String>(), likes.getLikedPostIds().first())
     }
 
     @Test
-    fun like_notSaved_doesNotThrow() = runTest {
+    fun toggle_likeNotSaved_doesNotThrow() = runTest {
         val likes = UnsavableLikeRepository()
 
-        PostLiker(likes).like(POST_ID)
+        PostLiker(likes).toggle(POST_ID, likedPostIds = emptySet())
 
         assertEquals(1, likes.attemptCount)
     }
 
     @Test
-    fun like_tappedAgainBeforeSaved_likesOnce() = runTest {
+    fun toggle_tappedAgainBeforeSaved_likesOnce() = runTest {
         val likes = SlowLikeRepository()
         val liker = PostLiker(likes)
 
@@ -57,31 +57,33 @@ class PostLikerTest {
     }
 
     @Test
-    fun unlike_afterLikeSaved_unlikes() = runTest {
+    fun toggle_afterLikeSaved_takesLikeBack() = runTest {
         val likes = SlowLikeRepository()
         val liker = PostLiker(likes)
         startLike(liker, POST_ID)
         likes.finishChanges()
 
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { liker.unlike(POST_ID) }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            liker.toggle(POST_ID, likedPostIds = setOf(POST_ID))
+        }
         likes.finishChanges()
 
         assertEquals(emptySet<String>(), likes.getLikedPostIds().first())
     }
 
     @Test
-    fun like_afterLikeNotSaved_triesAgain() = runTest {
+    fun toggle_afterLikeNotSaved_triesAgain() = runTest {
         val likes = UnsavableLikeRepository()
         val liker = PostLiker(likes)
-        liker.like(POST_ID)
+        liker.toggle(POST_ID, likedPostIds = emptySet())
 
-        liker.like(POST_ID)
+        liker.toggle(POST_ID, likedPostIds = emptySet())
 
         assertEquals(2, likes.attemptCount)
     }
 
     @Test
-    fun like_otherPostWhileOneIsSaving_changesBoth() = runTest {
+    fun toggle_otherPostWhileOneIsSaving_changesBoth() = runTest {
         val likes = SlowLikeRepository()
         val liker = PostLiker(likes)
 
@@ -93,6 +95,8 @@ class PostLikerTest {
 
     // Starts liking the post, which waits for the slow repository until the test finishes it.
     private fun TestScope.startLike(liker: PostLiker, postId: String) {
-        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { liker.like(postId) }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            liker.toggle(postId, likedPostIds = emptySet())
+        }
     }
 }

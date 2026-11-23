@@ -10,16 +10,19 @@ private const val MIN_LIKES_OF_POPULAR_POST = 10
 
 // How long after it is shared a post can become popular news. A few days keeps it about what is
 // happening now (by then the feed's Best order ranks even a new post without likes above it), and
-// bounds the posts each check reads and remembers.
+// bounds the posts each check remembers.
 private val RECENCY_WINDOW_MILLIS = DAYS.toMillis(3)
 
 /**
  * Chooses the posts a user hears of as popular: posts by someone else, shared less than
  * [windowMillis] ago, with at least [minLikeCount] likes, that they weren't notified of yet,
  * wherever the posts were shared.
+ *
+ * @property minLikeCount How many likes make a post popular, so that a check reads only the posts
+ *     with at least that many.
  */
 class PopularPostSelector(
-    private val minLikeCount: Int = MIN_LIKES_OF_POPULAR_POST,
+    val minLikeCount: Int = MIN_LIKES_OF_POPULAR_POST,
     private val windowMillis: Long = RECENCY_WINDOW_MILLIS
 ) {
     /**

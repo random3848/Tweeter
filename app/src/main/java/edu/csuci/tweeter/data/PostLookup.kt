@@ -33,4 +33,23 @@ interface PostLookup {
      * @throws PostLookupException If the server can't be reached or refuses the lookup.
      */
     suspend fun countPostsOfAnimal(animal: String, maxCount: Int): Int
+
+    /**
+     * Whether the server holds the post with [postId]: not once the post is deleted. Feed asks it
+     * of a post it was asked to show that its table, which may come from Firestore's cache on the
+     * device, doesn't hold, since only the server can tell a deleted post from one the table
+     * doesn't hold yet.
+     *
+     * @throws PostLookupException If the server can't be reached or refuses the lookup.
+     */
+    suspend fun holdsPost(postId: String): Boolean
+
+    /**
+     * Every post with at least [minLikeCount] likes, however old, most liked first, however many
+     * there are: the lookup may read them in pages, but returns them all, each once. A post whose
+     * likes change while the pages are read may be left out, until the next lookup.
+     *
+     * @throws PostLookupException If the server can't be reached or refuses the lookup.
+     */
+    suspend fun postsWithLikesAtLeast(minLikeCount: Int): PostTable
 }

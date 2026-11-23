@@ -89,7 +89,7 @@ fun LocationPicker(
         scope.launch {
             isLocating = true
             hasNoFix = false
-            val fix = deviceLocationProvider.currentFix()
+            val fix = deviceLocationProvider.getAndSaveCurrentFix()
             isLocating = false
             if (fix == null) {
                 hasNoFix = true
@@ -100,7 +100,7 @@ fun LocationPicker(
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(RequestMultiplePermissions()) {
-        // Without permission, currentFix() returns null and the message below is shown.
+        // Without permission, getAndSaveCurrentFix() returns null and the message below is shown.
         pickDeviceLocation()
     }
 

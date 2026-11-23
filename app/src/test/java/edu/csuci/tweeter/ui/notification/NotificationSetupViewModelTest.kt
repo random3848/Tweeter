@@ -3,7 +3,6 @@ package edu.csuci.tweeter.ui.notification
 import edu.csuci.tweeter.data.FakeAccountRepository
 import edu.csuci.tweeter.data.FakeNumberStore
 import edu.csuci.tweeter.notification.NotificationPermissionRecord
-import java.time.Clock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -22,8 +21,7 @@ private const val USER_UID = "maya"
 @OptIn(ExperimentalCoroutinesApi::class)
 class NotificationSetupViewModelTest {
     private val accountRepository = FakeAccountRepository(initialUid = USER_UID)
-    private val permissionRecord =
-        NotificationPermissionRecord(FakeNumberStore(), Clock.systemUTC())
+    private val permissionRecord = NotificationPermissionRecord(FakeNumberStore())
     private var canNotify = false
     private var locationUpdates = 0
 

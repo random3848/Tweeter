@@ -15,7 +15,8 @@ import kotlinx.coroutines.coroutineScope
  * @param readExif Reads the location in a photo's EXIF metadata, blocking while it does
  *     ([ExifLocationReader.read] in the app).
  * @param currentDeviceFix Waits for the device's current location
- *     ([DeviceLocationProvider.currentFix] in the app).
+ *     ([DeviceLocationProvider.getAndSaveCurrentFix] in the app, which also saves it as where the
+ *     device last was).
  * @param ioDispatcher Where [readExif] runs, since it blocks on file I/O.
  */
 class PhotoLocator<PhotoT>(

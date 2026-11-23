@@ -27,18 +27,20 @@ import kotlinx.coroutines.launch
 /**
  * What [SavedPostsScreen] shows.
  *
- * @property listedPosts The posts the user saved, newest first.
+ * @property listedPosts The posts the user saved, by when they were shared, newest first: not by
+ *     when the user saved them, which bookmarks don't keep.
  * @property isLoading Whether the posts are still being read.
  * @property likedPostIds The IDs of the posts the user liked, whose hearts are filled.
  * @property bookmarkedPostIds The IDs of the posts the user saved, whose bookmarks are filled.
- * @property canLike Whether the user can like and save posts: they're logged in, not a guest.
+ * @property isLoggedIn Whether a user is logged in, not a guest: the screen lets them like and
+ *     save posts, and opens Log in for guests who try.
  */
 data class SavedPostsUiState(
     val listedPosts: PostRows = PostRows.EMPTY,
     val isLoading: Boolean = true,
     val likedPostIds: Set<String> = emptySet(),
     val bookmarkedPostIds: Set<String> = emptySet(),
-    val canLike: Boolean = false
+    val isLoggedIn: Boolean = false
 )
 
 /** The saved posts the screen lists, and the IDs of every post the user saved. */
@@ -90,7 +92,7 @@ class SavedPostsViewModel(
             isLoading = false,
             likedPostIds = likedPostIds,
             bookmarkedPostIds = saved.bookmarkedPostIds,
-            canLike = loggedInUid != null
+            isLoggedIn = loggedInUid != null
         )
     }
         .flowOn(rowsDispatcher)
@@ -104,10 +106,8 @@ class SavedPostsViewModel(
      * unsaved it, unless a change to its bookmark is still being saved.
      */
     fun toggleBookmark(postId: String) {
-        val isBookmarked = postId in uiState.value.bookmarkedPostIds
-        viewModelScope.launch {
-            if (isBookmarked) postBookmarker.unbookmark(postId) else postBookmarker.bookmark(postId)
-        }
+        val bookmarkedPostIds = uiState.value.bookmarkedPostIds
+        viewModelScope.launch { postBookmarker.toggle(postId, bookmarkedPostIds) }
     }
 
     /**
@@ -115,10 +115,8 @@ class SavedPostsViewModel(
      * to its like is still being saved.
      */
     fun toggleLike(postId: String) {
-        val isLiked = postId in uiState.value.likedPostIds
-        viewModelScope.launch {
-            if (isLiked) postLiker.unlike(postId) else postLiker.like(postId)
-        }
+        val likedPostIds = uiState.value.likedPostIds
+        viewModelScope.launch { postLiker.toggle(postId, likedPostIds) }
     }
 
     /** Asks Map to show the post with [postId], which opens its popup when Map opens. */

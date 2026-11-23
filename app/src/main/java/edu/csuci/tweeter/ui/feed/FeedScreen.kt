@@ -30,7 +30,8 @@ import edu.csuci.tweeter.ui.notification.NotificationSetup
  * heart under it likes the post, or opens Log in for guests, who can't, and a button beside it
  * opens its comments, which guests can read. A bookmark at the right end of that row saves the
  * post for the user to view later, or opens Log in for guests. When another screen asks the feed
- * to show a post, as Map's popup does, the feed scrolls to it. The logged-in user's own posts
+ * to show a post, as Map's popup does, the feed scrolls to it, first switching from Friends to
+ * everyone's posts, newest first, if a friend didn't write it. The logged-in user's own posts
  * have a delete button, which asks before deleting. The first time a user is logged in here, the
  * app asks them, once, to let it notify them about posts, such as rare animals posted near them
  * and popular posts (see [NotificationSetup]).
@@ -74,9 +75,10 @@ fun FeedScreen(
         feedViewModel.showOnMap(postId)
         onShowOnMap()
     }
-    val likePost = if (uiState.canLike) feedViewModel::toggleLike else { _: String -> onLogIn() }
+    val likePost =
+        if (uiState.isLoggedIn) feedViewModel::toggleLike else { _: String -> onLogIn() }
     val bookmarkPost =
-        if (uiState.canLike) feedViewModel::toggleBookmark else { _: String -> onLogIn() }
+        if (uiState.isLoggedIn) feedViewModel::toggleBookmark else { _: String -> onLogIn() }
     Column(modifier = modifier.fillMaxSize()) {
         TweeterTopBar(actions = topBarActions)
         FeedChoiceChips(
