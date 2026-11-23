@@ -49,7 +49,10 @@ internal fun PinFilterBar(
             val filters = PinFilter.entries
             // Unselected segments are see-through by default, which over the map is unreadable.
             val colors = SegmentedButtonDefaults.colors(
-                inactiveContainerColor = MaterialTheme.colorScheme.surface
+                activeContainerColor = MaterialTheme.colorScheme.primary,
+                activeContentColor = MaterialTheme.colorScheme.onPrimary,
+                inactiveContainerColor = MaterialTheme.colorScheme.surface,
+                inactiveContentColor = MaterialTheme.colorScheme.primary
             )
             filters.forEachIndexed { index, filter ->
                 SegmentedButton(
