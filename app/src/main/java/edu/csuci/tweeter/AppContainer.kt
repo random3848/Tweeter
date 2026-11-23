@@ -356,8 +356,8 @@ class AppContainer(private val context: Context) {
             postRepository
             profileRepository
             accountRepository
-            // Reading themeChoice makes the repository load the preference file, which waits for the
-            // disk, here instead of the main thread.
+            // Reading themeChoice makes the repository load the preference file, which waits for
+            // the disk, here instead of the main thread.
             themeRepository.themeChoice
         }
         applicationScope.launch { startMapEngine() }
