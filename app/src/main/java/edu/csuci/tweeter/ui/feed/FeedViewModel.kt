@@ -17,8 +17,8 @@ import edu.csuci.tweeter.data.PostRows
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.ui.ChoicePerUser
 import edu.csuci.tweeter.ui.UserChoice
-import edu.csuci.tweeter.ui.friends.FriendsReader
-import edu.csuci.tweeter.ui.friends.UserFriends
+import edu.csuci.tweeter.ui.following.FollowedUsers
+import edu.csuci.tweeter.ui.following.FollowedUsersReader
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 import java.time.Clock
 import kotlinx.coroutines.CoroutineDispatcher
@@ -71,14 +71,14 @@ private class ListedFeed(
  * @property listedPosts The posts the feed shows, in order: ranked when the user picked [choice],
  *     so posts don't move as their likes change.
  * @property choice What the user picked to see, shown checked.
- * @property offeredChoices The choices on the chips: Friends only for users who are logged in.
+ * @property offeredChoices The choices on the chips: Following only for users who are logged in.
  * @property authors Whose posts the feed shows, as [choice] decides.
  * @property isLoading Whether the first posts are still being loaded from the repository.
  * @property positionToShow Where in [listedPosts] the post another screen asked the feed to show
  *     is, such as Map's popup's, which the feed scrolls to, then calls
  *     [FeedViewModel.clearPostToShow]. Null if none was asked for, or [listedPosts] don't hold it:
  *     while the feed shows the posts it had before that one was shared, or once its author isn't
- *     among the friends shown, until the feed shows everyone's posts in their place.
+ *     among the followed users shown, until the feed shows everyone's posts in their place.
  * @property likedPostIds The IDs of the posts the user liked, whose hearts are filled.
  * @property bookmarkedPostIds The IDs of the posts the user saved, whose bookmarks are filled: none
  *     until they're read, since the posts don't wait for them.
@@ -111,9 +111,10 @@ data class FeedUiState(
  * @param postDeleter Deletes the logged-in user's posts and their photos.
  * @param accountRepository Who is logged in: guests can't like or save posts, and only the user's
  *     own posts show a delete button.
- * @param followRepository Who the user's friends are, for [FeedChoice.FRIENDS].
+ * @param followRepository Who the user follows, for [FeedChoice.FOLLOWING].
  * @param showInFeedRequest The post another screen asks the feed to show, which it scrolls to,
- *     showing everyone's posts if it shows only friends and the post's author isn't one of them.
+ *     showing everyone's posts if it shows only followed users and the post's author isn't one of
+ *     them.
  * @param postLookup Tells the feed whether a post it was asked to show, but can't find, was
  *     deleted, so that it withdraws the request.
  * @param showOnMapRequest Where [showOnMap] asks Map to show a post.
@@ -138,17 +139,17 @@ class FeedViewModel(
 ) : ViewModel() {
     private val choice = ChoicePerUser(accountRepository, default = FeedChoice.BEST)
 
-    private val friendsReader = FriendsReader(followRepository)
+    private val followedUsersReader = FollowedUsersReader(followRepository)
 
-    // What the user or guest chose and whose posts it shows, reading the user's friends for
-    // Friends. Collected once, in [uiState], so the friends are read once.
+    // What the user or guest chose and whose posts it shows, reading who the user follows
+    // for Following. Collected once, in [uiState], so they are read once.
     @OptIn(ExperimentalCoroutinesApi::class)
     private val shown: Flow<ShownChoice> = choice.currentChoice().flatMapLatest { chosen ->
         val shownChoice = shownChoiceOf(chosen)
         authorsFor(chosen.uid, shownChoice).map { authors -> ShownChoice(shownChoice, authors) }
     }
 
-    // The order alone, which doesn't depend on who the user's friends are, so it's found without
+    // The order alone, which doesn't depend on who the user follows, so it's found without
     // reading them.
     private val order: Flow<FeedOrder> = choice.currentChoice()
         .map { chosen -> shownChoiceOf(chosen).order }
@@ -180,8 +181,8 @@ class FeedViewModel(
 
     /**
      * The current state of the feed, updated whenever posts change, the user picks what to see,
-     * their friends change, another screen asks the feed to show a post, or the user likes or saves
-     * a post or logs in or out.
+     * who they follow changes, another screen asks the feed to show a post, or the user likes or
+     * saves a post or logs in or out.
      */
     val uiState: StateFlow<FeedUiState> =
         combine(
@@ -218,29 +219,29 @@ class FeedViewModel(
         this.choice.choose(choice)
     }
 
-    /** Reads the user's friends again, if reading them failed. */
-    fun retryFriends() {
-        friendsReader.retry()
+    /** Reads who the user follows again, if reading it failed. */
+    fun retryFollowed() {
+        followedUsersReader.retry()
     }
 
-    // What the feed shows for [chosen]: the choice itself, except Best for a guest on Friends,
-    // since guests have no friends.
+    // What the feed shows for [chosen]: the choice itself, except Best for a guest on
+    // Following, since guests follow nobody.
     private fun shownChoiceOf(chosen: UserChoice<FeedChoice>): FeedChoice {
-        val isGuestOnFriends = chosen.uid == null && chosen.value.showsOnlyFriends
-        return if (isGuestOnFriends) FeedChoice.BEST else chosen.value
+        val isGuestOnFollowing = chosen.uid == null && chosen.value.showsOnlyFollowed
+        return if (isGuestOnFollowing) FeedChoice.BEST else chosen.value
     }
 
     private fun authorsFor(uid: String?, shownChoice: FeedChoice): Flow<FeedAuthors> =
-        if (uid != null && shownChoice.showsOnlyFriends) {
-            friendsReader.friendsOf(uid).map(::feedAuthorsOf)
+        if (uid != null && shownChoice.showsOnlyFollowed) {
+            followedUsersReader.followedBy(uid).map(::feedAuthorsOf)
         } else {
             flowOf(FeedAuthors.Everyone)
         }
 
-    private fun feedAuthorsOf(friends: UserFriends): FeedAuthors = when (friends) {
-        is UserFriends.Known -> FeedAuthors.Friends(friends.uids)
-        UserFriends.Loading -> FeedAuthors.LoadingFriends
-        UserFriends.Unknown -> FeedAuthors.UnknownFriends
+    private fun feedAuthorsOf(followed: FollowedUsers): FeedAuthors = when (followed) {
+        is FollowedUsers.Known -> FeedAuthors.Followed(followed.uids)
+        FollowedUsers.Loading -> FeedAuthors.LoadingFollowed
+        FollowedUsers.Unknown -> FeedAuthors.UnknownFollowed
     }
 
     // Shows the post asked for when the feed doesn't list it: among everyone's posts if the

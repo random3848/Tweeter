@@ -140,7 +140,7 @@ class FollowViewModelTest {
         override fun observeFollowingCount(userUid: String): Flow<Int> =
             kotlinx.coroutines.flow.flowOf(0)
 
-        override fun observeFollowerUids(followedUid: String): Flow<Set<String>> =
+        override fun observeFollowedUids(followerUid: String): Flow<Set<String>> =
             error("Not used by FollowViewModel")
 
         override suspend fun follow(userUid: String) {

@@ -62,11 +62,11 @@ private const val USER_UID = "maya"
 private const val NEW_UNLIKED_ID = "new-unliked"
 private const val RECENT_LIKED_ID = "recent-liked"
 private const val OLD_POPULAR_ID = "old-popular"
-private const val FRIEND_UID = "jordan"
-private const val FOLLOWED_UID = "sam"
-private const val FRIENDS_NEWER_POST_ID = "friends-newer"
-private const val FRIENDS_OLDER_POST_ID = "friends-older"
-private const val FOLLOWED_POST_ID = "followed"
+private const val FOLLOWED_UID = "jordan"
+private const val FOLLOWER_UID = "sam"
+private const val FOLLOWED_NEWER_POST_ID = "followed-newer"
+private const val FOLLOWED_OLDER_POST_ID = "followed-older"
+private const val FOLLOWER_POST_ID = "follower"
 private const val DELETED_POST_ID = "deleted"
 
 class FeedViewModelTest {
@@ -277,85 +277,85 @@ class FeedViewModelTest {
     }
 
     @Test
-    fun uiState_loggedIn_offersFriends() = runTest {
+    fun uiState_loggedIn_offersFollowing() = runTest {
         val viewModel = collectedFeedViewModel()
 
-        assertTrue(FeedChoice.FRIENDS in viewModel.uiState.value.offeredChoices)
+        assertTrue(FeedChoice.FOLLOWING in viewModel.uiState.value.offeredChoices)
     }
 
     @Test
-    fun uiState_guest_doesNotOfferFriends() = runTest {
+    fun uiState_guest_doesNotOfferFollowing() = runTest {
         val viewModel =
             collectedFeedViewModel(account = FakeAccountRepository(initialUid = null))
 
-        assertFalse(FeedChoice.FRIENDS in viewModel.uiState.value.offeredChoices)
+        assertFalse(FeedChoice.FOLLOWING in viewModel.uiState.value.offeredChoices)
     }
 
     @Test
-    fun choose_friends_showsMutualFollowsPostsNewestFirst() = runTest {
+    fun choose_following_showsFollowedUsersPostsNewestFirst() = runTest {
         val viewModel = collectedFeedViewModel(
-            FakePostRepository(postsByFriendAndOthers),
+            FakePostRepository(postsByFollowedAndOthers),
             follows = followsOfUser()
         )
 
-        viewModel.choose(FeedChoice.FRIENDS)
+        viewModel.choose(FeedChoice.FOLLOWING)
 
         assertEquals(
-            listOf(FRIENDS_NEWER_POST_ID, FRIENDS_OLDER_POST_ID),
+            listOf(FOLLOWED_NEWER_POST_ID, FOLLOWED_OLDER_POST_ID),
             viewModel.uiState.value.shownPostIds()
         )
     }
 
     @Test
-    fun choose_friendsWhileTheyAreRead_isLoadingFriends() = runTest {
+    fun choose_followingWhileReadingWhoUserFollows_isLoadingFollowed() = runTest {
         val follows = followsOfUser()
         follows.readsAnswered = CompletableDeferred()
         val viewModel = collectedFeedViewModel(follows = follows)
 
-        viewModel.choose(FeedChoice.FRIENDS)
+        viewModel.choose(FeedChoice.FOLLOWING)
 
-        assertEquals(FeedAuthors.LoadingFriends, viewModel.uiState.value.authors)
+        assertEquals(FeedAuthors.LoadingFollowed, viewModel.uiState.value.authors)
     }
 
     @Test
-    fun choose_friendsWhoCannotBeRead_isUnknownFriends() = runTest {
+    fun choose_followingWhenWhoUserFollowsCannotBeRead_isUnknownFollowed() = runTest {
         val follows = followsOfUser()
         follows.failsReads = true
         val viewModel = collectedFeedViewModel(follows = follows)
 
-        viewModel.choose(FeedChoice.FRIENDS)
+        viewModel.choose(FeedChoice.FOLLOWING)
 
-        assertEquals(FeedAuthors.UnknownFriends, viewModel.uiState.value.authors)
+        assertEquals(FeedAuthors.UnknownFollowed, viewModel.uiState.value.authors)
     }
 
     @Test
-    fun retryFriends_afterReadFailed_showsFriendsPosts() = runTest {
+    fun retryFollowed_afterReadFailed_showsFollowedUsersPosts() = runTest {
         val follows = followsOfUser()
         follows.failsReads = true
         val viewModel =
-            collectedFeedViewModel(FakePostRepository(postsByFriendAndOthers), follows = follows)
-        viewModel.choose(FeedChoice.FRIENDS)
+            collectedFeedViewModel(FakePostRepository(postsByFollowedAndOthers), follows = follows)
+        viewModel.choose(FeedChoice.FOLLOWING)
 
         follows.failsReads = false
-        viewModel.retryFriends()
+        viewModel.retryFollowed()
 
         assertEquals(
-            listOf(FRIENDS_NEWER_POST_ID, FRIENDS_OLDER_POST_ID),
+            listOf(FOLLOWED_NEWER_POST_ID, FOLLOWED_OLDER_POST_ID),
             viewModel.uiState.value.shownPostIds()
         )
     }
 
     @Test
-    fun uiState_newFriendOnFriends_showsTheirPosts() = runTest {
+    fun uiState_userFollowsSomeoneOnFollowing_showsTheirPosts() = runTest {
         val follows = followsOfUser()
         val viewModel =
-            collectedFeedViewModel(FakePostRepository(postsByFriendAndOthers), follows = follows)
-        viewModel.choose(FeedChoice.FRIENDS)
+            collectedFeedViewModel(FakePostRepository(postsByFollowedAndOthers), follows = follows)
+        viewModel.choose(FeedChoice.FOLLOWING)
 
-        follows.addFollow(FOLLOWED_UID, USER_UID)
+        follows.addFollow(USER_UID, FOLLOWER_UID)
 
         assertEquals(
-            listOf(FRIENDS_NEWER_POST_ID, FOLLOWED_POST_ID, FRIENDS_OLDER_POST_ID),
+            listOf(FOLLOWED_NEWER_POST_ID, FOLLOWER_POST_ID, FOLLOWED_OLDER_POST_ID),
             viewModel.uiState.value.shownPostIds()
         )
     }
@@ -376,68 +376,66 @@ class FeedViewModelTest {
     }
 
     @Test
-    fun choose_friends_readsThemOnce() = runTest {
+    fun choose_following_readsWhoUserFollowsOnce() = runTest {
         val follows = followsOfUser()
         val viewModel = collectedFeedViewModel(follows = follows)
 
-        viewModel.choose(FeedChoice.FRIENDS)
+        viewModel.choose(FeedChoice.FOLLOWING)
 
-        // One listener on the user's followers, and one on whether the user follows back their
-        // one follower.
-        assertEquals(2, follows.openReadCount)
+        assertEquals(1, follows.openReadCount)
     }
 
     @Test
-    fun uiState_otherUserLogsInAfterFriendsWereChosen_startsOnBest() = runTest {
+    fun uiState_otherUserLogsInAfterFollowingWasChosen_startsOnBest() = runTest {
         val account = FakeAccountRepository(USER_UID)
         val viewModel = collectedFeedViewModel(account = account, follows = followsOfUser())
-        viewModel.choose(FeedChoice.FRIENDS)
+        viewModel.choose(FeedChoice.FOLLOWING)
 
-        account.logInAs(FRIEND_UID)
+        account.logInAs(FOLLOWED_UID)
 
         assertEquals(FeedChoice.BEST, viewModel.uiState.value.choice)
     }
 
     @Test
-    fun uiState_logOutOnFriends_showsBestOfEveryone() = runTest {
+    fun uiState_logOutOnFollowing_showsBestOfEveryone() = runTest {
         val account = FakeAccountRepository(USER_UID)
         val viewModel = collectedFeedViewModel(
-            FakePostRepository(postsByFriendAndOthers),
+            FakePostRepository(postsByFollowedAndOthers),
             account = account,
             follows = followsOfUser()
         )
-        viewModel.choose(FeedChoice.FRIENDS)
+        viewModel.choose(FeedChoice.FOLLOWING)
 
         account.logOut()
 
         val uiState = viewModel.uiState.value
         assertEquals(FeedChoice.BEST, uiState.choice)
-        assertEquals(postsByFriendAndOthers.size, uiState.listedPosts.rows.size)
+        assertEquals(postsByFollowedAndOthers.size, uiState.listedPosts.rows.size)
     }
 
     @Test
-    fun uiState_postAskedToShowNotAmongFriends_showsItAmongEveryonesNewestFirst() = runTest {
+    fun uiState_postAskedToShowNotAmongFollowed_showsItAmongEveryonesNewestFirst() = runTest {
         val viewModel = collectedFeedViewModel(
-            FakePostRepository(postsByFriendAndOthers),
+            FakePostRepository(postsByFollowedAndOthers),
             follows = followsOfUser()
         )
-        viewModel.choose(FeedChoice.FRIENDS)
+        viewModel.choose(FeedChoice.FOLLOWING)
 
-        showInFeedRequest.send(FOLLOWED_POST_ID)
+        showInFeedRequest.send(FOLLOWER_POST_ID)
 
         val uiState = viewModel.uiState.value
         assertEquals(FeedChoice.NEWEST, uiState.choice)
-        assertEquals(FOLLOWED_POST_ID, uiState.postIdToShow())
+        assertEquals(FOLLOWER_POST_ID, uiState.postIdToShow())
     }
 
     @Test
-    fun choose_bestAfterPostNotAmongFriendsWasShown_doesNotShowItAgain() = runTest {
+    fun choose_bestAfterPostNotAmongFollowedWasShown_doesNotShowItAgain() = runTest {
         val viewModel = collectedFeedViewModel(
-            FakePostRepository(postsByFriendAndOthers),
+            FakePostRepository(postsByFollowedAndOthers),
             follows = followsOfUser()
         )
-        viewModel.choose(FeedChoice.FRIENDS)
-        showInFeedRequest.send(FOLLOWED_POST_ID)
+        viewModel.choose(FeedChoice.FOLLOWING)
+        showInFeedRequest.send(FOLLOWER_POST_ID)
         viewModel.scrollToPostToShow()
 
         viewModel.choose(FeedChoice.BEST)
@@ -446,32 +444,32 @@ class FeedViewModelTest {
     }
 
     @Test
-    fun uiState_postAskedToShowWhileFriendsAreRead_waitsForThem() = runTest {
+    fun uiState_postAskedToShowWhileFollowedAreRead_waitsForThem() = runTest {
         val follows = followsOfUser()
         follows.readsAnswered = CompletableDeferred()
         val viewModel =
-            collectedFeedViewModel(FakePostRepository(postsByFriendAndOthers), follows = follows)
-        viewModel.choose(FeedChoice.FRIENDS)
-        showInFeedRequest.send(FRIENDS_OLDER_POST_ID)
+            collectedFeedViewModel(FakePostRepository(postsByFollowedAndOthers), follows = follows)
+        viewModel.choose(FeedChoice.FOLLOWING)
+        showInFeedRequest.send(FOLLOWED_OLDER_POST_ID)
 
         follows.readsAnswered?.complete(Unit)
 
         val uiState = viewModel.uiState.value
-        assertEquals(FeedChoice.FRIENDS, uiState.choice)
-        assertEquals(FRIENDS_OLDER_POST_ID, uiState.postIdToShow())
+        assertEquals(FeedChoice.FOLLOWING, uiState.choice)
+        assertEquals(FOLLOWED_OLDER_POST_ID, uiState.postIdToShow())
     }
 
     @Test
-    fun uiState_postAskedToShowWhenFriendsCannotBeRead_showsItAmongEveryones() = runTest {
+    fun uiState_postAskedToShowWhenFollowedCannotBeRead_showsItAmongEveryones() = runTest {
         val follows = followsOfUser()
         follows.failsReads = true
         val viewModel =
-            collectedFeedViewModel(FakePostRepository(postsByFriendAndOthers), follows = follows)
-        viewModel.choose(FeedChoice.FRIENDS)
+            collectedFeedViewModel(FakePostRepository(postsByFollowedAndOthers), follows = follows)
+        viewModel.choose(FeedChoice.FOLLOWING)
 
-        showInFeedRequest.send(FRIENDS_OLDER_POST_ID)
+        showInFeedRequest.send(FOLLOWED_OLDER_POST_ID)
 
-        assertEquals(FRIENDS_OLDER_POST_ID, viewModel.uiState.value.postIdToShow())
+        assertEquals(FOLLOWED_OLDER_POST_ID, viewModel.uiState.value.postIdToShow())
     }
 
     @Test
@@ -673,21 +671,19 @@ class FeedViewModelTest {
         return viewModel
     }
 
-    // Newest first: the friend's two posts, with a post by someone the user follows who doesn't
-    // follow back, and the user's own, between them.
-    private val postsByFriendAndOthers = listOf(
-        postBy(FRIEND_UID, FRIENDS_NEWER_POST_ID, Duration.ofMinutes(5)),
-        postBy(FOLLOWED_UID, FOLLOWED_POST_ID, Duration.ofMinutes(30)),
+    // Newest first: the two posts of the user the user follows, with a post by a follower they
+    // don't follow back, and the user's own, between them.
+    private val postsByFollowedAndOthers = listOf(
+        postBy(FOLLOWED_UID, FOLLOWED_NEWER_POST_ID, Duration.ofMinutes(5)),
+        postBy(FOLLOWER_UID, FOLLOWER_POST_ID, Duration.ofMinutes(30)),
         postBy(USER_UID, NEW_POST_ID, Duration.ofHours(1)),
-        postBy(FRIEND_UID, FRIENDS_OLDER_POST_ID, Duration.ofHours(3))
+        postBy(FOLLOWED_UID, FOLLOWED_OLDER_POST_ID, Duration.ofHours(3))
     )
 
-    // The user and FRIEND_UID follow each other; the user follows FOLLOWED_UID, who doesn't
-    // follow back.
+    // The user follows FOLLOWED_UID, and FOLLOWER_UID follows the user, who doesn't follow back.
     private fun followsOfUser() = FakeFollowRepository().apply {
-        addFollow(USER_UID, FRIEND_UID)
-        addFollow(FRIEND_UID, USER_UID)
         addFollow(USER_UID, FOLLOWED_UID)
+        addFollow(FOLLOWER_UID, USER_UID)
     }
 
     private fun postBy(authorUid: String, id: String, ago: Duration) =

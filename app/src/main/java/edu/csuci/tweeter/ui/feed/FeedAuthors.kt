@@ -12,7 +12,7 @@ sealed interface FeedAuthors {
 
     /**
      * Whether the feed leaves out the posts the user with [authorUid] wrote, as far as it knows
-     * yet: while friends are read, it may still show them.
+     * yet: while the followed users are read, it may still show them.
      */
     fun leavesOut(authorUid: String): Boolean
 
@@ -24,11 +24,11 @@ sealed interface FeedAuthors {
     }
 
     /**
-     * The user's friends: the feed shows their posts.
+     * The users the user follows: the feed shows their posts.
      *
-     * @property uids The friends' IDs.
+     * @property uids The followed users' IDs.
      */
-    data class Friends(val uids: Set<String>) : FeedAuthors {
+    data class Followed(val uids: Set<String>) : FeedAuthors {
         override fun listedIn(ranked: PostRows): PostRows {
             val posts = ranked.table
             val rows = ranked.rows.filter { row -> posts.authorUid(row) in uids }.toIntArray()
@@ -39,17 +39,21 @@ sealed interface FeedAuthors {
     }
 
     /**
-     * The user's friends, while they are first read: the feed shows no posts yet. When they are
-     * read again, as when Feed is shown again, the friends read last are shown meanwhile instead.
+     * The users the user follows, while they are first read: the feed shows no posts yet. When
+     * they are read again, as when Feed is shown again, those read last are shown meanwhile
+     * instead.
      */
-    data object LoadingFriends : FeedAuthors {
+    data object LoadingFollowed : FeedAuthors {
         override fun listedIn(ranked: PostRows): PostRows = PostRows(ranked.table, IntArray(0))
 
         override fun leavesOut(authorUid: String): Boolean = false
     }
 
-    /** The user's friends, who couldn't be read: the feed shows no posts, and offers a retry. */
-    data object UnknownFriends : FeedAuthors {
+    /**
+     * The users the user follows, who couldn't be read: the feed shows no posts, and offers a
+     * retry.
+     */
+    data object UnknownFollowed : FeedAuthors {
         override fun listedIn(ranked: PostRows): PostRows = PostRows(ranked.table, IntArray(0))
 
         override fun leavesOut(authorUid: String): Boolean = true
