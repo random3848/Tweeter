@@ -6,20 +6,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -27,7 +23,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.ui.auth.LogInPrompt
 import edu.csuci.tweeter.ui.navigation.BackTopBar
-import edu.csuci.tweeter.ui.theme.ThemeChoice
 
 /**
  * The logged-in user's profile: their picture, name and bio, then the posts they shared, each with
@@ -41,6 +36,7 @@ import edu.csuci.tweeter.ui.theme.ThemeChoice
  * @param onCreateAccount Opens the registration form.
  * @param onEditProfile Opens Edit profile.
  * @param onOpenSavedPosts Opens the posts the user saved.
+ * @param onOpenSettings Opens account settings.
  * @param modifier Applied to the whole screen.
  * @param profileViewModel Supplies the registered user's profile and posts.
  */
@@ -51,11 +47,11 @@ fun ProfileScreen(
     onCreateAccount: () -> Unit,
     onEditProfile: () -> Unit,
     onOpenSavedPosts: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
     profileViewModel: ProfileViewModel = viewModel(factory = ProfileViewModel.factory)
 ) {
     val uiState by profileViewModel.uiState.collectAsStateWithLifecycle()
-    val themeChoice by profileViewModel.themeChoice.collectAsStateWithLifecycle()
 
     Column(modifier = modifier.fillMaxSize()) {
         BackTopBar(
@@ -63,18 +59,15 @@ fun ProfileScreen(
             onBack = onBack,
             actions = {
                 if (uiState is ProfileUiState.LoggedIn) {
-                    TextButton(onClick = profileViewModel::logOut) {
-                        Text(text = stringResource(R.string.profile_log_out))
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_settings),
+                            contentDescription = stringResource(R.string.settings_title)
+                        )
                     }
                 }
             }
         )
-        ThemeSelector(
-            themeChoice = themeChoice,
-            onSelect = profileViewModel::setThemeChoice,
-            modifier = Modifier.padding(vertical = 12.dp)
-        )
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
         when (val state = uiState) {
             ProfileUiState.Loading -> {
@@ -104,37 +97,6 @@ fun ProfileScreen(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun ThemeSelector(
-    themeChoice: ThemeChoice,
-    onSelect: (ThemeChoice) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val isDark = themeChoice == ThemeChoice.DARK
-    val nextChoice = if (isDark) ThemeChoice.LIGHT else ThemeChoice.DARK
-
-    Row(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = stringResource(R.string.theme_title),
-            style = MaterialTheme.typography.titleMedium
-        )
-        FilterChip(
-            selected = isDark,
-            onClick = { onSelect(nextChoice) },
-            label = { Text(stringResource(themeChoice.labelRes)) },
-            colors = FilterChipDefaults.filterChipColors(
-                selectedContainerColor = MaterialTheme.colorScheme.primary,
-                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                labelColor = MaterialTheme.colorScheme.onSurface
-            )
-        )
     }
 }
 

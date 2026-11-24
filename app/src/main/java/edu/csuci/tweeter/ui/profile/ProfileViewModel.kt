@@ -14,9 +14,7 @@ import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.ProfileRepository
-import edu.csuci.tweeter.data.ThemeRepository
 import edu.csuci.tweeter.data.UserProfile
-import edu.csuci.tweeter.ui.theme.ThemeChoice
 import java.util.Objects
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -74,7 +72,6 @@ sealed interface ProfileUiState {
  * @param profileRepository Where the profile is read from.
  * @param postRepository Where every post is read from; Profile shows the user's rows of it.
  * @param postDeleter Deletes the user's posts and their photos.
- * @param themeRepository Where the user's theme choice is saved and read.
  * @param rowsDispatcher Where the user's rows are found: off the main thread, since finding them
  *     is a pass over every post.
  * @param sharing When [uiState] follows the account, profile and posts: while Profile
@@ -85,18 +82,9 @@ class ProfileViewModel(
     profileRepository: ProfileRepository,
     private val postRepository: PostRepository,
     private val postDeleter: PostDeleter,
-    private val themeRepository: ThemeRepository,
     private val rowsDispatcher: CoroutineDispatcher,
     sharing: SharingStarted
 ) : ViewModel() {
-    /** The user's theme choice (System, Light, or Dark). */
-    val themeChoice: StateFlow<ThemeChoice> = themeRepository.themeChoice
-
-    /** Sets the user's theme choice. */
-    fun setThemeChoice(choice: ThemeChoice) {
-        themeRepository.setThemeChoice(choice)
-    }
-
     /** The current state of the screen, updated as the user logs in and the profile changes. */
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<ProfileUiState> = accountRepository.loggedInUid
@@ -159,7 +147,6 @@ class ProfileViewModel(
                     profileRepository = application.container.profileRepository,
                     postRepository = application.container.postRepository,
                     postDeleter = application.container.postDeleter,
-                    themeRepository = application.container.themeRepository,
                     rowsDispatcher = Dispatchers.Default,
                     sharing = application.container.whileScreenCollects
                 )

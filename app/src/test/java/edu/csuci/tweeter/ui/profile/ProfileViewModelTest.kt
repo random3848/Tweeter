@@ -6,7 +6,6 @@ import edu.csuci.tweeter.data.FakeAccountRepository
 import edu.csuci.tweeter.data.FakePhotoRepository
 import edu.csuci.tweeter.data.FakePostRepository
 import edu.csuci.tweeter.data.FakeProfileRepository
-import edu.csuci.tweeter.data.FakeThemeRepository
 import edu.csuci.tweeter.data.PostDeleter
 import edu.csuci.tweeter.data.PostTable
 import edu.csuci.tweeter.data.SAMPLE_POSTS
@@ -124,7 +123,6 @@ class ProfileViewModelTest {
                 accountRepository = accountRepository,
                 scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
             ),
-            themeRepository = FakeThemeRepository(),
             rowsDispatcher = UnconfinedTestDispatcher(testScheduler),
             sharing = SharingStarted.WhileSubscribed()
         )
