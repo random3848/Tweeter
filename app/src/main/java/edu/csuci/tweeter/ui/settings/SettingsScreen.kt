@@ -19,7 +19,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -27,7 +26,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
 import edu.csuci.tweeter.ui.navigation.BackTopBar
+import edu.csuci.tweeter.ui.theme.BLUE
 import edu.csuci.tweeter.ui.theme.ThemeChoice
+import edu.csuci.tweeter.ui.theme.WHITE
 
 /**
  * Account settings and preferences, arranged in labelled sections.
@@ -70,7 +71,7 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             Text(
-                text = stringResource(R.string.theme_title),
+                text = stringResource(R.string.settings_appearance),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(
@@ -150,27 +151,32 @@ private fun ThemeSelector(
     onSelect: (ThemeChoice) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isDark = themeChoice == ThemeChoice.DARK
-    val nextChoice = if (isDark) ThemeChoice.LIGHT else ThemeChoice.DARK
-
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(
-            text = stringResource(R.string.theme_title),
-            style = MaterialTheme.typography.bodyLarge
-        )
-        FilterChip(
-            selected = isDark,
-            onClick = { onSelect(nextChoice) },
-            label = { Text(stringResource(themeChoice.labelRes)) },
-            colors = FilterChipDefaults.filterChipColors(
-                selectedContainerColor = MaterialTheme.colorScheme.primary,
-                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                labelColor = MaterialTheme.colorScheme.onSurface
+        for (choice in ThemeChoice.entries) {
+            val selectedContainerColor = if (choice == ThemeChoice.LIGHT) {
+                BLUE
+            } else {
+                MaterialTheme.colorScheme.primary
+            }
+            val selectedLabelColor = if (choice == ThemeChoice.LIGHT) {
+                WHITE
+            } else {
+                MaterialTheme.colorScheme.onPrimary
+            }
+            FilterChip(
+                selected = themeChoice == choice,
+                onClick = { onSelect(choice) },
+                label = { Text(stringResource(choice.labelRes)) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = selectedContainerColor,
+                    selectedLabelColor = selectedLabelColor,
+                    labelColor = MaterialTheme.colorScheme.onSurface
+                ),
+                modifier = Modifier.weight(1f)
             )
-        )
+        }
     }
 }
