@@ -318,11 +318,8 @@ private fun TweeterNavHost(
         addSettingsScreen(
             onBack = { navController.navigateUp() },
             onLoggedOut = {
-                navController.navigate(ProfileRoute) {
-                    popUpTo(navController.graph.findStartDestination().id) {
-                        inclusive = false
-                    }
-                    launchSingleTop = true
+                if (!navController.popBackStack(ProfileRoute, inclusive = false)) {
+                    navController.navigateUp()
                 }
             }
         )

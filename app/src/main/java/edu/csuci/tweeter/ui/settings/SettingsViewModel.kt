@@ -7,9 +7,9 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.google.firebase.FirebaseException
 import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -54,7 +54,9 @@ class SettingsViewModel(private val accountRepository: AccountRepository) : View
             try {
                 accountRepository.logOut()
                 _status.value = SettingsStatus.LOGGED_OUT
-            } catch (error: FirebaseException) {
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
                 Log.e("SettingsViewModel", "Could not complete logout", error)
                 _status.value = if (accountRepository.loggedInUid.value == null) {
                     SettingsStatus.LOGGED_OUT
