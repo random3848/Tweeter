@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -112,32 +113,28 @@ private fun ThemeSelector(
     onSelect: (ThemeChoice) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
+    val isDark = themeChoice == ThemeChoice.DARK
+    val nextChoice = if (isDark) ThemeChoice.LIGHT else ThemeChoice.DARK
+
+    Row(
         modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = stringResource(R.string.theme_title),
             style = MaterialTheme.typography.titleMedium
         )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            for (choice in ThemeChoice.entries) {
-                FilterChip(
-                    selected = themeChoice == choice,
-                    onClick = { onSelect(choice) },
-                    label = { Text(stringResource(choice.labelRes)) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                        labelColor = MaterialTheme.colorScheme.onSurface
-                    ),
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
+        FilterChip(
+            selected = isDark,
+            onClick = { onSelect(nextChoice) },
+            label = { Text(stringResource(themeChoice.labelRes)) },
+            colors = FilterChipDefaults.filterChipColors(
+                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                labelColor = MaterialTheme.colorScheme.onSurface
+            )
+        )
     }
 }
 

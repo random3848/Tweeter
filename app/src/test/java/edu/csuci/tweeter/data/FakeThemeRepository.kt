@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /** A [ThemeRepository] for tests: holds theme choice in memory. */
-class FakeThemeRepository(initialThemeChoice: ThemeChoice = ThemeChoice.SYSTEM) : ThemeRepository {
+class FakeThemeRepository(initialThemeChoice: ThemeChoice = ThemeChoice.LIGHT) : ThemeRepository {
     private val _themeChoice = MutableStateFlow(initialThemeChoice)
     override val themeChoice: StateFlow<ThemeChoice> = _themeChoice.asStateFlow()
 

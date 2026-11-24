@@ -10,13 +10,13 @@ import org.junit.Test
 class SharedPreferencesThemeRepositoryTest {
 
     @Test
-    fun themeChoice_nothingSaved_isSystem() = runTest {
+    fun themeChoice_nothingSaved_isLight() = runTest {
         val sharedPreferences = FakeSharedPreferences()
         val repository = SharedPreferencesThemeRepository(sharedPreferences)
 
         val choice = repository.themeChoice.first()
 
-        assertEquals(ThemeChoice.SYSTEM, choice)
+        assertEquals(ThemeChoice.LIGHT, choice)
     }
 
     @Test
@@ -41,18 +41,6 @@ class SharedPreferencesThemeRepositoryTest {
         val choice = reader.themeChoice.first()
 
         assertEquals(ThemeChoice.LIGHT, choice)
-    }
-
-    @Test
-    fun setThemeChoice_system_isReadAfterRestart() = runTest {
-        val sharedPreferences = FakeSharedPreferences()
-        val writer = SharedPreferencesThemeRepository(sharedPreferences)
-        writer.setThemeChoice(ThemeChoice.SYSTEM)
-        val reader = SharedPreferencesThemeRepository(sharedPreferences)
-
-        val choice = reader.themeChoice.first()
-
-        assertEquals(ThemeChoice.SYSTEM, choice)
     }
 }
 

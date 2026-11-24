@@ -4,14 +4,11 @@ import androidx.annotation.StringRes
 import edu.csuci.tweeter.R
 
 /**
- * The user's dark mode choice: follow the system setting, or force light or dark mode.
+ * The user's dark mode choice: light or dark mode.
  *
  * @property labelRes The choice's name on its selector button.
  */
-enum class ThemeChoice(@StringRes val labelRes: Int) {
-    /** Follow the system (phone's) dark mode setting. */
-    SYSTEM(R.string.theme_system),
-
+enum class ThemeChoice(@get:StringRes val labelRes: Int) {
     /** Force light mode. */
     LIGHT(R.string.theme_light),
 

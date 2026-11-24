@@ -18,9 +18,9 @@ class SharedPreferencesThemeRepository(private val preferences: SharedPreference
         MutableStateFlow(
             try {
                 val name = preferences.getString(KEY_THEME_CHOICE, null)
-                if (name != null) ThemeChoice.valueOf(name) else ThemeChoice.SYSTEM
+                if (name != null) ThemeChoice.valueOf(name) else ThemeChoice.LIGHT
             } catch (_: IllegalArgumentException) {
-                ThemeChoice.SYSTEM
+                ThemeChoice.LIGHT
             }
         )
     }

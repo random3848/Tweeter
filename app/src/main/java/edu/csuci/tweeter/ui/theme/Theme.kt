@@ -1,6 +1,5 @@
 package edu.csuci.tweeter.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -9,16 +8,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import edu.csuci.tweeter.data.ThemeRepository
 
-/** Whether the app is dark now: following the user's theme choice (System, Light, or Dark). */
+/** Whether the app is dark now: following the user's theme choice (Light or Dark). */
 @Composable
 fun isDarkTheme(repository: ThemeRepository): Boolean {
     val choice by repository.themeChoice.collectAsState()
-    val systemDark = isSystemInDarkTheme()
-    return when (choice) {
-        ThemeChoice.SYSTEM -> systemDark
-        ThemeChoice.LIGHT -> false
-        ThemeChoice.DARK -> true
-    }
+    return choice == ThemeChoice.DARK
 }
 
 /**
@@ -32,7 +26,7 @@ fun isDarkTheme(repository: ThemeRepository): Boolean {
  * @param content The UI to theme.
  */
 @Composable
-fun TweeterTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
+fun TweeterTheme(darkTheme: Boolean = false, content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = if (darkTheme) darkColors else lightColors,
         typography = TYPOGRAPHY,
