@@ -106,7 +106,8 @@ fun FeedScreen(
                 bookmarks = PostBookmarks(
                     bookmarkedPostIds = uiState.bookmarkedPostIds,
                     onBookmark = bookmarkPost
-                )
+                ),
+                authorPhotoUrls = uiState.authorPhotoUrls
             )
         }
         when (uiState.authors) {

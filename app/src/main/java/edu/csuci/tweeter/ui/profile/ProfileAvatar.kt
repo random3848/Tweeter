@@ -34,6 +34,34 @@ fun ProfileAvatar(
     initialsStyle: TextStyle,
     modifier: Modifier = Modifier
 ) {
+    ProfileAvatar(
+        initials = profile.avatar.initials,
+        photoUrl = profile.photoUrl,
+        size = size,
+        initialsStyle = initialsStyle,
+        modifier = modifier
+    )
+}
+
+/**
+ * A user's round profile picture, for screens that have their initials and photo but not their
+ * whole profile, such as Feed's post headers: the photo, or the initials on gray when [photoUrl] is
+ * blank.
+ *
+ * @param initials The initials to show when there is no photo, such as "MK".
+ * @param photoUrl The photo's URL, or blank when the user has none.
+ * @param size The circle's diameter.
+ * @param initialsStyle The style of the initials, sized to fit [size].
+ * @param modifier Applied to the circle.
+ */
+@Composable
+fun ProfileAvatar(
+    initials: String,
+    photoUrl: String,
+    size: Dp,
+    initialsStyle: TextStyle,
+    modifier: Modifier = Modifier
+) {
     Box(
         modifier = modifier
             .size(size)
@@ -41,15 +69,15 @@ fun ProfileAvatar(
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center
     ) {
-        if (profile.photoUrl.isBlank()) {
+        if (photoUrl.isBlank()) {
             Text(
-                text = profile.avatar.initials,
+                text = initials,
                 style = initialsStyle,
                 color = MaterialTheme.colorScheme.onSurface
             )
         } else {
             AsyncImage(
-                model = profile.photoUrl,
+                model = photoUrl,
                 contentDescription = stringResource(R.string.profile_photo_description),
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()

@@ -10,6 +10,7 @@ import edu.csuci.tweeter.data.FakeFollowRepository
 import edu.csuci.tweeter.data.FakeLikeRepository
 import edu.csuci.tweeter.data.FakePostLookup
 import edu.csuci.tweeter.data.FakePostRepository
+import edu.csuci.tweeter.data.FakeProfileRepository
 import edu.csuci.tweeter.data.FollowRepository
 import edu.csuci.tweeter.data.LikeRepository
 import edu.csuci.tweeter.data.ListenerBookmarkRepository
@@ -20,9 +21,11 @@ import edu.csuci.tweeter.data.PostLookup
 import edu.csuci.tweeter.data.PostLookupException
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostTable
+import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.SAMPLE_POSTS
 import edu.csuci.tweeter.data.UnsavableBookmarkRepository
 import edu.csuci.tweeter.data.UnsavableLikeRepository
+import edu.csuci.tweeter.data.UserProfile
 import edu.csuci.tweeter.data.assertSamePosts
 import edu.csuci.tweeter.ui.navigation.ShowPostRequest
 import java.time.Clock
@@ -68,6 +71,7 @@ private const val FRIENDS_NEWER_POST_ID = "friends-newer"
 private const val FRIENDS_OLDER_POST_ID = "friends-older"
 private const val FOLLOWED_POST_ID = "followed"
 private const val DELETED_POST_ID = "deleted"
+private const val PHOTO_URL = "https://example.com/jordan.jpg"
 
 class FeedViewModelTest {
     private val showInFeedRequest = ShowPostRequest()
@@ -620,6 +624,43 @@ class FeedViewModelTest {
         assertSamePosts(PostTable.of(SAMPLE_POSTS), viewModel.uiState.value.posts)
     }
 
+    @Test
+    fun uiState_authorWithPhoto_hasTheirPhotoUrl() = runTest {
+        val author = UserProfile.createDefault(FRIEND_UID).copy(photoUrl = PHOTO_URL)
+        val viewModel = collectedFeedViewModel(profiles = FakeProfileRepository(listOf(author)))
+
+        assertEquals(mapOf(FRIEND_UID to PHOTO_URL), viewModel.uiState.value.authorPhotoUrls)
+    }
+
+    @Test
+    fun uiState_authorWithoutPhoto_leavesThemOut() = runTest {
+        val author = UserProfile.createDefault(FRIEND_UID)
+        val viewModel = collectedFeedViewModel(profiles = FakeProfileRepository(listOf(author)))
+
+        assertTrue(viewModel.uiState.value.authorPhotoUrls.isEmpty())
+    }
+
+    @Test
+    fun uiState_authorChangesPhoto_hasNewPhotoUrl() = runTest {
+        val author = UserProfile.createDefault(FRIEND_UID)
+        val profiles = FakeProfileRepository(listOf(author))
+        val viewModel = collectedFeedViewModel(profiles = profiles)
+
+        profiles.saveProfile(author.copy(photoUrl = PHOTO_URL))
+
+        assertEquals(PHOTO_URL, viewModel.uiState.value.authorPhotoUrls[FRIEND_UID])
+    }
+
+    @Test
+    fun uiState_profilesNotReadYet_stillHasPosts() = runTest {
+        val viewModel = collectedFeedViewModel(profiles = ProfilelessProfileRepository())
+
+        val uiState = viewModel.uiState.value
+
+        assertFalse(uiState.isLoading)
+        assertTrue(uiState.authorPhotoUrls.isEmpty())
+    }
+
     private fun feedViewModel(
         repository: PostRepository = FakePostRepository(),
         likes: LikeRepository = FakeLikeRepository(),
@@ -627,7 +668,8 @@ class FeedViewModelTest {
         follows: FollowRepository = FakeFollowRepository(),
         postsDispatcher: CoroutineDispatcher = UnconfinedTestDispatcher(),
         bookmarks: BookmarkRepository = FakeBookmarkRepository(),
-        postLookup: PostLookup = FakePostLookup(SAMPLE_POSTS)
+        postLookup: PostLookup = FakePostLookup(SAMPLE_POSTS),
+        profiles: ProfileRepository = FakeProfileRepository()
     ): FeedViewModel = FeedViewModel(
         postRepository = repository,
         postLiker = PostLiker(likes),
@@ -640,6 +682,7 @@ class FeedViewModelTest {
         ),
         accountRepository = account,
         followRepository = follows,
+        profileRepository = profiles,
         showInFeedRequest = showInFeedRequest,
         postLookup = postLookup,
         showOnMapRequest = showOnMapRequest,
@@ -656,7 +699,8 @@ class FeedViewModelTest {
         account: AccountRepository = FakeAccountRepository(USER_UID),
         follows: FollowRepository = FakeFollowRepository(),
         bookmarks: BookmarkRepository = FakeBookmarkRepository(),
-        postLookup: PostLookup = FakePostLookup(SAMPLE_POSTS)
+        postLookup: PostLookup = FakePostLookup(SAMPLE_POSTS),
+        profiles: ProfileRepository = FakeProfileRepository()
     ): FeedViewModel {
         val viewModel = feedViewModel(
             repository,
@@ -665,7 +709,8 @@ class FeedViewModelTest {
             follows,
             postsDispatcher = UnconfinedTestDispatcher(testScheduler),
             bookmarks = bookmarks,
-            postLookup = postLookup
+            postLookup = postLookup,
+            profiles = profiles
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect()
@@ -740,5 +785,10 @@ class FeedViewModelTest {
         override suspend fun uploadProfilePhoto(photoUri: String): String = ""
 
         override suspend fun deletePhoto(photoUrl: String) = Unit
+    }
+
+    // A repository whose profiles never arrive, like a listener the server hasn't answered yet.
+    private class ProfilelessProfileRepository : ProfileRepository by FakeProfileRepository() {
+        override fun getProfiles(): Flow<List<UserProfile>> = flow { awaitCancellation() }
     }
 }
