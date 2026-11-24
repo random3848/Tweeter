@@ -47,6 +47,7 @@ fun UserProfileScreen(
     onCreateAccount: () -> Unit,
     onEditProfile: () -> Unit,
     onOpenSavedPosts: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
     userProfileViewModel: UserProfileViewModel = viewModel(
         factory = UserProfileViewModel.createFactory(userUid)
@@ -62,6 +63,7 @@ fun UserProfileScreen(
             onCreateAccount = onCreateAccount,
             onEditProfile = onEditProfile,
             onOpenSavedPosts = onOpenSavedPosts,
+            onOpenSettings = onOpenSettings,
             modifier = modifier
         )
         return

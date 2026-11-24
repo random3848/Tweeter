@@ -55,6 +55,8 @@ import edu.csuci.tweeter.ui.saved.SavedPostsRoute
 import edu.csuci.tweeter.ui.saved.addSavedPostsScreen
 import edu.csuci.tweeter.ui.search.SearchRoute
 import edu.csuci.tweeter.ui.search.addSearchScreen
+import edu.csuci.tweeter.ui.settings.SettingsRoute
+import edu.csuci.tweeter.ui.settings.addSettingsScreen
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 
@@ -242,6 +244,12 @@ private fun TweeterNavHost(
                 launchSingleTop = true
             }
         }
+        val openSettings: () -> Unit = {
+            navController.navigate(SettingsRoute) {
+                launchSingleTop = true
+            }
+        }
+
         addFeedScreen(
             onShowOnMap = { navController.navigateToTopLevel(MapRoute) },
             onLogIn = openLogIn,
@@ -285,7 +293,8 @@ private fun TweeterNavHost(
                     launchSingleTop = true
                 }
             },
-            onOpenSavedPosts = openSavedPosts
+            onOpenSavedPosts = openSavedPosts,
+            onOpenSettings = openSettings
         )
         addSavedPostsScreen(
             onBack = { navController.navigateUp() },
@@ -302,9 +311,18 @@ private fun TweeterNavHost(
                     launchSingleTop = true
                 }
             },
-            onOpenSavedPosts = openSavedPosts
+            onOpenSavedPosts = openSavedPosts,
+            onOpenSettings = openSettings
         )
         addEditProfileScreen(onClose = { navController.navigateUp() })
+        addSettingsScreen(
+            onBack = { navController.navigateUp() },
+            onLoggedOut = {
+                if (!navController.popBackStack(ProfileRoute, inclusive = false)) {
+                    navController.navigateUp()
+                }
+            }
+        )
         addLogInScreen(
             onBack = { navController.navigateUp() },
             onAuthenticated = { navController.popBackStack() }

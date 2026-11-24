@@ -27,7 +27,8 @@ fun NavGraphBuilder.addUserProfileScreen(
     onLogIn: () -> Unit,
     onCreateAccount: () -> Unit,
     onEditProfile: () -> Unit,
-    onOpenSavedPosts: () -> Unit
+    onOpenSavedPosts: () -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     opaqueComposable<UserProfileRoute> { backStackEntry ->
         val route = backStackEntry.toRoute<UserProfileRoute>()
@@ -37,7 +38,8 @@ fun NavGraphBuilder.addUserProfileScreen(
             onLogIn = onLogIn,
             onCreateAccount = onCreateAccount,
             onEditProfile = onEditProfile,
-            onOpenSavedPosts = onOpenSavedPosts
+            onOpenSavedPosts = onOpenSavedPosts,
+            onOpenSettings = onOpenSettings
         )
     }
 }

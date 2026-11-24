@@ -16,13 +16,15 @@ object ProfileRoute
  * @param onCreateAccount Opens the registration form.
  * @param onEditProfile Opens Edit profile.
  * @param onOpenSavedPosts Opens the posts the user saved.
+ * @param onOpenSettings Opens the viewer's account settings.
  */
 fun NavGraphBuilder.addProfileScreen(
     onBack: () -> Unit,
     onLogIn: () -> Unit,
     onCreateAccount: () -> Unit,
     onEditProfile: () -> Unit,
-    onOpenSavedPosts: () -> Unit
+    onOpenSavedPosts: () -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     opaqueComposable<ProfileRoute> {
         ProfileScreen(
@@ -30,7 +32,8 @@ fun NavGraphBuilder.addProfileScreen(
             onLogIn = onLogIn,
             onCreateAccount = onCreateAccount,
             onEditProfile = onEditProfile,
-            onOpenSavedPosts = onOpenSavedPosts
+            onOpenSavedPosts = onOpenSavedPosts,
+            onOpenSettings = onOpenSettings
         )
     }
 }
