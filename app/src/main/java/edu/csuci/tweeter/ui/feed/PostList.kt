@@ -40,6 +40,7 @@ import edu.csuci.tweeter.data.PostRows
 import edu.csuci.tweeter.ui.CenteredMessage
 import edu.csuci.tweeter.ui.comments.PostComments
 import edu.csuci.tweeter.ui.postDetailsText
+import edu.csuci.tweeter.ui.profile.ProfileAvatar
 import edu.csuci.tweeter.ui.report.ReportPostButton
 
 // Between a post's animal type and its confidence rating.
@@ -69,6 +70,8 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
  *     for the same reason.
  * @param modifier Applied to the space the posts take.
  * @param listState The list's scroll position.
+ * @param authorPhotoUrls The profile photo URL of each author who has one, by author ID. Authors
+ *     it leaves out show their initials, as every author does on screens that don't pass it.
  */
 @Composable
 internal fun PostList(
@@ -83,7 +86,8 @@ internal fun PostList(
     likes: PostLikes,
     bookmarks: PostBookmarks,
     modifier: Modifier = Modifier,
-    listState: LazyListState = rememberLazyListState()
+    listState: LazyListState = rememberLazyListState(),
+    authorPhotoUrls: Map<String, String> = emptyMap()
 ) {
     when {
         isLoading -> {
@@ -105,6 +109,7 @@ internal fun PostList(
                 listState = listState,
                 likes = likes,
                 bookmarks = bookmarks,
+                authorPhotoUrls = authorPhotoUrls,
                 modifier = modifier
             )
         }
@@ -124,6 +129,7 @@ private fun PostItems(
     listState: LazyListState,
     likes: PostLikes,
     bookmarks: PostBookmarks,
+    authorPhotoUrls: Map<String, String>,
     modifier: Modifier = Modifier
 ) {
     val posts = listedPosts.table
@@ -142,6 +148,7 @@ private fun PostItems(
             PostHeader(
                 postId = postId,
                 avatarInitials = posts.avatarInitials(row),
+                avatarPhotoUrl = authorPhotoUrls[posts.authorUid(row)].orEmpty(),
                 username = posts.username(row),
                 details = postDetailsText(posts.locationName(row), posts.timestampMillis(row)),
                 authorUid = posts.authorUid(row),
@@ -210,7 +217,8 @@ private fun PostItems(
  * from the post table.
  *
  * @param postId The post's ID, which [onDelete] is called with.
- * @param avatarInitials The initials in the poster's avatar.
+ * @param avatarInitials The initials in the poster's avatar, shown when they have no photo.
+ * @param avatarPhotoUrl The poster's profile photo URL, or blank to show [avatarInitials].
  * @param username The poster's name.
  * @param details Where the post was shared and how long ago, as [postDetailsText] puts it.
  * @param authorUid The Firebase UID of the post's author.
@@ -222,6 +230,7 @@ private fun PostItems(
 private fun PostHeader(
     postId: String,
     avatarInitials: String,
+    avatarPhotoUrl: String,
     username: String,
     details: String,
     authorUid: String,
@@ -242,19 +251,12 @@ private fun PostHeader(
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = avatarInitials,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
+        ProfileAvatar(
+            initials = avatarInitials,
+            photoUrl = avatarPhotoUrl,
+            size = 36.dp,
+            initialsStyle = MaterialTheme.typography.titleMedium
+        )
 
         // Takes the leftover width, which puts the delete button at the right edge.
         Column(

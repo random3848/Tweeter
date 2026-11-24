@@ -15,6 +15,8 @@ import edu.csuci.tweeter.data.PostLookupException
 import edu.csuci.tweeter.data.PostRepository
 import edu.csuci.tweeter.data.PostRows
 import edu.csuci.tweeter.data.PostTable
+import edu.csuci.tweeter.data.ProfileRepository
+import edu.csuci.tweeter.data.UserProfile
 import edu.csuci.tweeter.ui.ChoicePerUser
 import edu.csuci.tweeter.ui.UserChoice
 import edu.csuci.tweeter.ui.friends.FriendsReader
@@ -34,6 +36,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.runningFold
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
@@ -84,6 +87,9 @@ private class ListedFeed(
  *     until they're read, since the posts don't wait for them.
  * @property isLoggedIn Whether a user is logged in, not a guest: the feed lets them like and save
  *     posts, and opens Log in for guests who try.
+ * @property authorPhotoUrls The profile photo URL of each user who has one, by user ID, shown on
+ *     their posts: none until profiles are read, since the posts don't wait for them, so authors
+ *     show their initials meanwhile.
  */
 data class FeedUiState(
     val listedPosts: PostRows = PostRows.EMPTY,
@@ -94,7 +100,8 @@ data class FeedUiState(
     val positionToShow: Int? = null,
     val likedPostIds: Set<String> = emptySet(),
     val bookmarkedPostIds: Set<String> = emptySet(),
-    val isLoggedIn: Boolean = false
+    val isLoggedIn: Boolean = false,
+    val authorPhotoUrls: Map<String, String> = emptyMap()
 ) {
     /** Every post, newest first, of which the feed shows [listedPosts]. */
     val posts: PostTable
@@ -112,6 +119,7 @@ data class FeedUiState(
  * @param accountRepository Who is logged in: guests can't like or save posts, and only the user's
  *     own posts show a delete button.
  * @param followRepository Who the user's friends are, for [FeedChoice.FRIENDS].
+ * @param profileRepository The authors' profiles, whose photos their posts show.
  * @param showInFeedRequest The post another screen asks the feed to show, which it scrolls to,
  *     showing everyone's posts if it shows only friends and the post's author isn't one of them.
  * @param postLookup Tells the feed whether a post it was asked to show, but can't find, was
@@ -129,6 +137,7 @@ class FeedViewModel(
     private val postDeleter: PostDeleter,
     accountRepository: AccountRepository,
     followRepository: FollowRepository,
+    profileRepository: ProfileRepository,
     private val showInFeedRequest: ShowPostRequest,
     private val postLookup: PostLookup,
     private val showOnMapRequest: ShowPostRequest,
@@ -203,6 +212,9 @@ class FeedViewModel(
             .combine(postBookmarker.bookmarkedPostIdsStartingEmpty()) { state, bookmarkedPostIds ->
                 state.copy(bookmarkedPostIds = bookmarkedPostIds)
             }
+            .combine(authorPhotoUrlsStartingEmpty(profileRepository)) { state, authorPhotoUrls ->
+                state.copy(authorPhotoUrls = authorPhotoUrls)
+            }
             .flowOn(postsDispatcher)
             .stateIn(
                 scope = viewModelScope,
@@ -212,6 +224,18 @@ class FeedViewModel(
 
     /** The logged-in user's ID, or null for guests, who can't delete posts. */
     val loggedInUid: StateFlow<String?> = accountRepository.loggedInUid
+
+    // The photo URL of every user who has one, by ID, starting with none so the posts don't wait
+    // for profiles. The repository reads profiles again when its listener fails.
+    private fun authorPhotoUrlsStartingEmpty(
+        profileRepository: ProfileRepository
+    ): Flow<Map<String, String>> = profileRepository.getProfiles()
+        .map(::photoUrlsOf)
+        .onStart { emit(emptyMap()) }
+
+    private fun photoUrlsOf(profiles: List<UserProfile>): Map<String, String> =
+        profiles.filter { profile -> profile.photoUrl.isNotBlank() }
+            .associate { profile -> profile.uid to profile.photoUrl }
 
     /** Shows the posts as [choice] picks them from now on, ranked again in its order. */
     fun choose(choice: FeedChoice) {
@@ -325,6 +349,7 @@ class FeedViewModel(
                     postDeleter = application.container.postDeleter,
                     accountRepository = application.container.accountRepository,
                     followRepository = application.container.followRepository,
+                    profileRepository = application.container.profileRepository,
                     showInFeedRequest = application.container.showInFeedRequest,
                     postLookup = application.container.postLookup,
                     showOnMapRequest = application.container.showOnMapRequest,
