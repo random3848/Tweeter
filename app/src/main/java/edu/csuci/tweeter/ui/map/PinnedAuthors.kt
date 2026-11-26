@@ -29,29 +29,29 @@ sealed interface PinnedAuthors {
     }
 
     /**
-     * The user's friends, as [PinFilter.FRIENDS] picks: the map pins their posts.
+     * The users the user follows, as [PinFilter.FOLLOWING] picks: the map pins their posts.
      *
-     * @property uids The friends' IDs.
+     * @property uids The followed users' IDs.
      */
-    data class Friends(val uids: Set<String>) : PinnedAuthors {
-        override val filter: PinFilter = PinFilter.FRIENDS
+    data class Followed(val uids: Set<String>) : PinnedAuthors {
+        override val filter: PinFilter = PinFilter.FOLLOWING
 
         override fun rowsIn(posts: PostTable): IntArray = posts.rowsBy(uids)
     }
 
     /**
-     * The user's friends, while they are first read: the map pins no posts yet. When they are read
-     * again, as when Map is shown again, the friends read last stay pinned meanwhile instead.
+     * The users the user follows, while they are first read: the map pins no posts yet. When they
+     * are read again, as when Map is shown again, those read last stay pinned meanwhile instead.
      */
-    data object LoadingFriends : PinnedAuthors {
-        override val filter: PinFilter = PinFilter.FRIENDS
+    data object LoadingFollowed : PinnedAuthors {
+        override val filter: PinFilter = PinFilter.FOLLOWING
 
         override fun rowsIn(posts: PostTable): IntArray = IntArray(0)
     }
 
-    /** The user's friends, who couldn't be read: the map pins no posts. */
-    data object UnknownFriends : PinnedAuthors {
-        override val filter: PinFilter = PinFilter.FRIENDS
+    /** The users the user follows, who couldn't be read: the map pins no posts. */
+    data object UnknownFollowed : PinnedAuthors {
+        override val filter: PinFilter = PinFilter.FOLLOWING
 
         override fun rowsIn(posts: PostTable): IntArray = IntArray(0)
     }

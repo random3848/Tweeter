@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 /**
  * A choice each user makes for themselves, such as which posts a screen shows. Each user starts
  * on [default], and gets back what they chose when they log in again, unless someone else chose
- * since. Guests make one too, which the screen may limit, as Feed does with Friends.
+ * since. Guests make one too, which the screen may limit, as Feed does with Following.
  *
  * @param accountRepository Who is logged in.
  * @param default What a user who hasn't chosen gets.

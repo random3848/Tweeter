@@ -96,9 +96,12 @@ data class MapUiState(
     val pinFilter: PinFilter?
         get() = pinnedPosts.authors.filter.takeIf { isFilterOffered }
 
-    /** Whether the map pins no posts for [PinFilter.FRIENDS], as it couldn't read the friends. */
-    val friendsUnknown: Boolean
-        get() = pinnedPosts.authors == PinnedAuthors.UnknownFriends
+    /**
+     * Whether the map pins no posts for [PinFilter.FOLLOWING], as it couldn't read who the user
+     * follows.
+     */
+    val followedUnknown: Boolean
+        get() = pinnedPosts.authors == PinnedAuthors.UnknownFollowed
 }
 
 /**
@@ -253,9 +256,9 @@ class MapViewModel internal constructor(
         pinFilterChoice.choose(filter)
     }
 
-    /** Reads the user's friends again, if reading them failed, to pin their posts. */
-    fun retryFriends() {
-        pinFilterChoice.retryFriends()
+    /** Reads who the user follows again, if reading it failed, to pin their posts. */
+    fun retryFollowed() {
+        pinFilterChoice.retryFollowed()
     }
 
     /** Asks Feed to show the post with [postId], which it scrolls to when it opens. */

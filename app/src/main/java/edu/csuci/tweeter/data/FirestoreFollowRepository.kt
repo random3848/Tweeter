@@ -4,9 +4,9 @@ import com.google.firebase.FirebaseException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentReference
-import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.MetadataChanges
+import com.google.firebase.firestore.QuerySnapshot
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -77,31 +77,37 @@ class FirestoreFollowRepository(
                 }
 
                 if (snapshot != null && !snapshot.metadata.isFromCache) {
-                    val count = snapshot.documents.count { document ->
-                        document.id == userUid
-                    }
-                    trySend(count)
+                    trySend(followedUidsIn(snapshot, followerUid = userUid).size)
                 }
             }
 
         awaitClose { registration.remove() }
     }
 
-    // Each snapshot holds every follower, so only the newest of those not collected yet is kept.
-    override fun observeFollowerUids(followedUid: String): Flow<Set<String>> = callbackFlow {
-        val registration = followersOf(followedUid).addSnapshotListener { snapshot, error ->
-            if (error != null) {
-                close(FollowException(error))
-                return@addSnapshotListener
-            }
+    // Each snapshot holds every follow, so only the newest of those not collected yet is kept.
+    override fun observeFollowedUids(followerUid: String): Flow<Set<String>> = callbackFlow {
+        val registration = firestore
+            .collectionGroup(FOLLOWERS)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    close(FollowException(error))
+                    return@addSnapshotListener
+                }
 
-            if (snapshot != null) {
-                trySend(snapshot.documents.mapTo(HashSet(), DocumentSnapshot::getId))
+                if (snapshot != null) {
+                    trySend(followedUidsIn(snapshot, followerUid))
+                }
             }
-        }
 
         awaitClose { registration.remove() }
     }.conflate()
+
+    // The users [followerUid] follows, among every follow in [follows]: each follow document is
+    // named by its follower, under the followed user's profile.
+    private fun followedUidsIn(follows: QuerySnapshot, followerUid: String): Set<String> =
+        follows.documents
+            .filter { document -> document.id == followerUid }
+            .mapNotNullTo(HashSet()) { document -> document.reference.parent.parent?.id }
 
     override suspend fun follow(userUid: String) {
         try {
