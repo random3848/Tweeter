@@ -9,7 +9,8 @@ package edu.csuci.tweeter.data
  */
 interface AnimalRepository {
     /**
-     * Names of animals that match [query], best matches first. Empty for a blank query.
+     * Names of animal species that match [query], best matches first, so that posts name their
+     * animals at the level users vote on. Empty for a blank query.
      *
      * @throws AnimalLookupException If the animals can't be searched.
      */

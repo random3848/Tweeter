@@ -1,12 +1,21 @@
 package edu.csuci.tweeter.data
 
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import kotlin.coroutines.cancellation.CancellationException
+import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -22,13 +31,17 @@ private const val ISLAND_FOX_TAXON_ID = 42077
 
 private const val HTTP_SERVER_ERROR = 500
 
+// Longer than any test waits, so a response delayed this long is one the test never receives.
+private const val NEVER_SECONDS = 30L
+
 // iNaturalist's name starts with a one-letter word.
 @Suppress("ktlint:android-style:camel-case")
 class INaturalistAnimalRepositoryTest {
     private val server = MockWebServer()
 
-    // A thread of the test's own for the blocking requests, as Dispatchers.IO gives the app.
-    private val ioDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+    // Threads of the test's own for the blocking requests, as Dispatchers.IO gives the app: a
+    // request blocked on one can then be stopped from another.
+    private val ioDispatcher = Executors.newCachedThreadPool().asCoroutineDispatcher()
 
     private lateinit var repository: INaturalistAnimalRepository
 
@@ -59,6 +72,15 @@ class INaturalistAnimalRepositoryTest {
         assertEquals("island fox", url.queryParameter("q"))
         assertEquals(ANIMALIA_TAXON_ID, url.queryParameter("taxon_id"))
         assertEquals("en", url.queryParameter("locale"))
+    }
+
+    @Test
+    fun searchAnimals_searchesOnlySpecies() = runBlocking {
+        server.enqueue(jsonResponse(fixture("autocomplete_island_fox.json")))
+
+        repository.searchAnimals("fox")
+
+        assertEquals("species", server.takeRequest().url.queryParameter("rank"))
     }
 
     @Test
@@ -139,6 +161,21 @@ class INaturalistAnimalRepositoryTest {
     }
 
     @Test
+    fun searchAnimals_cancelledWhileWaiting_stopsByCancellation() = runBlocking {
+        server.enqueue(MockResponse.Builder().headersDelay(NEVER_SECONDS, TimeUnit.SECONDS).build())
+        val thrown = CompletableDeferred<Throwable?>()
+        val search = launch(Dispatchers.Default) {
+            thrown.complete(runCatching { repository.searchAnimals("fox") }.exceptionOrNull())
+        }
+        assertNotNull(server.takeRequest(5, TimeUnit.SECONDS))
+
+        val stopped = withTimeoutOrNull(2.seconds) { search.cancelAndJoin() }
+
+        assertNotNull("The search kept waiting after it was cancelled", stopped)
+        assertTrue(thrown.await() is CancellationException)
+    }
+
+    @Test
     fun getAnimal_readsTheTaxonWhoseCommonNameMatches() = runBlocking {
         enqueueIslandFox()
 
@@ -186,6 +223,15 @@ class INaturalistAnimalRepositoryTest {
         )
         assertEquals("https://en.wikipedia.org/wiki/Urocyon%20littoralis", animal.wikipediaUrl)
         assertTrue(animal.wikipediaSummary.startsWith("The <b>island fox</b>"))
+    }
+
+    @Test
+    fun getAnimal_looksUpGroupsAsWellAsSpecies() = runBlocking {
+        enqueueIslandFox()
+
+        repository.getAnimal("Island Fox")
+
+        assertNull(server.takeRequest().url.queryParameter("rank"))
     }
 
     @Test

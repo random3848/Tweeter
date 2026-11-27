@@ -38,6 +38,19 @@ class INaturalistAnimalRepositoryLearningTest {
     }
 
     @Test
+    fun searchAnimals_leavesOutGroups() = runBlocking {
+        val names = repository.searchAnimals("humming")
+
+        assertFalse("Hummingbirds" in names)
+        assertTrue("Anna's Hummingbird" in names)
+    }
+
+    @Test
+    fun getAnimal_findsGroups() = runBlocking {
+        assertEquals("Trochilidae", repository.getAnimal("Hummingbirds")?.scientificName)
+    }
+
+    @Test
     fun getAnimal_readsEveryFieldTheAnimalPageShows() = runBlocking {
         val animal = checkNotNull(repository.getAnimal("Island Fox"))
 
