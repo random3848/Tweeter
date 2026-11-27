@@ -27,7 +27,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
- * What [AnimalPostsScreen] shows.
+ * What [AnimalScreen] shows.
  *
  * @property listedPosts The posts naming the animal, newest first.
  * @property isLoading Whether the posts are still being read.
@@ -46,7 +46,7 @@ data class AnimalPostsUiState(
 )
 
 /**
- * Holds the posts that name one animal, for [AnimalPostsScreen], and the user's likes and
+ * Holds the posts that name one animal, for [AnimalScreen], and the user's likes and
  * bookmarks of them, and deletes the logged-in user's own posts, as Feed does.
  *
  * @param animal The animal's name, as [PostTable.rowsOfAnimal] matches it.

@@ -27,8 +27,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import edu.csuci.tweeter.R
-import edu.csuci.tweeter.ui.animal.AnimalPostsRoute
-import edu.csuci.tweeter.ui.animal.addAnimalPostsScreen
+import edu.csuci.tweeter.ui.animal.AnimalRoute
+import edu.csuci.tweeter.ui.animal.addAnimalScreen
 import edu.csuci.tweeter.ui.auth.CreateAccountRoute
 import edu.csuci.tweeter.ui.auth.LogInRoute
 import edu.csuci.tweeter.ui.auth.addCreateAccountScreen
@@ -267,12 +267,12 @@ private fun TweeterNavHost(
         addSearchScreen(
             onOpenProfile = openUserProfile,
             onOpenAnimal = { animal ->
-                navController.navigate(AnimalPostsRoute(animal)) {
+                navController.navigate(AnimalRoute(animal)) {
                     launchSingleTop = true
                 }
             }
         )
-        addAnimalPostsScreen(
+        addAnimalScreen(
             onBack = { navController.navigateUp() },
             onShowOnMap = { navController.navigateToTopLevel(MapRoute) },
             onOpenProfile = openUserProfile,

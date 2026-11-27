@@ -208,14 +208,14 @@ class INaturalistAnimalRepositoryTest {
     }
 
     @Test
-    fun getAnimal_returnsPhotoWithAttributionAndWikipediaSummary() = runBlocking {
+    fun getAnimal_returnsLargePhotoWithAttributionAndWikipediaSummary() = runBlocking {
         enqueueIslandFox()
 
         val animal = checkNotNull(repository.getAnimal("Island Fox"))
 
         assertEquals(
             AnimalPhoto(
-                url = "https://inaturalist-open-data.s3.amazonaws.com/photos/13274801/medium.jpg",
+                url = "https://inaturalist-open-data.s3.amazonaws.com/photos/13274801/large.jpg",
                 attribution = "(c) Kevin Schafer, some rights reserved (CC BY-NC-ND), " +
                     "uploaded by Kevin Schafer"
             ),
@@ -232,6 +232,54 @@ class INaturalistAnimalRepositoryTest {
         repository.getAnimal("Island Fox")
 
         assertNull(server.takeRequest().url.queryParameter("rank"))
+    }
+
+    @Test
+    fun getAnimal_noLargePhoto_returnsDefaultPhoto() = runBlocking {
+        val taxon = """{"id": 7, "name": "Urocyon", "default_photo": """ +
+            """{"medium_url": "https://example.org/medium.jpg", "attribution": "(c) Someone", """ +
+            """"license_code": "cc-by"}}"""
+        server.enqueue(jsonResponse(autocompleteOf(taxon)))
+        server.enqueue(jsonResponse(autocompleteOf(taxon)))
+
+        assertEquals(
+            AnimalPhoto(url = "https://example.org/medium.jpg", attribution = "(c) Someone"),
+            repository.getAnimal("Urocyon")?.photo
+        )
+    }
+
+    @Test
+    fun getAnimal_firstPhotoAllRightsReserved_returnsFirstLicensedPhoto() = runBlocking {
+        val taxon = """{"id": 7, "name": "Canis latrans", "taxon_photos": [""" +
+            taxonPhoto(url = "https://example.org/reserved.jpg", licenseCode = null) + ", " +
+            taxonPhoto(url = "https://example.org/licensed.jpg", licenseCode = "cc-by-nc") + "]}"
+        server.enqueue(jsonResponse(autocompleteOf(taxon)))
+        server.enqueue(jsonResponse(autocompleteOf(taxon)))
+
+        val photo = repository.getAnimal("Canis latrans")?.photo
+
+        assertEquals("https://example.org/licensed.jpg", photo?.url)
+    }
+
+    @Test
+    fun getAnimal_onlyAllRightsReservedPhotos_returnsNoPhoto() = runBlocking {
+        val taxon = """{"id": 7, "name": "Canis latrans", "taxon_photos": [""" +
+            taxonPhoto(url = "https://example.org/reserved.jpg", licenseCode = null) +
+            """], "default_photo": {"medium_url": "https://example.org/medium.jpg"}}"""
+        server.enqueue(jsonResponse(autocompleteOf(taxon)))
+        server.enqueue(jsonResponse(autocompleteOf(taxon)))
+
+        assertNull(repository.getAnimal("Canis latrans")?.photo)
+    }
+
+    @Test
+    fun getAnimal_anotherOfItsCommonNames_findsTheAnimal() = runBlocking {
+        val monarch = """{"id": 48662, "name": "Danaus plexippus", """ +
+            """"preferred_common_name": "Monarch", "matched_term": "Monarch Butterfly"}"""
+        server.enqueue(jsonResponse(autocompleteOf(monarch)))
+        server.enqueue(jsonResponse(autocompleteOf(monarch)))
+
+        assertEquals("Monarch", repository.getAnimal("Monarch butterfly")?.name)
     }
 
     @Test
@@ -301,4 +349,12 @@ class INaturalistAnimalRepositoryTest {
     }
 
     private fun taxonPage(id: Int) = "https://www.inaturalist.org/taxa/$id"
+
+    // One of a taxon's photos, as /v1/taxa/{id} lists them; a null license code means all rights
+    // reserved.
+    private fun taxonPhoto(url: String, licenseCode: String?): String {
+        val license = licenseCode?.let { "\"$it\"" } ?: "null"
+        return """{"photo": {"large_url": "$url", "attribution": "(c) Someone", """ +
+            """"license_code": $license}}"""
+    }
 }

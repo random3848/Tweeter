@@ -51,6 +51,19 @@ class INaturalistAnimalRepositoryLearningTest {
     }
 
     @Test
+    fun getAnimal_findsAnimalsByTheirOtherCommonNames() = runBlocking {
+        assertEquals("Danaus plexippus", repository.getAnimal("Monarch butterfly")?.scientificName)
+    }
+
+    @Test
+    fun getAnimal_leavesOutPhotosWithAllRightsReserved() = runBlocking {
+        // The coyote's default photo reserves all rights; its other photos are licensed.
+        val photo = checkNotNull(repository.getAnimal("Coyote")?.photo)
+
+        assertFalse(photo.attribution.contains("all rights reserved"))
+    }
+
+    @Test
     fun getAnimal_readsEveryFieldTheAnimalPageShows() = runBlocking {
         val animal = checkNotNull(repository.getAnimal("Island Fox"))
 

@@ -42,6 +42,9 @@ import edu.csuci.tweeter.ui.comments.PostComments
 import edu.csuci.tweeter.ui.postDetailsText
 import edu.csuci.tweeter.ui.report.ReportPostButton
 
+// The list item key of the header, which no post's ID can equal: post IDs are UUIDs, with no '#'.
+private const val HEADER_KEY = "#header"
+
 // Between a post's animal type and its confidence rating.
 private const val ANIMAL_DETAILS_SEPARATOR = " · "
 
@@ -69,6 +72,9 @@ private const val ANIMAL_DETAILS_SEPARATOR = " · "
  *     for the same reason.
  * @param modifier Applied to the space the posts take.
  * @param listState The list's scroll position.
+ * @param header Shown above the posts, the spinner or [emptyMessage], scrolling with them, or
+ *     null for none. With none, the list's first item is the first post, which a screen that
+ *     scrolls to a post by its position relies on.
  */
 @Composable
 internal fun PostList(
@@ -83,16 +89,21 @@ internal fun PostList(
     likes: PostLikes,
     bookmarks: PostBookmarks,
     modifier: Modifier = Modifier,
-    listState: LazyListState = rememberLazyListState()
+    listState: LazyListState = rememberLazyListState(),
+    header: (@Composable () -> Unit)? = null
 ) {
     when {
         isLoading -> {
-            Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            PostListStatus(header = header, listState = listState, modifier = modifier) {
                 CircularProgressIndicator()
             }
         }
 
-        listedPosts.rows.isEmpty() -> CenteredMessage(text = emptyMessage, modifier = modifier)
+        listedPosts.rows.isEmpty() -> {
+            PostListStatus(header = header, listState = listState, modifier = modifier) {
+                CenteredMessage(text = emptyMessage)
+            }
+        }
 
         else -> {
             PostItems(
@@ -105,8 +116,38 @@ internal fun PostList(
                 listState = listState,
                 likes = likes,
                 bookmarks = bookmarks,
+                header = header,
                 modifier = modifier
             )
+        }
+    }
+}
+
+// What the list shows instead of posts, such as a spinner, centered in the space the posts take,
+// or under the header, if there is one, where the two scroll together. It keeps the list's scroll
+// position, so deleting the last post leaves the message in view rather than scrolling to the top.
+@Composable
+private fun PostListStatus(
+    header: (@Composable () -> Unit)?,
+    listState: LazyListState,
+    modifier: Modifier = Modifier,
+    status: @Composable () -> Unit
+) {
+    if (header == null) {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) { status() }
+        return
+    }
+    LazyColumn(state = listState, modifier = modifier) {
+        item(key = HEADER_KEY) { header() }
+        item {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                status()
+            }
         }
     }
 }
@@ -124,6 +165,7 @@ private fun PostItems(
     listState: LazyListState,
     likes: PostLikes,
     bookmarks: PostBookmarks,
+    header: (@Composable () -> Unit)?,
     modifier: Modifier = Modifier
 ) {
     val posts = listedPosts.table
@@ -134,6 +176,7 @@ private fun PostItems(
         modifier = modifier,
         contentPadding = PaddingValues(bottom = 16.dp)
     ) {
+        header?.let { item(key = HEADER_KEY) { it() } }
         items(count = rows.size, key = { index -> posts.id(rows[index]) }) { index ->
             val row = rows[index]
             val postId = posts.id(row)
