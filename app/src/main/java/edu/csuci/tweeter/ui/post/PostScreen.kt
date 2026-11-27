@@ -63,7 +63,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import edu.csuci.tweeter.R
-import edu.csuci.tweeter.location.LocationFix
 import edu.csuci.tweeter.location.LocationSource
 import edu.csuci.tweeter.ui.auth.LogInPrompt
 import edu.csuci.tweeter.ui.location.LocationPicker
@@ -160,7 +159,6 @@ private fun CameraCaptureScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    var pickerFailed by rememberSaveable { mutableStateOf(false) }
     var permissionDenied by rememberSaveable { mutableStateOf(false) }
 
     var hasCameraPermission by remember {
@@ -206,9 +204,9 @@ private fun CameraCaptureScreen(
     }
 
     val imageCapture = remember { ImageCapture.Builder().build() }
-    val pendingFile = postViewModel.pendingCaptureFile
-    LaunchedEffect(pendingFile) {
-        val file = pendingFile ?: return@LaunchedEffect
+    val captureFile = (postViewModel.captureStatus as? CaptureStatus.Capturing)?.file
+    LaunchedEffect(captureFile) {
+        val file = captureFile ?: return@LaunchedEffect
         imageCapture.takePicture(
             ImageCapture.OutputFileOptions.Builder(java.io.File(file.path)).build(),
             ContextCompat.getMainExecutor(context),
@@ -223,6 +221,9 @@ private fun CameraCaptureScreen(
                 }
             }
         )
+    }
+    DisposableEffect(postViewModel) {
+        onDispose { postViewModel.cancelPhotoCapture() }
     }
 
     val cameraRollLauncher = rememberLauncherForActivityResult(
@@ -266,25 +267,18 @@ private fun CameraCaptureScreen(
         }
 
         CameraBottomControls(
-            captureFailed = postViewModel.captureFailed,
-            pickerFailed = pickerFailed,
-            showUploadedMessage = postViewModel.uploadedPhotoUrl != null,
-            shutterEnabled =
-                hasCameraPermission && !postViewModel.isCapturing && !postViewModel.isUploading,
+            message = postViewModel.cameraMessage,
+            shutterEnabled = hasCameraPermission && postViewModel.canTakePicture,
             onPickFromRoll = {
-                postViewModel.clearMessages()
-                pickerFailed = false
+                postViewModel.clearMessage()
                 try {
                     cameraRollLauncher.launch(arrayOf("image/*"))
                 } catch (error: ActivityNotFoundException) {
                     Log.e("PostScreen", "No file picker available", error)
-                    pickerFailed = true
+                    postViewModel.onCameraRollFailed()
                 }
             },
-            onTakePhoto = {
-                pickerFailed = false
-                postViewModel.requestPhotoCapture()
-            },
+            onTakePhoto = postViewModel::requestPhotoCapture,
             modifier = Modifier.align(Alignment.BottomCenter)
         )
     }
@@ -331,15 +325,12 @@ private fun CameraPermissionRequest(
 
 @Composable
 private fun CameraBottomControls(
-    captureFailed: Boolean,
-    pickerFailed: Boolean,
-    showUploadedMessage: Boolean,
+    message: CameraMessage?,
     shutterEnabled: Boolean,
     onPickFromRoll: () -> Unit,
     onTakePhoto: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val textColor = MaterialTheme.colorScheme.onPrimary
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -347,14 +338,8 @@ private fun CameraBottomControls(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        if (showUploadedMessage) {
-            Text(stringResource(R.string.photo_uploaded), color = textColor)
-        }
-        if (captureFailed) {
-            Text(stringResource(R.string.photo_camera_failed), color = textColor)
-        }
-        if (pickerFailed) {
-            Text(stringResource(R.string.photo_picker_failed), color = textColor)
+        if (message != null) {
+            Text(cameraMessageText(message), color = MaterialTheme.colorScheme.onPrimary)
         }
 
         Box(modifier = Modifier.fillMaxWidth()) {
@@ -370,6 +355,16 @@ private fun CameraBottomControls(
         }
     }
 }
+
+/** What the camera screen says to tell the user [message]. */
+@Composable
+private fun cameraMessageText(message: CameraMessage): String = stringResource(
+    when (message) {
+        CameraMessage.POST_SHARED -> R.string.photo_uploaded
+        CameraMessage.CAPTURE_FAILED -> R.string.photo_camera_failed
+        CameraMessage.CAMERA_ROLL_FAILED -> R.string.photo_picker_failed
+    }
+)
 
 @Composable
 private fun CameraRollButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
@@ -410,6 +405,8 @@ private fun ShutterButton(enabled: Boolean, onClick: () -> Unit, modifier: Modif
 @Composable
 private fun PostDetailsForm(postViewModel: PostViewModel, modifier: Modifier = Modifier) {
     var showPostDialog by rememberSaveable { mutableStateOf(false) }
+    val shareStatus = postViewModel.shareStatus
+    val isUploading = shareStatus == ShareStatus.Uploading
 
     Column(
         modifier = modifier
@@ -420,15 +417,17 @@ private fun PostDetailsForm(postViewModel: PostViewModel, modifier: Modifier = M
     ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
             Button(
-                enabled = !postViewModel.isUploading,
+                enabled = !isUploading,
                 onClick = { postViewModel.retakePhoto() }
             ) {
                 Text(stringResource(R.string.camera_retake))
             }
         }
 
+        val locationStatus = postViewModel.locationStatus
+        val location = (locationStatus as? LocationStatus.Located)?.fix
         Button(
-            enabled = !postViewModel.isUploading && postViewModel.location != null,
+            enabled = !isUploading && location != null,
             onClick = { showPostDialog = true }
         ) {
             Text(stringResource(R.string.upload_photo))
@@ -443,20 +442,15 @@ private fun PostDetailsForm(postViewModel: PostViewModel, modifier: Modifier = M
             )
         }
 
-        if (postViewModel.isUploading) {
+        if (isUploading) {
             CircularProgressIndicator()
         }
 
-        val statusResource = when {
-            postViewModel.isUploading -> R.string.photo_uploading
-            postViewModel.uploadFailed -> R.string.photo_upload_failed
-            else -> R.string.photo_ready
-        }
-        Text(stringResource(statusResource))
+        Text(shareText(shareStatus))
 
-        Text(locationStatus(postViewModel.location, postViewModel.isLocating))
+        Text(locationText(locationStatus))
         LocationPicker(
-            selected = postViewModel.location?.point,
+            selected = location?.point,
             onSelect = postViewModel::pickLocation,
             modifier = Modifier
                 .fillMaxWidth()
@@ -523,14 +517,27 @@ private fun CameraPreview(imageCapture: ImageCapture, modifier: Modifier = Modif
     }
 }
 
-/** What the post screen says about the photo's [location] while or after [isLocating]. */
+/** What the post screen says about how far sharing the photo has got. */
 @Composable
-private fun locationStatus(location: LocationFix?, isLocating: Boolean): String = when {
-    isLocating -> stringResource(R.string.post_location_finding)
+private fun shareText(status: ShareStatus): String = stringResource(
+    when (status) {
+        ShareStatus.Uploading -> R.string.photo_uploading
+        is ShareStatus.Failed -> R.string.photo_upload_failed
+        ShareStatus.Idle -> R.string.photo_ready
+    }
+)
 
-    location == null -> stringResource(R.string.post_location_needed)
+/** What the post screen says about how far finding where the photo was taken has got. */
+@Composable
+private fun locationText(status: LocationStatus): String = when (status) {
+    LocationStatus.AwaitingPermission, LocationStatus.NeedsPin -> {
+        stringResource(R.string.post_location_needed)
+    }
 
-    else -> {
+    LocationStatus.Locating -> stringResource(R.string.post_location_finding)
+
+    is LocationStatus.Located -> {
+        val location = status.fix
         val text = when (location.source) {
             LocationSource.EXIF -> R.string.post_location_from_photo
             LocationSource.DEVICE -> R.string.post_location_from_device

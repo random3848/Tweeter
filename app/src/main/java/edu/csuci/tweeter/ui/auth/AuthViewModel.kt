@@ -23,6 +23,35 @@ import edu.csuci.tweeter.TweeterApplication
 import edu.csuci.tweeter.data.AccountRepository
 import kotlinx.coroutines.launch
 
+private const val TAG = "AuthViewModel"
+
+/** Where the log-in or registration form stands. */
+sealed interface AuthStatus {
+    /** Whether the user can edit the form and send a request. */
+    val acceptsInput: Boolean
+        get() = when (this) {
+            is Editing, ResetSent -> true
+            Submitting, Authenticated -> false
+        }
+
+    /**
+     * Filling in the form.
+     *
+     * @property errorMessageId The string resource saying why the last request failed or
+     *     couldn't be sent, or null without an error.
+     */
+    data class Editing(@StringRes val errorMessageId: Int? = null) : AuthStatus
+
+    /** A log-in, registration or password reset request is running. */
+    data object Submitting : AuthStatus
+
+    /** A password reset link was requested; the user can keep editing the form. */
+    data object ResetSent : AuthStatus
+
+    /** This form authenticated the user. */
+    data object Authenticated : AuthStatus
+}
+
 /**
  * Authentication form submissions and their results.
  *
@@ -31,21 +60,8 @@ import kotlinx.coroutines.launch
  * @param accountRepository The app's shared authentication repository.
  */
 class AuthViewModel(private val accountRepository: AccountRepository) : ViewModel() {
-    /** Whether an authentication request is running. */
-    var isSubmitting by mutableStateOf(false)
-        private set
-
-    /** Whether this form successfully authenticated the user. */
-    var isAuthenticated by mutableStateOf(false)
-        private set
-
-    /** Whether a password reset request completed successfully. */
-    var passwordResetSent by mutableStateOf(false)
-        private set
-
-    /** The string resource describing the latest error, or null without an error. */
-    @get:StringRes
-    var errorMessageId: Int? by mutableStateOf(null)
+    /** Where the form stands. */
+    var status: AuthStatus by mutableStateOf(AuthStatus.Editing())
         private set
 
     /**
@@ -55,7 +71,9 @@ class AuthViewModel(private val accountRepository: AccountRepository) : ViewMode
      * @param password The account's password.
      */
     fun logIn(email: String, password: String) {
-        submit(email, password, creatingAccount = false)
+        submit(credentialsErrorId(email, password)) {
+            authenticate { accountRepository.logIn(email, password) }
+        }
     }
 
     /**
@@ -66,63 +84,13 @@ class AuthViewModel(private val accountRepository: AccountRepository) : ViewMode
      * @param confirmation The repeated password.
      */
     fun createAccount(email: String, password: String, confirmation: String) {
-        if (isSubmitting || isAuthenticated) {
-            return
+        val inputErrorId = if (password == confirmation) {
+            credentialsErrorId(email, password)
+        } else {
+            R.string.auth_password_mismatch
         }
-
-        if (password != confirmation) {
-            errorMessageId = R.string.auth_password_mismatch
-            return
-        }
-
-        submit(email, password, creatingAccount = true)
-    }
-
-    /** Clears the previous error when the user edits the form. */
-    fun clearError() {
-        errorMessageId = null
-        passwordResetSent = false
-    }
-
-    private fun submit(email: String, password: String, creatingAccount: Boolean) {
-        if (isSubmitting || isAuthenticated) {
-            return
-        }
-
-        clearError()
-
-        if (email.isBlank() || password.isEmpty()) {
-            errorMessageId = R.string.auth_missing_credentials
-            return
-        }
-
-        isSubmitting = true
-
-        viewModelScope.launch {
-            try {
-                if (creatingAccount) {
-                    accountRepository.createAccount(email, password)
-                } else {
-                    accountRepository.logIn(email, password)
-                }
-                isAuthenticated = true
-            } catch (error: FirebaseException) {
-                Log.e("AuthViewModel", "Firebase authentication failed", error)
-                errorMessageId = when (error) {
-                    is FirebaseAuthWeakPasswordException -> R.string.auth_weak_password
-                    is FirebaseAuthUserCollisionException -> R.string.auth_email_in_use
-                    is FirebaseAuthInvalidCredentialsException -> R.string.auth_invalid_credentials
-                    is FirebaseAuthInvalidUserException -> R.string.auth_invalid_credentials
-                    is FirebaseNetworkException -> R.string.auth_network_error
-                    is FirebaseTooManyRequestsException -> R.string.auth_too_many_requests
-                    else -> R.string.auth_failed
-                }
-            } catch (error: IllegalStateException) {
-                Log.e("AuthViewModel", "Authentication state error", error)
-                errorMessageId = R.string.auth_failed
-            } finally {
-                isSubmitting = false
-            }
+        submit(inputErrorId) {
+            authenticate { accountRepository.createAccount(email, password) }
         }
     }
 
@@ -132,34 +100,79 @@ class AuthViewModel(private val accountRepository: AccountRepository) : ViewMode
      * @param email The account's email address.
      */
     fun resetPassword(email: String) {
-        if (isSubmitting || isAuthenticated) {
+        val inputErrorId = if (email.isBlank()) R.string.auth_missing_email else null
+        submit(inputErrorId) { requestReset(email) }
+    }
+
+    /** Hides the previous error or reset confirmation when the user edits the form. */
+    fun clearError() {
+        if (status.acceptsInput) {
+            status = AuthStatus.Editing()
+        }
+    }
+
+    /**
+     * Shows [inputErrorId] instead of sending [request] when it isn't null; otherwise waits for
+     * [request] and moves to the status it returns. Does nothing while the form doesn't accept
+     * input.
+     */
+    private fun submit(@StringRes inputErrorId: Int?, request: suspend () -> AuthStatus) {
+        if (!status.acceptsInput) {
             return
         }
 
-        clearError()
-
-        if (email.isBlank()) {
-            errorMessageId = R.string.auth_missing_email
+        if (inputErrorId != null) {
+            status = AuthStatus.Editing(inputErrorId)
             return
         }
 
-        isSubmitting = true
-
+        status = AuthStatus.Submitting
         viewModelScope.launch {
-            try {
-                accountRepository.resetPassword(email)
-                passwordResetSent = true
-            } catch (error: FirebaseException) {
-                Log.e("AuthViewModel", "Password reset failed", error)
-                errorMessageId = when (error) {
-                    is FirebaseNetworkException -> R.string.auth_network_error
-                    is FirebaseTooManyRequestsException -> R.string.auth_too_many_requests
-                    else -> R.string.auth_reset_failed
-                }
-            } finally {
-                isSubmitting = false
-            }
+            status = request()
         }
+    }
+
+    @StringRes
+    private fun credentialsErrorId(email: String, password: String): Int? {
+        val isMissingCredentials = email.isBlank() || password.isEmpty()
+        return if (isMissingCredentials) R.string.auth_missing_credentials else null
+    }
+
+    private suspend fun authenticate(request: suspend () -> Unit): AuthStatus = try {
+        request()
+        AuthStatus.Authenticated
+    } catch (error: FirebaseException) {
+        Log.e(TAG, "Firebase authentication failed", error)
+        AuthStatus.Editing(authenticationErrorId(error))
+    } catch (error: IllegalStateException) {
+        Log.e(TAG, "Authentication state error", error)
+        AuthStatus.Editing(R.string.auth_failed)
+    }
+
+    @StringRes
+    private fun authenticationErrorId(error: FirebaseException): Int = when (error) {
+        is FirebaseAuthWeakPasswordException -> R.string.auth_weak_password
+        is FirebaseAuthUserCollisionException -> R.string.auth_email_in_use
+        is FirebaseAuthInvalidCredentialsException -> R.string.auth_invalid_credentials
+        is FirebaseAuthInvalidUserException -> R.string.auth_invalid_credentials
+        is FirebaseNetworkException -> R.string.auth_network_error
+        is FirebaseTooManyRequestsException -> R.string.auth_too_many_requests
+        else -> R.string.auth_failed
+    }
+
+    private suspend fun requestReset(email: String): AuthStatus = try {
+        accountRepository.resetPassword(email)
+        AuthStatus.ResetSent
+    } catch (error: FirebaseException) {
+        Log.e(TAG, "Password reset failed", error)
+        AuthStatus.Editing(resetErrorId(error))
+    }
+
+    @StringRes
+    private fun resetErrorId(error: FirebaseException): Int = when (error) {
+        is FirebaseNetworkException -> R.string.auth_network_error
+        is FirebaseTooManyRequestsException -> R.string.auth_too_many_requests
+        else -> R.string.auth_reset_failed
     }
 
     companion object {

@@ -15,6 +15,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -84,6 +85,19 @@ class CameraCaptureTest {
         capture.takePicture()
 
         assertEquals(listOf(capture.cameraUriToOpen), contentUrisInDirectory())
+    }
+
+    @Test
+    fun takePicture_afterPictureSaved_keepsPhotoAndItsFile() = runTest {
+        val photo = chosenPhoto()
+        val capture = cameraCapture(photo)
+        val cameraUri = openCamera(capture)
+        capture.pictureSaved()
+
+        capture.takePicture()
+
+        assertEquals(cameraUri, photo.uri)
+        assertEquals(2, filesInDirectory().size)
     }
 
     @Test
@@ -170,6 +184,31 @@ class CameraCaptureTest {
     }
 
     @Test
+    fun pictureCancelled_beforeCameraOpened_deletesFileAndStopsOpeningCamera() = runTest {
+        val capture = cameraCapture()
+        capture.takePicture()
+
+        capture.pictureCancelled()
+
+        assertEquals(emptyList<File>(), filesInDirectory())
+        assertNull(capture.cameraUriToOpen)
+        assertFalse(capture.isOpeningCamera)
+    }
+
+    @Test
+    fun takePicture_afterCancelledBeforeCameraOpened_asksToOpenCameraWithNewFile() = runTest {
+        val capture = cameraCapture()
+        capture.takePicture()
+        val cancelledUri = capture.cameraUriToOpen
+        capture.pictureCancelled()
+
+        capture.takePicture()
+
+        assertNotEquals(cancelledUri, capture.cameraUriToOpen)
+        assertEquals(listOf(capture.cameraUriToOpen), contentUrisInDirectory())
+    }
+
+    @Test
     fun stopOpeningCamera_beforeFileCreated_createsNone() = runTest {
         val capture = cameraCapture(ioDispatcher = StandardTestDispatcher(testScheduler))
         capture.takePicture()
@@ -192,6 +231,17 @@ class CameraCaptureTest {
         assertEquals(emptyList<File>(), filesInDirectory())
         assertNull(capture.cameraUriToOpen)
         assertFalse(capture.isOpeningCamera)
+    }
+
+    @Test
+    fun stopOpeningCamera_afterFailure_keepsFailure() = runTest {
+        val capture = cameraCapture()
+        capture.takePicture()
+        capture.cameraUnavailable()
+
+        capture.stopOpeningCamera()
+
+        assertTrue(capture.cameraFailed)
     }
 
     @Test
@@ -245,6 +295,38 @@ class CameraCaptureTest {
 
         assertNull(restored.cameraUriToOpen)
         assertFalse(restored.isOpeningCamera)
+    }
+
+    @Test
+    fun restored_afterFailure_reportsFailure() = runTest {
+        directory.writeText("A file where the directory should be")
+        cameraCapture().takePicture()
+
+        val restored = cameraCapture()
+
+        assertTrue(restored.cameraFailed)
+    }
+
+    @Test
+    fun restored_afterPictureSaved_hasNoPictureToSave() = runTest {
+        val photo = chosenPhoto()
+        openCamera(cameraCapture(photo))
+        cameraCapture(photo).pictureSaved()
+        photo.chooseFromCameraRoll(CAMERA_ROLL_URI)
+
+        cameraCapture(photo).pictureSaved()
+
+        assertEquals(CAMERA_ROLL_URI, photo.uri)
+    }
+
+    @Test
+    fun restored_whileCameraOpen_pictureCancelledDeletesFile() = runTest {
+        openCamera(cameraCapture())
+        val restored = cameraCapture()
+
+        restored.pictureCancelled()
+
+        assertEquals(emptyList<File>(), filesInDirectory())
     }
 
     // Takes a picture up to the camera app opening, and returns the URI it saves into.

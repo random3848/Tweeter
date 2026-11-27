@@ -19,22 +19,42 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/**
- * The follower relationship displayed by the Follow button.
- *
- * @property isFollowing Whether the viewer follows the displayed user.
- * @property canFollow Whether the viewer is logged in and viewing someone else.
- * @property isLoading Whether the relationship is still being read.
- * @property isChanging Whether a follow or unfollow request is running.
- * @property hasFailed Whether reading or changing the relationship failed.
- */
-data class FollowUiState(
-    val isFollowing: Boolean = false,
-    val canFollow: Boolean = false,
-    val isLoading: Boolean = false,
-    val isChanging: Boolean = false,
-    val hasFailed: Boolean = false
-)
+/** The follower relationship displayed by the Follow button, as far as it's known. */
+sealed interface FollowUiState {
+    /** A viewer who is logged out or on their own profile, and so can't follow. */
+    data object NotAllowed : FollowUiState
+
+    /** Reading the relationship, which isn't known yet. */
+    data object Loading : FollowUiState
+
+    /** Reading the relationship failed; the screen says so and offers to read it again. */
+    data object ReadFailed : FollowUiState
+
+    /**
+     * A known relationship, which the viewer may change.
+     *
+     * @property isFollowing Whether the viewer follows the displayed user.
+     * @property change Where the viewer's last follow or unfollow stands.
+     */
+    data class Loaded(val isFollowing: Boolean, val change: FollowChange = FollowChange.IDLE) :
+        FollowUiState {
+        /** Whether the viewer may follow or unfollow now, which they can't while a change runs. */
+        val canChange: Boolean
+            get() = change != FollowChange.RUNNING
+    }
+}
+
+/** Where the viewer's last follow or unfollow of the displayed user stands. */
+enum class FollowChange {
+    /** There was none, or it succeeded. */
+    IDLE,
+
+    /** Waiting for the server; the Follow button is disabled meanwhile. */
+    RUNNING,
+
+    /** It failed; the screen says so, and the user can try again with the Follow button. */
+    FAILED
+}
 
 /**
  * The follower relationship and actions for another user's profile.
@@ -48,7 +68,7 @@ class FollowViewModel(
     private val accountRepository: AccountRepository,
     private val followRepository: FollowRepository
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(FollowUiState())
+    private val _uiState = MutableStateFlow<FollowUiState>(FollowUiState.Loading)
     private var changeJob: Job? = null
     private var relationshipJob: Job? = null
 
@@ -63,97 +83,91 @@ class FollowViewModel(
         }
     }
 
-    /** Follows the displayed user when the viewer is allowed to do so. */
+    /** Follows the displayed user, if the viewer doesn't yet and no change is running. */
     fun follow() {
-        if (uiState.value.isFollowing) {
-            return
+        val state = _uiState.value
+        if (state is FollowUiState.Loaded && !state.isFollowing) {
+            changeRelationship(state, followRepository::follow)
         }
-        changeRelationship(followRepository::follow)
     }
 
-    /** Unfollows the displayed user when a following relationship exists. */
+    /** Unfollows the displayed user, if the viewer follows them and no change is running. */
     fun unfollow() {
-        if (!uiState.value.isFollowing) {
-            return
+        val state = _uiState.value
+        if (state is FollowUiState.Loaded && state.isFollowing) {
+            changeRelationship(state, followRepository::unfollow)
         }
-        changeRelationship(followRepository::unfollow)
     }
 
-    /** Retries reading the relationship after a failed attempt. */
+    /** Reads the relationship again, if reading it failed. */
     fun retry() {
-        val state = uiState.value
-        val viewerUid = accountRepository.loggedInUid.value
-        if (!state.hasFailed || state.canFollow ||
-            viewerUid == null || viewerUid == userUid
-        ) {
-            return
+        if (_uiState.value == FollowUiState.ReadFailed) {
+            observeRelationship(accountRepository.loggedInUid.value)
         }
-
-        observeRelationship(viewerUid)
     }
 
     private fun observeRelationship(viewerUid: String?) {
         relationshipJob?.cancel()
         changeJob?.cancel()
 
-        val canFollow = viewerUid != null && viewerUid != userUid
-        _uiState.value = FollowUiState(
-            canFollow = canFollow,
-            isLoading = canFollow
-        )
-
-        if (viewerUid != null && canFollow) {
-            relationshipJob = viewModelScope.launch {
-                readRelationship(viewerUid)
-            }
-        }
-    }
-
-    private suspend fun readRelationship(viewerUid: String) {
-        try {
-            followRepository.observeFollowing(viewerUid, userUid).collect { following ->
-                _uiState.update {
-                    it.copy(
-                        isFollowing = following,
-                        isLoading = false
-                    )
-                }
-            }
-        } catch (error: FollowException) {
-            Log.e("FollowViewModel", "Could not read the follower relationship", error)
-            _uiState.update {
-                it.copy(
-                    canFollow = false,
-                    isLoading = false,
-                    hasFailed = true
-                )
-            }
-        }
-    }
-
-    private fun changeRelationship(operation: suspend (String) -> Unit) {
-        val state = uiState.value
-        val viewerUid = accountRepository.loggedInUid.value
-        if (!state.canFollow || state.isLoading || state.isChanging ||
-            viewerUid == null || viewerUid == userUid
-        ) {
+        val followerUid = viewerUid?.takeIf { it != userUid }
+        if (followerUid == null) {
+            _uiState.value = FollowUiState.NotAllowed
             return
         }
 
-        _uiState.update { it.copy(isChanging = true, hasFailed = false) }
-        changeJob = viewModelScope.launch {
-            performChange(operation)
+        _uiState.value = FollowUiState.Loading
+        relationshipJob = viewModelScope.launch {
+            readRelationship(followerUid)
+        }
+    }
+
+    private suspend fun readRelationship(followerUid: String) {
+        try {
+            followRepository.observeFollowing(followerUid, userUid).collect(::showRelationship)
+        } catch (error: FollowException) {
+            Log.e("FollowViewModel", "Could not read the follower relationship", error)
+            _uiState.value = FollowUiState.ReadFailed
+        }
+    }
+
+    // Keeps where a change stands: the relationship is read again whenever it changes.
+    private fun showRelationship(isFollowing: Boolean) {
+        _uiState.update { state ->
+            if (state is FollowUiState.Loaded) {
+                state.copy(isFollowing = isFollowing)
+            } else {
+                FollowUiState.Loaded(isFollowing)
+            }
+        }
+    }
+
+    private fun changeRelationship(
+        state: FollowUiState.Loaded,
+        operation: suspend (String) -> Unit
+    ) {
+        val changing = state.copy(change = FollowChange.RUNNING)
+        if (state.canChange && _uiState.compareAndSet(state, changing)) {
+            changeJob = viewModelScope.launch {
+                performChange(operation)
+            }
         }
     }
 
     private suspend fun performChange(operation: suspend (String) -> Unit) {
         try {
             operation(userUid)
+            finishChange(FollowChange.IDLE)
         } catch (error: FollowException) {
             Log.e("FollowViewModel", "Could not change the follower relationship", error)
-            _uiState.update { it.copy(hasFailed = true) }
-        } finally {
-            _uiState.update { it.copy(isChanging = false) }
+            finishChange(FollowChange.FAILED)
+        }
+    }
+
+    // Reading the relationship may have failed while the change ran; that stays shown.
+    private fun finishChange(change: FollowChange) {
+        _uiState.update { state ->
+            if (state is FollowUiState.Loaded) state.copy(change = change) else state
         }
     }
 

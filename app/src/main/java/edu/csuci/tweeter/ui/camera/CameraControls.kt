@@ -49,7 +49,10 @@ interface CameraControls {
     /** Makes the picture the camera app saved the ViewModel's photo. */
     fun pictureSaved()
 
-    /** Gives up on the picture, which the camera app closed without saving. */
+    /**
+     * Gives up on the picture and deletes its file: the camera app closed without saving it, or
+     * the user didn't let the screen open the camera app.
+     */
     fun pictureCancelled()
 
     /** Stops reporting [cameraFailed], once the user moves on. */

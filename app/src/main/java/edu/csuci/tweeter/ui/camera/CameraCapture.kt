@@ -9,6 +9,7 @@ import edu.csuci.tweeter.data.CameraFile
 import edu.csuci.tweeter.data.CameraFileStore
 import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -41,75 +42,71 @@ class CameraCapture(
     private val scope: CoroutineScope
 ) : CameraControls,
     AutoCloseable {
-    private var isCreatingFile by mutableStateOf(false)
-
-    private var creation: Job? = null
-
-    // Created for the picture, until the screen opens the camera app with it.
-    private var fileToOpen by mutableStateOf<CameraFile?>(null)
-
-    // The camera app was opened with it, and hasn't answered yet.
-    private var openedFile: CameraFile? = savedOpenedFile()
+    private var phase by mutableStateOf(restoredPhase())
 
     override val cameraUriToOpen: String?
-        get() = fileToOpen?.contentUri
+        get() = (phase as? Phase.ReadyToOpen)?.file?.contentUri
 
     override val isOpeningCamera: Boolean
-        get() = isCreatingFile || fileToOpen != null
+        get() = phase is Phase.CreatingFile || phase is Phase.ReadyToOpen
 
-    override var cameraFailed by mutableStateOf(savedStateHandle[FAILED_KEY] ?: false)
-        private set
+    override val cameraFailed: Boolean
+        get() = phase == Phase.Failed
 
     override fun takePicture() {
         if (isOpeningCamera) {
             return
         }
 
-        updateFailed(false)
-        discardOpenedFile()
-        isCreatingFile = true
-        creation = scope.launch { createFileToOpen() }
+        val creation = scope.launch(start = CoroutineStart.LAZY) { createFileToOpen() }
+        giveUpOnPicture(Phase.CreatingFile(creation))
+        creation.start()
     }
 
     private suspend fun createFileToOpen() {
         try {
-            fileToOpen = cameraFileStore.create()
+            updatePhase(Phase.ReadyToOpen(cameraFileStore.create()))
         } catch (error: IOException) {
             Log.e("CameraCapture", "Could not create a file for the camera photo", error)
-            updateFailed(true)
-        } finally {
-            isCreatingFile = false
+            updatePhase(Phase.Failed)
         }
     }
 
     override fun cameraOpened() {
-        val opened = fileToOpen ?: return
-        fileToOpen = null
-        updateOpenedFile(opened)
+        val ready = phase as? Phase.ReadyToOpen ?: return
+        updatePhase(Phase.CameraOpen(ready.file))
     }
 
     override fun cameraUnavailable() {
-        updateFailed(true)
-        discardFileToOpen()
+        giveUpOnPicture(Phase.Failed)
     }
 
     override fun stopOpeningCamera() {
-        creation?.cancel()
-        discardFileToOpen()
+        if (isOpeningCamera) {
+            giveUpOnPicture(Phase.Idle)
+        }
     }
 
     override fun pictureSaved() {
-        val saved = openedFile ?: return
-        updateOpenedFile(null)
-        photo.chooseCameraPicture(saved)
+        val open = phase as? Phase.CameraOpen ?: return
+        updatePhase(Phase.Idle)
+        photo.chooseCameraPicture(open.file)
     }
 
     override fun pictureCancelled() {
-        discardOpenedFile()
+        when (phase) {
+            Phase.Idle, Phase.Failed -> Unit
+
+            is Phase.CreatingFile, is Phase.ReadyToOpen, is Phase.CameraOpen -> {
+                giveUpOnPicture(Phase.Idle)
+            }
+        }
     }
 
     override fun dismissCameraFailure() {
-        updateFailed(false)
+        if (cameraFailed) {
+            updatePhase(Phase.Idle)
+        }
     }
 
     /**
@@ -121,19 +118,37 @@ class CameraCapture(
      */
     override fun close() {
         scope.cancel()
-        discardFileToOpen()
+        stopOpeningCamera()
     }
 
-    private fun discardFileToOpen() {
-        val discarded = fileToOpen ?: return
-        fileToOpen = null
-        cameraFileStore.discard(discarded.path)
+    // Stops taking the picture under way, if any, deleting its file, and moves on to [nextPhase].
+    private fun giveUpOnPicture(nextPhase: Phase) {
+        when (val abandoned = phase) {
+            Phase.Idle, Phase.Failed -> Unit
+            is Phase.CreatingFile -> abandoned.creation.cancel()
+            is Phase.ReadyToOpen -> cameraFileStore.discard(abandoned.file.path)
+            is Phase.CameraOpen -> cameraFileStore.discard(abandoned.file.path)
+        }
+        updatePhase(nextPhase)
     }
 
-    private fun discardOpenedFile() {
-        val discarded = openedFile ?: return
-        updateOpenedFile(null)
-        cameraFileStore.discard(discarded.path)
+    // Only the camera-open file and the failure are saved: a file the camera app wasn't opened
+    // with yet is given up on instead, and so is one being created.
+    private fun updatePhase(newPhase: Phase) {
+        phase = newPhase
+        val openedFile = (newPhase as? Phase.CameraOpen)?.file
+        savedStateHandle[OPENED_FILE_PATH_KEY] = openedFile?.path
+        savedStateHandle[OPENED_FILE_URI_KEY] = openedFile?.contentUri
+        savedStateHandle[FAILED_KEY] = newPhase == Phase.Failed
+    }
+
+    private fun restoredPhase(): Phase {
+        val openedFile = savedOpenedFile()
+        return when {
+            openedFile != null -> Phase.CameraOpen(openedFile)
+            savedStateHandle.get<Boolean>(FAILED_KEY) == true -> Phase.Failed
+            else -> Phase.Idle
+        }
     }
 
     private fun savedOpenedFile(): CameraFile? {
@@ -142,15 +157,23 @@ class CameraCapture(
         return CameraFile(path = path, contentUri = contentUri)
     }
 
-    private fun updateOpenedFile(newFile: CameraFile?) {
-        openedFile = newFile
-        savedStateHandle[OPENED_FILE_PATH_KEY] = newFile?.path
-        savedStateHandle[OPENED_FILE_URI_KEY] = newFile?.contentUri
-    }
+    // Where taking a picture is. Each phase holds what giving up on the picture has to undo.
+    private sealed interface Phase {
+        // No picture is being taken.
+        data object Idle : Phase
 
-    private fun updateFailed(hasFailed: Boolean) {
-        cameraFailed = hasFailed
-        savedStateHandle[FAILED_KEY] = hasFailed
+        // The latest picture couldn't be taken: its file couldn't be created, or no camera app
+        // could open.
+        data object Failed : Phase
+
+        // The file for the picture is being created by [creation].
+        data class CreatingFile(val creation: Job) : Phase
+
+        // The file is ready, for the screen to open the camera app with.
+        data class ReadyToOpen(val file: CameraFile) : Phase
+
+        // The camera app was opened with [file], and hasn't answered yet.
+        data class CameraOpen(val file: CameraFile) : Phase
     }
 
     /** Creates [CameraCapture]s. */

@@ -60,8 +60,8 @@ fun EditProfileScreen(
     editProfileViewModel: EditProfileViewModel = viewModel(factory = EditProfileViewModel.factory)
 ) {
     val currentOnClose by rememberUpdatedState(onClose)
-    LaunchedEffect(editProfileViewModel.isDone) {
-        if (editProfileViewModel.isDone) {
+    LaunchedEffect(editProfileViewModel.shouldClose) {
+        if (editProfileViewModel.shouldClose) {
             currentOnClose()
         }
     }

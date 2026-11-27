@@ -1,5 +1,6 @@
 package edu.csuci.tweeter.ui.profile
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -129,56 +130,66 @@ private fun ProfileFollowControls(
         factory = FollowViewModel.createFactory(userUid)
     )
 ) {
-    val state by followViewModel.uiState.collectAsStateWithLifecycle()
+    val uiState by followViewModel.uiState.collectAsStateWithLifecycle()
 
     if (!isLoggedIn) {
-        FilledTonalButton(
-            onClick = onLogIn,
-            shape = RoundedCornerShape(8.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(40.dp)
-        ) {
-            Text(text = stringResource(R.string.profile_log_in_to_follow))
-        }
+        FollowButton(label = R.string.profile_log_in_to_follow, onClick = onLogIn)
         return
     }
 
-    FilledTonalButton(
-        onClick = {
-            if (state.isFollowing) {
-                followViewModel.unfollow()
-            } else {
-                followViewModel.follow()
+    when (val state = uiState) {
+        FollowUiState.NotAllowed, FollowUiState.Loading -> {
+            FollowButton(label = R.string.profile_follow, onClick = {}, enabled = false)
+        }
+
+        FollowUiState.ReadFailed -> {
+            FollowButton(label = R.string.profile_follow, onClick = {}, enabled = false)
+            FollowFailedMessage()
+            TextButton(onClick = followViewModel::retry) {
+                Text(text = stringResource(R.string.profile_follow_retry))
             }
-        },
-        enabled = state.canFollow && !state.isLoading && !state.isChanging,
+        }
+
+        is FollowUiState.Loaded -> {
+            if (state.isFollowing) {
+                FollowButton(
+                    label = R.string.profile_unfollow,
+                    onClick = followViewModel::unfollow,
+                    enabled = state.canChange
+                )
+            } else {
+                FollowButton(
+                    label = R.string.profile_follow,
+                    onClick = followViewModel::follow,
+                    enabled = state.canChange
+                )
+            }
+            if (state.change == FollowChange.FAILED) {
+                FollowFailedMessage()
+            }
+        }
+    }
+}
+
+@Composable
+private fun FollowButton(@StringRes label: Int, onClick: () -> Unit, enabled: Boolean = true) {
+    FilledTonalButton(
+        onClick = onClick,
+        enabled = enabled,
         shape = RoundedCornerShape(8.dp),
         modifier = Modifier
             .fillMaxWidth()
             .height(40.dp)
     ) {
-        Text(
-            text = stringResource(
-                if (state.isFollowing) {
-                    R.string.profile_unfollow
-                } else {
-                    R.string.profile_follow
-                }
-            )
-        )
+        Text(text = stringResource(label))
     }
+}
 
-    if (state.hasFailed) {
-        Text(
-            text = stringResource(R.string.profile_follow_failed),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.error
-        )
-        if (!state.canFollow) {
-            TextButton(onClick = followViewModel::retry) {
-                Text(text = stringResource(R.string.profile_follow_retry))
-            }
-        }
-    }
+@Composable
+private fun FollowFailedMessage() {
+    Text(
+        text = stringResource(R.string.profile_follow_failed),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.error
+    )
 }
