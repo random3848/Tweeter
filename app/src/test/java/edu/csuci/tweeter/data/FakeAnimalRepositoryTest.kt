@@ -2,6 +2,7 @@ package edu.csuci.tweeter.data
 
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class FakeAnimalRepositoryTest {
@@ -35,5 +36,20 @@ class FakeAnimalRepositoryTest {
             listOf("Hawk moth", "Red-tailed hawk", "Cooper's hawk"),
             repository.searchAnimals("hawk")
         )
+    }
+
+    @Test
+    fun getAnimal_listedAnimal_findsItByNameIgnoringCase() = runBlocking {
+        assertEquals("Island fox", repository.getAnimal(" island FOX ")?.name)
+    }
+
+    @Test
+    fun getAnimal_unlistedAnimal_findsNothing() = runBlocking {
+        assertNull(repository.getAnimal("Blue whale"))
+    }
+
+    @Test
+    fun getAnimal_partOfName_findsNothing() = runBlocking {
+        assertNull(repository.getAnimal("fox"))
     }
 }

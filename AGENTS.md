@@ -15,8 +15,9 @@ Layout:
   repositories screens use through interfaces (`PostRepository`, `ProfileRepository`,
   `AccountRepository`, `PhotoRepository`, `AnimalRepository`, `LikeRepository`,
   `BookmarkRepository`). `AppContainer` (owned by `TweeterApplication`) creates one Firebase
-  implementation of each, except `AnimalRepository`, which is the in-memory `FakeAnimalRepository`
-  until the iNaturalist one is built. A user's likes are documents under `users/{uid}/likes`, saved
+  implementation of each, except `AnimalRepository`, which is `INaturalistAnimalRepository`: it
+  asks iNaturalist's API for animals by their common names, which is what posts store
+  (`animalType`), and for what an animal's page shows (`Animal`). A user's likes are documents under `users/{uid}/likes`, saved
   in one batch with the post's `likeCount`, which the rules check against each other. The posts a
   user saved are empty documents under `users/{uid}/bookmarks`, which only they can read. Whether
   the user liked or saved a post depends on who is looking, so screens hold those posts' IDs as
@@ -66,8 +67,9 @@ Layout:
 - `app/src/main/java/edu/csuci/tweeter/ui/theme/`: colors, Manrope typography and the Material 3
   theme, taken from the designs. Screens use `MaterialTheme.colorScheme` and
   `MaterialTheme.typography` instead of hard-coded colors and text sizes.
-- `app/src/test/`: JVM unit tests, in the same packages as the code they test. There are no
-  instrumented tests (`app/src/androidTest`) yet.
+- `app/src/test/`: JVM unit tests, in the same packages as the code they test.
+  `app/src/androidTest/` holds the instrumented tests: so far, learning tests of iNaturalist's API,
+  which need the network.
 - `app/google-services.json`: the Firebase config the build needs, committed even though
   `.gitignore` lists it. `firestore.rules` and `storage.rules`: the Firebase security rules.
 - `ktlint-rules/`: this repo's ktlint rules (see Lint below). Not part of the app.

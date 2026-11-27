@@ -18,7 +18,8 @@ import edu.csuci.tweeter.R
 
 /**
  * The post's animal field: the user types part of a name and chooses the animal from the
- * suggestions that drop down below it, or leaves it empty.
+ * suggestions that drop down below it, or leaves it empty. When the animals can't be searched, the
+ * text under it says so.
  *
  * @param picker Holds what the user typed, the suggestions, and the chosen animal.
  * @param modifier Applied to the field.
@@ -29,10 +30,10 @@ fun AnimalField(picker: AnimalPickerViewModel, modifier: Modifier = Modifier) {
     // Lets the user close the suggestions without choosing one; typing opens them again.
     var isMenuOpen by rememberSaveable { mutableStateOf(true) }
     val showsSuggestions = isMenuOpen && picker.suggestions.isNotEmpty()
-    val hint = if (picker.isComplete) {
-        R.string.post_animal_hint
-    } else {
-        R.string.post_animal_not_chosen
+    val hint = when {
+        picker.searchFailed -> R.string.post_animal_search_failed
+        picker.isComplete -> R.string.post_animal_hint
+        else -> R.string.post_animal_not_chosen
     }
 
     ExposedDropdownMenuBox(
