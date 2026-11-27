@@ -1,0 +1,101 @@
+{
+  "total_results": 1,
+  "page": 1,
+  "per_page": 1,
+  "results": [
+    {
+      "id": 42077,
+      "name": "Urocyon littoralis",
+      "preferred_common_name": "Island Fox",
+      "rank": "species",
+      "observations_count": 4232,
+      "wikipedia_url": "https://en.wikipedia.org/wiki/Urocyon littoralis",
+      "wikipedia_summary": "The <b>island fox</b> (<i>Urocyon littoralis</i>) is a small fox that is endemic to six of the eight Channel Islands of California. There are six subspecies, each unique to the island it lives on, reflecting its evolutionary history. They are generally docile, show little fear of humans, and are easily tamed. Island foxes played an important role in the spiritual lives of native Channel Islanders. They have been likely semi-domesticated as pets, used as pelts, or for...",
+      "conservation_status": {
+        "status": "NT",
+        "authority": "IUCN Red List",
+        "iucn": 20
+      },
+      "default_photo": {
+        "attribution": "(c) Kevin Schafer, some rights reserved (CC BY-NC-ND), uploaded by Kevin Schafer",
+        "license_code": "cc-by-nc-nd",
+        "square_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/13274801/square.jpg",
+        "medium_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/13274801/medium.jpg"
+      },
+      "ancestors": [
+        {
+          "id": 1,
+          "rank": "kingdom",
+          "name": "Animalia",
+          "preferred_common_name": "Animals"
+        },
+        {
+          "id": 2,
+          "rank": "phylum",
+          "name": "Chordata",
+          "preferred_common_name": "Chordates"
+        },
+        {
+          "id": 355675,
+          "rank": "subphylum",
+          "name": "Vertebrata",
+          "preferred_common_name": "Vertebrates"
+        },
+        {
+          "id": 40151,
+          "rank": "class",
+          "name": "Mammalia",
+          "preferred_common_name": "Mammals"
+        },
+        {
+          "id": 848317,
+          "rank": "subclass",
+          "name": "Theria",
+          "preferred_common_name": "Therians"
+        },
+        {
+          "id": 848320,
+          "rank": "infraclass",
+          "name": "Placentalia",
+          "preferred_common_name": "Placental Mammals"
+        },
+        {
+          "id": 848324,
+          "rank": "superorder",
+          "name": "Laurasiatheria",
+          "preferred_common_name": "Ungulates, Carnivorans, and Allies"
+        },
+        {
+          "id": 41573,
+          "rank": "order",
+          "name": "Carnivora",
+          "preferred_common_name": "Carnivorans"
+        },
+        {
+          "id": 42043,
+          "rank": "family",
+          "name": "Canidae",
+          "preferred_common_name": "Canids"
+        },
+        {
+          "id": 42075,
+          "rank": "genus",
+          "name": "Urocyon",
+          "preferred_common_name": "Gray Foxes"
+        }
+      ],
+      "taxon_photos": [
+        {
+          "taxon_id": 42077,
+          "photo": {
+            "id": 13274801,
+            "attribution": "(c) Kevin Schafer, some rights reserved (CC BY-NC-ND), uploaded by Kevin Schafer",
+            "license_code": "cc-by-nc-nd",
+            "medium_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/13274801/medium.jpg",
+            "large_url": "https://inaturalist-open-data.s3.amazonaws.com/photos/13274801/large.jpg"
+          }
+        }
+      ]
+    }
+  ]
+}

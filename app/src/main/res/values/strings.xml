@@ -23,13 +23,32 @@
     <string name="search_animals">Animals</string>
     <string name="search_animals_loading">Finding animals…</string>
     <string name="search_open_profile">View profile</string>
-    <string name="search_open_animal">See its posts</string>
+    <string name="search_open_animal">Open its page</string>
     <plurals name="search_animal_post_count">
         <item quantity="one">%d post</item>
         <item quantity="other">%d posts</item>
     </plurals>
 
     <string name="animal_posts_empty">No posts name this animal anymore.</string>
+    <string name="animal_posts_heading">Posts on Tweeter</string>
+    <string name="animal_lookup_in_progress">Looking this animal up on iNaturalist…</string>
+    <string name="animal_not_found">iNaturalist doesn\'t know an animal by this name, so only its posts are shown.</string>
+    <string name="animal_lookup_failed">Couldn\'t reach iNaturalist to show what this animal is.</string>
+    <string name="animal_lookup_retry">Try again</string>
+    <string name="animal_photo_description">Photo of %1$s</string>
+    <string name="animal_open_wikipedia">Read more on Wikipedia</string>
+    <string name="animal_open_inaturalist">View on iNaturalist</string>
+    <plurals name="animal_observation_count">
+        <item quantity="one">%1$s observation on iNaturalist</item>
+        <item quantity="other">%1$s observations on iNaturalist</item>
+    </plurals>
+    <string name="animal_status_least_concern">Least concern (IUCN Red List)</string>
+    <string name="animal_status_near_threatened">Near threatened (IUCN Red List)</string>
+    <string name="animal_status_vulnerable">Vulnerable (IUCN Red List)</string>
+    <string name="animal_status_endangered">Endangered (IUCN Red List)</string>
+    <string name="animal_status_critically_endangered">Critically endangered (IUCN Red List)</string>
+    <string name="animal_status_extinct_in_the_wild">Extinct in the wild (IUCN Red List)</string>
+    <string name="animal_status_extinct">Extinct (IUCN Red List)</string>
 
     <!-- Two details of a post on one line, such as its place and when it was shared. -->
     <string name="post_details">%1$s · %2$s</string>
@@ -124,6 +143,7 @@
     <string name="post_animal_label">Animal</string>
     <string name="post_animal_hint">Search for the animal, or leave this empty if you\'re not sure.</string>
     <string name="post_animal_not_chosen">Choose an animal from the list, or clear this field.</string>
+    <string name="post_animal_search_failed">Couldn\'t reach iNaturalist to find animals. Check your connection and keep typing to try again.</string>
 
     <string name="location_picker_use_my_location">Use my location</string>
     <string name="location_picker_no_fix">Couldn\'t get your location. Tap the map instead.</string>

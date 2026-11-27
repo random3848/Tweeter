@@ -16,10 +16,11 @@ import edu.csuci.tweeter.ui.feed.PostList
 import edu.csuci.tweeter.ui.navigation.BackTopBar
 
 /**
- * The posts that name one animal, newest first, as Feed shows posts, under a top bar with the
- * animal's name. Search opens it. As in Feed, a heart under each post likes it and a bookmark saves
- * it, or each opens Log in for guests, who can't, and the logged-in user's own posts have a delete
- * button.
+ * An animal's page: what iNaturalist knows about it, such as a photo, its scientific name and a
+ * description, then the posts that name it, newest first, as Feed shows posts, under a top bar with
+ * the animal's name. Search opens it. As in Feed, a heart under each post likes it and a bookmark
+ * saves it, or each opens Log in for guests, who can't, and the logged-in user's own posts have a
+ * delete button.
  *
  * @param animal The animal's name, as posts name it.
  * @param onBack Returns to the screen it was opened from.
@@ -28,9 +29,10 @@ import edu.csuci.tweeter.ui.navigation.BackTopBar
  * @param onLogIn Opens Log in, for a guest who tries to like or save a post or wants to comment.
  * @param modifier Applied to the whole screen.
  * @param viewModel Supplies the animal's posts.
+ * @param detailsViewModel Looks up what iNaturalist knows about the animal.
  */
 @Composable
-fun AnimalPostsScreen(
+fun AnimalScreen(
     animal: String,
     onBack: () -> Unit,
     onShowOnMap: () -> Unit,
@@ -39,9 +41,13 @@ fun AnimalPostsScreen(
     modifier: Modifier = Modifier,
     viewModel: AnimalPostsViewModel = viewModel(
         factory = AnimalPostsViewModel.createFactory(animal)
+    ),
+    detailsViewModel: AnimalDetailsViewModel = viewModel(
+        factory = AnimalDetailsViewModel.createFactory(animal)
     )
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val detailsUiState by detailsViewModel.uiState.collectAsStateWithLifecycle()
     val loggedInUid by viewModel.loggedInUid.collectAsStateWithLifecycle()
     // Takes the post's ID, so that it stays the same lambda as new tables arrive.
     val showPostOnMap = { postId: String ->
@@ -68,7 +74,10 @@ fun AnimalPostsScreen(
                 bookmarkedPostIds = uiState.bookmarkedPostIds,
                 onBookmark = bookmarkPost
             ),
-            modifier = Modifier.weight(1f).fillMaxWidth()
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            header = {
+                AnimalDetailsHeader(uiState = detailsUiState, onRetry = detailsViewModel::retry)
+            }
         )
     }
 }

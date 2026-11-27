@@ -9,16 +9,23 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import edu.csuci.tweeter.TweeterApplication
+import edu.csuci.tweeter.data.AnimalLookupException
 import edu.csuci.tweeter.data.AnimalRepository
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+// How long typing must pause before the field searches what was typed, so that a search goes out
+// once per word rather than per keystroke, as iNaturalist asks of apps.
+private const val TYPING_PAUSE_MILLIS = 300L
 
 /**
  * The animal field of a new post: suggests animals as the user types and holds the one they
  * choose.
  *
  * A post names its animal with one of the suggestions or leaves it empty, so the field is
- * [isComplete] only then; text the user typed without choosing a suggestion isn't posted.
+ * [isComplete] only then; text the user typed without choosing a suggestion isn't posted. The
+ * field searches once the user pauses typing.
  *
  * @param animalRepository Where the suggestions come from.
  */
@@ -37,18 +44,36 @@ class AnimalPickerViewModel(private val animalRepository: AnimalRepository) : Vi
     var suggestions by mutableStateOf<List<String>>(emptyList())
         private set
 
+    /** Whether the last search failed, so the field has no suggestions to show. */
+    var searchFailed by mutableStateOf(false)
+        private set
+
     /** Whether the field is empty or holds a chosen animal, so the post can be shared. */
     val isComplete: Boolean
         get() = query.isBlank() || chosenAnimal != null
 
-    /** Sets the field to [text] the user typed, forgetting any chosen animal, and searches it. */
+    /**
+     * Sets the field to [text] the user typed, forgetting any chosen animal and failed search, and
+     * searches it unless the user types more first.
+     */
     fun updateQuery(text: String) {
         query = text
         chosenAnimal = null
+        searchFailed = false
         searchJob?.cancel()
         // Cancelling the previous search keeps its late results from replacing these.
         searchJob = viewModelScope.launch {
+            delay(TYPING_PAUSE_MILLIS)
+            showSuggestionsFor(text)
+        }
+    }
+
+    private suspend fun showSuggestionsFor(text: String) {
+        try {
             suggestions = animalRepository.searchAnimals(text)
+        } catch (error: AnimalLookupException) {
+            suggestions = emptyList()
+            searchFailed = true
         }
     }
 
@@ -66,6 +91,7 @@ class AnimalPickerViewModel(private val animalRepository: AnimalRepository) : Vi
         query = ""
         chosenAnimal = null
         suggestions = emptyList()
+        searchFailed = false
     }
 
     /** Creates ViewModels that search the app's shared [AnimalRepository]. */

@@ -1,8 +1,8 @@
 package edu.csuci.tweeter.data
 
 /**
- * An [AnimalRepository] that searches a fixed list in memory, so Post can suggest animals before
- * the iNaturalist one is built.
+ * An [AnimalRepository] that searches a fixed list in memory, for tests and for working offline.
+ * It knows only the animals' names.
  *
  * Names starting with the query rank above names that only contain it; otherwise the list's order
  * is kept.
@@ -18,6 +18,11 @@ class FakeAnimalRepository(private val animals: List<String> = SAMPLE_ANIMALS) :
 
         val matches = animals.filter { it.contains(text, ignoreCase = true) }
         return matches.sortedByDescending { it.startsWith(text, ignoreCase = true) }
+    }
+
+    override suspend fun getAnimal(name: String): Animal? {
+        val text = name.trim()
+        return animals.find { it.equals(text, ignoreCase = true) }?.let { Animal(name = it) }
     }
 }
 
