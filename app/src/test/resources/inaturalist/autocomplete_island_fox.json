@@ -1,0 +1,28 @@
+{
+  "total_results": 16,
+  "page": 1,
+  "per_page": 5,
+  "results": [
+    {
+      "id": 42077,
+      "name": "Urocyon littoralis",
+      "preferred_common_name": "Island Fox",
+      "rank": "species",
+      "matched_term": "Island Fox"
+    },
+    {
+      "id": 42075,
+      "name": "Urocyon",
+      "preferred_common_name": "Gray Foxes",
+      "rank": "genus",
+      "matched_term": "Gray and Island Foxes"
+    },
+    {
+      "id": 145536,
+      "name": "Urocyon littoralis santacruzae",
+      "preferred_common_name": "Santa Cruz Island Fox",
+      "rank": "subspecies",
+      "matched_term": "Cruz Island Fox"
+    }
+  ]
+}

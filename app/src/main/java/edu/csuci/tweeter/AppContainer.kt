@@ -11,7 +11,6 @@ import edu.csuci.tweeter.data.AnimalRepository
 import edu.csuci.tweeter.data.BookmarkRepository
 import edu.csuci.tweeter.data.CameraFileStore
 import edu.csuci.tweeter.data.CommentRepository
-import edu.csuci.tweeter.data.FakeAnimalRepository
 import edu.csuci.tweeter.data.FirebaseAccountRepository
 import edu.csuci.tweeter.data.FirebasePhotoRepository
 import edu.csuci.tweeter.data.FirestoreBookmarkRepository
@@ -24,6 +23,7 @@ import edu.csuci.tweeter.data.FirestoreProfileRepository
 import edu.csuci.tweeter.data.FirestoreReportRepository
 import edu.csuci.tweeter.data.FollowRepository
 import edu.csuci.tweeter.data.GuestSignIn
+import edu.csuci.tweeter.data.INaturalistAnimalRepository
 import edu.csuci.tweeter.data.LikeRepository
 import edu.csuci.tweeter.data.NumberStore
 import edu.csuci.tweeter.data.PhotoRepository
@@ -65,6 +65,9 @@ private const val SHARING_STOP_TIMEOUT_MILLIS = 5_000L
 
 // The shared preferences file of what the app remembers on the device between runs.
 private const val SAVED_NUMBERS_FILE = "saved_numbers"
+
+// Where iNaturalist's API is, which the app's animals come from.
+private const val INATURALIST_API_URL = "https://api.inaturalist.org"
 
 /**
  * The objects the whole app shares, created once by [TweeterApplication].
@@ -193,11 +196,14 @@ class AppContainer(private val context: Context) {
         )
     }
 
-    /**
-     * The animals a post can be tagged with: a fixed list in memory until the iNaturalist
-     * repository is built; that work replaces this.
-     */
-    val animalRepository: AnimalRepository = FakeAnimalRepository()
+    /** The animals a post can be tagged with and what is known about them, from iNaturalist. */
+    val animalRepository: AnimalRepository by lazy {
+        INaturalistAnimalRepository(
+            baseUrl = INATURALIST_API_URL,
+            userAgent = HTTP_USER_AGENT,
+            ioDispatcher = Dispatchers.IO
+        )
+    }
 
     /**
      * Saves profiles and deletes the photos the saves leave unused, waiting for the server in
@@ -267,7 +273,7 @@ class AppContainer(private val context: Context) {
     }
 
     // Checks for rare animals posted near the logged-in user, judging rarity by the app's own
-    // posts until the iNaturalist repository is built; that work replaces PostCountRarity here.
+    // posts.
     private val rareAnimalCheck: RareAnimalCheck by lazy {
         RareAnimalCheck(
             accountRepository = accountRepository,

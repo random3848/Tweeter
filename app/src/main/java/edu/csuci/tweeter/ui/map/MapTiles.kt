@@ -2,7 +2,7 @@
 
 package edu.csuci.tweeter.ui.map
 
-import edu.csuci.tweeter.BuildConfig
+import edu.csuci.tweeter.HTTP_USER_AGENT
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.SocketException
@@ -36,9 +36,6 @@ import org.maplibre.compose.resource.MapResourceRequest
 // the map downloads everything else itself, with its own User-Agent.
 private const val OPENSTREETMAP_TILE_SERVER = "https://tile.openstreetmap.org/"
 
-// Where OpenStreetMap's operators can find who runs the app.
-private const val PROJECT_URL = "https://github.com/random3848/Tweeter"
-
 // Tiles download at most this many at a time, as many connections as a browser opens to one
 // server. The rest wait.
 internal const val MAX_PARALLEL_DOWNLOADS = 6
@@ -68,7 +65,7 @@ private val NO_CACHE_DIRECTIVES = Regex("no-cache|no-store", RegexOption.IGNORE_
 
 /**
  * Makes the map download its tiles itself, naming the app in the User-Agent of every tile request:
- * `Tweeter/<version> (+<project URL>)`.
+ * [HTTP_USER_AGENT].
  *
  * OpenStreetMap's tile servers block requests that carry a map library's default User-Agent
  * (https://operations.osmfoundation.org/policies/tiles/). maplibre-compose 0.20.0 sends its
@@ -78,9 +75,9 @@ private val NO_CACHE_DIRECTIVES = Regex("no-cache|no-store", RegexOption.IGNORE_
  * Call this once, from [android.app.Application.onCreate], before any map is shown.
  */
 fun configureMapTiles() {
-    val userAgent = "Tweeter/${BuildConfig.VERSION_NAME} (+$PROJECT_URL)"
     DefaultMapRuntime.configure {
-        resourceProvider = TileProvider(userAgent = userAgent, ioDispatcher = Dispatchers.IO)
+        resourceProvider =
+            TileProvider(userAgent = HTTP_USER_AGENT, ioDispatcher = Dispatchers.IO)
     }
 }
 
