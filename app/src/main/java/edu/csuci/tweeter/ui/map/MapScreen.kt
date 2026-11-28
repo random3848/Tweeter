@@ -61,12 +61,12 @@ private const val CLOSE_UP_ZOOM = 16.0
  * The map, under the app's top bar: the posts as pins where their photos were taken, and the
  * user's location as a blue dot. It opens over the campus.
  *
- * A logged-in user chooses above the map whose posts it pins: everyone's, their friends' or their
- * own. Tapping a pin opens a popup above it with the post's photo, and the map moves to the pin.
- * Back, or a tap anywhere else on the map, closes the popup; pressing it shows the post on Home.
- * Feed shows a post here through [edu.csuci.tweeter.AppContainer.showOnMapRequest]. The location
- * button moves the map to the user, asking for location permission first if the app doesn't
- * have it.
+ * A logged-in user chooses above the map whose posts it pins: everyone's, those of the users they
+ * follow, or their own. Tapping a pin opens a popup above it with the post's photo, and the map
+ * moves to the pin. Back, or a tap anywhere else on the map, closes the popup; pressing it shows
+ * the post on Home. Feed shows a post here through
+ * [edu.csuci.tweeter.AppContainer.showOnMapRequest]. The location button moves the map to the user,
+ * asking for location permission first if the app doesn't have it.
  *
  * Once opened, the app keeps this screen composed under every other screen, so the map is drawn
  * and ready the moment the user switches back to it. While hidden, it takes no touches, shows no
@@ -121,9 +121,9 @@ fun MapScreen(
                         header = {
                             OfferedPinFilter(
                                 pinFilter = uiState.pinFilter,
-                                friendsUnknown = uiState.friendsUnknown,
+                                followedUnknown = uiState.followedUnknown,
                                 onChoose = viewModel::choosePinFilter,
-                                onRetryFriends = viewModel::retryFriends
+                                onRetryFollowed = viewModel::retryFollowed
                             )
                         }
                     ) {
@@ -150,25 +150,25 @@ fun MapScreen(
  * [PinFilterBar] with [pinFilter] selected, or nothing while the map offers no filter.
  *
  * @param pinFilter The filter selected, or null while nobody is logged in.
- * @param friendsUnknown Whether the map couldn't read the user's friends.
+ * @param followedUnknown Whether the map couldn't read who the user follows.
  * @param onChoose Called with the filter the user presses.
- * @param onRetryFriends Called when the user asks to read their friends again.
+ * @param onRetryFollowed Called when the user asks to read who they follow again.
  */
 @Composable
 private fun OfferedPinFilter(
     pinFilter: PinFilter?,
-    friendsUnknown: Boolean,
+    followedUnknown: Boolean,
     onChoose: (PinFilter) -> Unit,
-    onRetryFriends: () -> Unit
+    onRetryFollowed: () -> Unit
 ) {
     if (pinFilter == null) {
         return
     }
     PinFilterBar(
         chosen = pinFilter,
-        friendsUnknown = friendsUnknown,
+        followedUnknown = followedUnknown,
         onChoose = onChoose,
-        onRetryFriends = onRetryFriends,
+        onRetryFollowed = onRetryFollowed,
         modifier = Modifier.padding(
             start = MapOverlay.Spacing,
             top = MapOverlay.Spacing,

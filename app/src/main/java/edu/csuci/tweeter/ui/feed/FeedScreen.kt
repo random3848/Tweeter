@@ -25,16 +25,16 @@ import edu.csuci.tweeter.ui.notification.NotificationSetup
  * The home feed, the screen the app opens to, under the app's top bar.
  *
  * Displays posts from [FeedViewModel] in a clean scrolling layout, as the user picks with the chips
- * above them: everyone's by Best, Newest or Top, or, for users who are logged in, their friends'.
- * Picking one shows its first post. A label on each post's photo shows the post on Map, and a
- * heart under it likes the post, or opens Log in for guests, who can't, and a button beside it
- * opens its comments, which guests can read. A bookmark at the right end of that row saves the
- * post for the user to view later, or opens Log in for guests. When another screen asks the feed
- * to show a post, as Map's popup does, the feed scrolls to it, first switching from Friends to
- * everyone's posts, newest first, if a friend didn't write it. The logged-in user's own posts
- * have a delete button, which asks before deleting. The first time a user is logged in here, the
- * app asks them, once, to let it notify them about posts, such as rare animals posted near them
- * and popular posts (see [NotificationSetup]).
+ * above them: everyone's by Best, Newest or Top, or, for users who are logged in, those of the
+ * users they follow. Picking one shows its first post. A label on each post's photo shows the post
+ * on Map, and a heart under it likes the post, or opens Log in for guests, who can't, and a button
+ * beside it opens its comments, which guests can read. A bookmark at the right end of that row
+ * saves the post for the user to view later, or opens Log in for guests. When another screen asks
+ * the feed to show a post, as Map's popup does, the feed scrolls to it, first switching from
+ * Following to everyone's posts, newest first, if a followed user didn't write it. The logged-in
+ * user's own posts have a delete button, which asks before deleting. The first time a user is
+ * logged in here, the app asks them, once, to let it notify them about posts, such as rare animals
+ * posted near them and popular posts (see [NotificationSetup]).
  *
  * @param onShowOnMap Opens Map, once the post the user chose is requested there.
  * @param onOpenProfile Opens the selected author's profile.
@@ -114,21 +114,24 @@ fun FeedScreen(
                 FeedPosts(isLoading = uiState.isLoading, emptyMessage = R.string.feed_empty_message)
             }
 
-            is FeedAuthors.Friends -> {
-                FeedPosts(isLoading = uiState.isLoading, emptyMessage = R.string.feed_friends_empty)
+            is FeedAuthors.Followed -> {
+                FeedPosts(
+                    isLoading = uiState.isLoading,
+                    emptyMessage = R.string.feed_following_empty
+                )
             }
 
-            FeedAuthors.LoadingFriends -> {
-                FeedPosts(isLoading = true, emptyMessage = R.string.feed_friends_empty)
+            FeedAuthors.LoadingFollowed -> {
+                FeedPosts(isLoading = true, emptyMessage = R.string.feed_following_empty)
             }
 
-            FeedAuthors.UnknownFriends -> {
+            FeedAuthors.UnknownFollowed -> {
                 CenteredMessage(
-                    text = stringResource(R.string.feed_friends_unknown),
+                    text = stringResource(R.string.feed_following_unknown),
                     modifier = bodyModifier
                 ) {
-                    TextButton(onClick = feedViewModel::retryFriends) {
-                        Text(stringResource(R.string.feed_friends_retry))
+                    TextButton(onClick = feedViewModel::retryFollowed) {
+                        Text(stringResource(R.string.feed_following_retry))
                     }
                 }
             }

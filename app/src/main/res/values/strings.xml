@@ -44,10 +44,10 @@
     <string name="feed_order_best">Best</string>
     <string name="feed_order_newest">Newest</string>
     <string name="feed_order_top">Top</string>
-    <string name="feed_friends">Friends</string>
-    <string name="feed_friends_empty">No posts from friends yet. Friends are people you follow who follow you back.</string>
-    <string name="feed_friends_unknown">Could not load your friends.</string>
-    <string name="feed_friends_retry">Retry</string>
+    <string name="feed_following">Following</string>
+    <string name="feed_following_empty">No posts from people you follow yet.</string>
+    <string name="feed_following_unknown">Could not load who you follow.</string>
+    <string name="feed_following_retry">Retry</string>
     <plurals name="feed_like_count">
         <item quantity="one">%1$d like</item>
         <item quantity="other">%1$d likes</item>
@@ -57,10 +57,10 @@
     <string name="map_post_photo_description">Photo taken here</string>
     <string name="map_popup_open">See the post on Home</string>
     <string name="map_filter_all">All</string>
-    <string name="map_filter_friends">Friends</string>
+    <string name="map_filter_following">Following</string>
     <string name="map_filter_mine">Mine</string>
-    <string name="map_friends_unknown">Could not load your friends.</string>
-    <string name="map_friends_retry">Retry</string>
+    <string name="map_following_unknown">Could not load who you follow.</string>
+    <string name="map_following_retry">Retry</string>
 
     <plurals name="profile_post_count">
         <item quantity="one">%d post</item>

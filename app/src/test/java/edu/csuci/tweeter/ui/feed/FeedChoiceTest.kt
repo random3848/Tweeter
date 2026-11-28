@@ -5,8 +5,8 @@ import org.junit.Test
 
 class FeedChoiceTest {
     @Test
-    fun forEveryone_friends_isNewest() {
-        assertEquals(FeedChoice.NEWEST, FeedChoice.FRIENDS.forEveryone())
+    fun forEveryone_following_isNewest() {
+        assertEquals(FeedChoice.NEWEST, FeedChoice.FOLLOWING.forEveryone())
     }
 
     @Test

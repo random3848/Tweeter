@@ -12,8 +12,8 @@ enum class PinFilter(@StringRes val label: Int) {
     /** Every post. */
     ALL(R.string.map_filter_all),
 
-    /** The posts of the user's friends: the users who follow them and whom they follow back. */
-    FRIENDS(R.string.map_filter_friends),
+    /** The posts of the users the user follows. */
+    FOLLOWING(R.string.map_filter_following),
 
     /** The user's own posts. */
     MINE(R.string.map_filter_mine)

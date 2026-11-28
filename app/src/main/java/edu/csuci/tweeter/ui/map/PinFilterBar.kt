@@ -24,20 +24,20 @@ import org.maplibre.compose.overlay.MapOverlay
 
 /**
  * The choice of whose posts the map pins: one segmented button per [PinFilter], with [chosen]
- * selected, above a message with a retry button if the map couldn't read the user's friends.
+ * selected, above a message with a retry button if the map couldn't read who the user follows.
  *
  * @param chosen The filter whose posts the map pins.
- * @param friendsUnknown Whether the map couldn't read the user's friends.
+ * @param followedUnknown Whether the map couldn't read who the user follows.
  * @param onChoose Called with the filter the user presses.
- * @param onRetryFriends Called when the user asks to read their friends again.
+ * @param onRetryFollowed Called when the user asks to read who they follow again.
  * @param modifier Applied to the bar.
  */
 @Composable
 internal fun PinFilterBar(
     chosen: PinFilter,
-    friendsUnknown: Boolean,
+    followedUnknown: Boolean,
     onChoose: (PinFilter) -> Unit,
-    onRetryFriends: () -> Unit,
+    onRetryFollowed: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -64,14 +64,14 @@ internal fun PinFilterBar(
                 )
             }
         }
-        if (friendsUnknown) {
-            FriendsUnknownMessage(onRetry = onRetryFriends)
+        if (followedUnknown) {
+            FollowedUnknownMessage(onRetry = onRetryFollowed)
         }
     }
 }
 
 @Composable
-private fun FriendsUnknownMessage(onRetry: () -> Unit) {
+private fun FollowedUnknownMessage(onRetry: () -> Unit) {
     Surface(
         // Screen readers announce the message as it appears.
         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
@@ -83,11 +83,11 @@ private fun FriendsUnknownMessage(onRetry: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = stringResource(R.string.map_friends_unknown),
+                text = stringResource(R.string.map_following_unknown),
                 style = MaterialTheme.typography.bodySmall
             )
             TextButton(onClick = onRetry) {
-                Text(stringResource(R.string.map_friends_retry))
+                Text(stringResource(R.string.map_following_retry))
             }
         }
     }
