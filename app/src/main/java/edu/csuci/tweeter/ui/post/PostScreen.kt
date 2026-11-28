@@ -22,7 +22,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -418,13 +417,11 @@ private fun PostDetailsForm(postViewModel: PostViewModel, modifier: Modifier = M
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-            Button(
-                enabled = !postViewModel.isUploading,
-                onClick = { postViewModel.retakePhoto() }
-            ) {
-                Text(stringResource(R.string.camera_retake))
-            }
+        Button(
+            enabled = !postViewModel.isUploading,
+            onClick = { postViewModel.retakePhoto() }
+        ) {
+            Text(stringResource(R.string.camera_retake))
         }
 
         Button(

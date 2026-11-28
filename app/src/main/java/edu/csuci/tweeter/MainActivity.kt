@@ -7,9 +7,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.SideEffect
 import edu.csuci.tweeter.notification.PostNotificationTap
 import edu.csuci.tweeter.ui.TweeterApp
 import edu.csuci.tweeter.ui.theme.TweeterTheme
+import edu.csuci.tweeter.ui.theme.isDarkTheme
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -35,14 +37,18 @@ class MainActivity : ComponentActivity() {
             // Only now: an activity recreated later gets the same intent, whose post was shown.
             showTappedPost(intent)
         }
-        // The app is always light, so the system bars always use dark icons, even when the
-        // device is in dark mode.
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
-        )
+        val themeRepository = (application as TweeterApplication).container.themeRepository
         setContent {
-            TweeterTheme {
+            val darkTheme = isDarkTheme(themeRepository)
+            SideEffect {
+                val barStyle = if (darkTheme) {
+                    SystemBarStyle.dark(Color.TRANSPARENT)
+                } else {
+                    SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+                }
+                enableEdgeToEdge(statusBarStyle = barStyle, navigationBarStyle = barStyle)
+            }
+            TweeterTheme(darkTheme) {
                 TweeterApp(feedOpenings = feedOpenings)
             }
         }

@@ -35,6 +35,8 @@ import edu.csuci.tweeter.data.ProfileRepository
 import edu.csuci.tweeter.data.ProfileSaver
 import edu.csuci.tweeter.data.ReportRepository
 import edu.csuci.tweeter.data.SharedPreferencesNumberStore
+import edu.csuci.tweeter.data.SharedPreferencesThemeRepository
+import edu.csuci.tweeter.data.ThemeRepository
 import edu.csuci.tweeter.location.DeviceLocationProvider
 import edu.csuci.tweeter.location.LastLocationStore
 import edu.csuci.tweeter.location.LocationTagRemover
@@ -194,6 +196,19 @@ class AppContainer(private val context: Context) {
     }
 
     /**
+     * The user's theme choice, kept in SharedPreferences. The first screen needs it before its
+     * first frame, so [prepareFirstScreens] reads it on a background thread.
+     */
+    val themeRepository: ThemeRepository by lazy {
+        SharedPreferencesThemeRepository(
+            context.getSharedPreferences(
+                SharedPreferencesThemeRepository.PREFS_NAME,
+                Context.MODE_PRIVATE
+            )
+        )
+    }
+
+    /**
      * The animals a post can be tagged with: a fixed list in memory until the iNaturalist
      * repository is built; that work replaces this.
      */
@@ -330,16 +345,20 @@ class AppContainer(private val context: Context) {
 
     /**
      * Gets ready, on background threads, what the first screens use: the repositories they read,
-     * and the map engine, so that opening Map doesn't load it on the main thread. Their first use
-     * loads classes, settings and native libraries. Started from `MainActivity.onCreate`, that
-     * work runs on other cores while the activity starts, instead of on the main thread while the
-     * first frames wait; a process WorkManager starts for a check, which shows nothing, skips it.
+     * the saved theme, and the map engine, so that opening Map doesn't load it on the main thread.
+     * Their first use loads classes, settings and native libraries. Started from
+     * `MainActivity.onCreate`, that work runs on other cores while the activity starts, instead of
+     * on the main thread while the first frames wait; a process WorkManager starts for a check,
+     * which shows nothing, skips it.
      */
     fun prepareFirstScreens() {
         applicationScope.launch {
             postRepository
             profileRepository
             accountRepository
+            // Reading themeChoice makes the repository load the preference file, which waits for
+            // the disk, here instead of the main thread.
+            themeRepository.themeChoice
         }
         applicationScope.launch { startMapEngine() }
     }

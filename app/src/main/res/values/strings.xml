@@ -203,6 +203,10 @@
         <item quantity="other">%d followers</item>
     </plurals>
 
+    <string name="theme_title">Theme</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+
     <string name="notification_channel_animals_near_you">Rare animals near you</string>
     <string name="notification_channel_animals_near_you_description">When someone posts a rare animal near where you last used the app.</string>
     <string name="notification_rare_animal_title">Rare animal nearby: %1$s</string>
@@ -218,6 +222,7 @@
     <string name="notification_popular_post_text_no_place">%1$s likes</string>
 
     <string name="settings_title">Settings</string>
+    <string name="settings_appearance">Appearance</string>
     <string name="settings_account">Account</string>
     <string name="settings_logging_out">Logging out…</string>
     <string name="settings_log_out_failed">Could not log out. Please try again.</string>
